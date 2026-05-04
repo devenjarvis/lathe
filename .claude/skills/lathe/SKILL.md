@@ -1,3 +1,8 @@
+---
+name: lathe
+description: Generate hands-on technical tutorials for any topic on demand. Use when the user invokes /lathe with a topic like "/lathe build a digital synth in Zig" or "/lathe how to build a compiler in Rust".
+---
+
 # Lathe — Tutorial Generator
 
 Generate hands-on technical tutorials for any topic on demand.
