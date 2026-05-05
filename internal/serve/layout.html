@@ -104,32 +104,36 @@
     });
   })();
 </script>
-<script type="module">
+<script>
   // Render any ```mermaid fenced blocks the markdown renderer rewrote into
-  // <div class="mermaid"> elements. We stash the original source on each div so
-  // we can re-render with a fresh theme when the user toggles dark mode.
-  var divs = Array.prototype.slice.call(document.querySelectorAll('.mermaid'));
-  if (divs.length) {
+  // <div class="mermaid"> elements. The mermaid UMD bundle is served locally
+  // from /_static/ so this works fully offline. We stash each diagram's source
+  // on data-source so we can re-render with a fresh theme on dark-mode toggle.
+  (function(){
+    var divs = Array.prototype.slice.call(document.querySelectorAll('.mermaid'));
+    if (!divs.length) return;
     divs.forEach(function(d){ d.dataset.source = d.textContent.trim(); });
     function themeFor(){
       return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default';
     }
-    function render(mermaid){
+    function render(){
+      if (!window.mermaid) return;
       divs.forEach(function(d){
         d.removeAttribute('data-processed');
         d.textContent = d.dataset.source;
       });
-      mermaid.initialize({startOnLoad:false, theme: themeFor(), securityLevel:'loose'});
-      mermaid.run({nodes: divs}).catch(function(err){ console.warn('mermaid render failed', err); });
+      window.mermaid.initialize({startOnLoad:false, theme: themeFor(), securityLevel:'loose'});
+      window.mermaid.run({nodes: divs}).catch(function(err){ console.warn('mermaid render failed', err); });
     }
-    import('https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs')
-      .then(function(mod){
-        var mermaid = mod.default;
-        render(mermaid);
-        document.addEventListener('lathe:themechange', function(){ render(mermaid); });
-      })
-      .catch(function(err){ console.warn('mermaid load failed', err); });
-  }
+    var s = document.createElement('script');
+    s.src = '/_static/mermaid.min.js';
+    s.onload = function(){
+      render();
+      document.addEventListener('lathe:themechange', render);
+    };
+    s.onerror = function(){ console.warn('mermaid bundle failed to load'); };
+    document.body.appendChild(s);
+  })();
 </script>
 </body>
 </html>

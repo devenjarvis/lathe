@@ -16,6 +16,9 @@ import (
 //go:embed layout.html list.html
 var templateFS embed.FS
 
+//go:embed static/mermaid.min.js
+var staticFS embed.FS
+
 type Server struct {
 	tutorialsDir string
 	layoutTmpl   *template.Template
@@ -38,10 +41,36 @@ func NewServer(tutorialsDir string) *Server {
 
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /_static/{name}", s.handleStatic)
 	mux.HandleFunc("GET /{$}", s.handleList)
 	mux.HandleFunc("GET /{slug}/", s.handleTutorial)
 	mux.HandleFunc("GET /{slug}/{part}", s.handlePart)
 	return mux
+}
+
+// staticAssets whitelists the embedded files we expose under /_static/. Keeping
+// it explicit means no embed.FS path can be coaxed out of the binary by an
+// unexpected route — even though the {name} wildcard already can't contain a
+// slash, this is the cheap belt-and-suspenders check.
+var staticAssets = map[string]string{
+	"mermaid.min.js": "application/javascript; charset=utf-8",
+}
+
+func (s *Server) handleStatic(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	contentType, ok := staticAssets[name]
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	data, err := staticFS.ReadFile("static/" + name)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+	w.Write(data)
 }
 
 func (s *Server) handleList(w http.ResponseWriter, r *http.Request) {

@@ -122,6 +122,41 @@ func TestSeriesRedirect(t *testing.T) {
 	}
 }
 
+func TestStaticMermaidAsset(t *testing.T) {
+	dir := t.TempDir()
+	srv := serve.NewServer(dir)
+	req := httptest.NewRequest(http.MethodGet, "/_static/mermaid.min.js", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("GET /_static/mermaid.min.js = %d, want %d", w.Code, http.StatusOK)
+	}
+	if ct := w.Header().Get("Content-Type"); !strings.HasPrefix(ct, "application/javascript") {
+		t.Errorf("Content-Type = %q, want application/javascript", ct)
+	}
+	if w.Body.Len() < 100_000 {
+		t.Errorf("mermaid bundle suspiciously small (%d bytes)", w.Body.Len())
+	}
+	// Sanity-check that this is the real UMD bundle by looking for the global
+	// it installs on window.
+	if !strings.Contains(w.Body.String(), "mermaid") {
+		t.Error("mermaid bundle body does not mention 'mermaid'")
+	}
+}
+
+func TestStaticAssetWhitelist(t *testing.T) {
+	dir := t.TempDir()
+	srv := serve.NewServer(dir)
+	req := httptest.NewRequest(http.MethodGet, "/_static/anything-else.js", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Errorf("GET /_static/anything-else.js = %d, want %d", w.Code, http.StatusNotFound)
+	}
+}
+
 func TestPathTraversalBlocked(t *testing.T) {
 	dir := t.TempDir()
 	makeTestTutorial(t, dir, "test-tutorial", false)
