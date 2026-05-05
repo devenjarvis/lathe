@@ -76,6 +76,82 @@ func TestRenderNonMermaidCodeBlockUnchanged(t *testing.T) {
 	}
 }
 
+func TestRenderCalloutBlock(t *testing.T) {
+	src := []byte("intro\n\n> [!NOTE]\n> First sentence with **bold** word.\n>\n> Second paragraph.\n\noutro\n")
+	out, err := serve.RenderMarkdown(src)
+	if err != nil {
+		t.Fatalf("RenderMarkdown() error = %v", err)
+	}
+	html := string(out)
+
+	if !strings.Contains(html, `<aside class="callout callout-note">`) {
+		t.Errorf("callout not rewritten to <aside class=\"callout callout-note\">, got:\n%s", html)
+	}
+	if !strings.Contains(html, `<p class="callout-label">Note</p>`) {
+		t.Errorf("missing callout label, got:\n%s", html)
+	}
+	if !strings.Contains(html, "<strong>bold</strong>") {
+		t.Errorf("inner markdown (bold) was not rendered — body should be processed as markdown, got:\n%s", html)
+	}
+	if !strings.Contains(html, "Second paragraph") {
+		t.Errorf("second paragraph missing, got:\n%s", html)
+	}
+	if !strings.Contains(html, "</aside>") {
+		t.Errorf("missing closing </aside>, got:\n%s", html)
+	}
+	// The leading marker must not appear in the output as literal text.
+	if strings.Contains(html, "[!NOTE]") {
+		t.Errorf("raw [!NOTE] marker leaked into output, got:\n%s", html)
+	}
+}
+
+func TestRenderCalloutTypes(t *testing.T) {
+	cases := []struct {
+		marker     string
+		wantClass  string
+		wantLabel  string
+	}{
+		{"NOTE", "callout-note", "Note"},
+		{"TIP", "callout-tip", "Tip"},
+		{"WARNING", "callout-warning", "Warning"},
+		{"HEADS-UP", "callout-headsup", "Heads up"},
+		{"ASIDE", "callout-aside", "Aside"},
+		{"DESIGN-NOTE", "callout-designnote", "Design note"},
+	}
+	for _, c := range cases {
+		t.Run(c.marker, func(t *testing.T) {
+			src := []byte("> [!" + c.marker + "]\n> body line\n")
+			out, err := serve.RenderMarkdown(src)
+			if err != nil {
+				t.Fatalf("RenderMarkdown() error = %v", err)
+			}
+			html := string(out)
+			if !strings.Contains(html, c.wantClass) {
+				t.Errorf("missing class %q, got:\n%s", c.wantClass, html)
+			}
+			if !strings.Contains(html, ">"+c.wantLabel+"<") {
+				t.Errorf("missing label %q, got:\n%s", c.wantLabel, html)
+			}
+		})
+	}
+}
+
+func TestRenderPlainBlockquoteUnchanged(t *testing.T) {
+	// A blockquote without a [!TYPE] marker must still render as <blockquote>.
+	src := []byte("> Just a quote, nothing fancy.\n")
+	out, err := serve.RenderMarkdown(src)
+	if err != nil {
+		t.Fatalf("RenderMarkdown() error = %v", err)
+	}
+	html := string(out)
+	if !strings.Contains(html, "<blockquote>") {
+		t.Errorf("plain blockquote should still render as <blockquote>, got:\n%s", html)
+	}
+	if strings.Contains(html, "callout") {
+		t.Errorf("plain blockquote was wrongly classified as a callout, got:\n%s", html)
+	}
+}
+
 func TestHighlightCSS(t *testing.T) {
 	css, err := serve.HighlightCSS()
 	if err != nil {

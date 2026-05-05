@@ -20,6 +20,16 @@ Never write files outside the current working directory.
 3. Track the step number (1-indexed, reset per part)
 4. If any command fails or produces unexpected output, record the failure and stop immediately
 
+### What to skip
+
+The tutorial may include callouts and other non-load-bearing content. **Do not** execute commands or write files based on:
+
+- Anything inside a `> [!ASIDE]`, `> [!DESIGN-NOTE]`, `> [!NOTE]`, `> [!TIP]`, `> [!WARNING]`, or `> [!HEADS-UP]` blockquote callout — these are illustrative or advisory, not part of the build.
+- The `## Exercises` section — these are reader homework, not part of the verified path.
+- The `## What's next` section (series only) — narrative bridge, no commands.
+
+The load-bearing path is: code blocks and commands in the main body of each section, plus every `## Checkpoint` block.
+
 ## Reporting: Success
 
 Write `$LATHE_TUTORIAL_DIR/verify-result.json`:
