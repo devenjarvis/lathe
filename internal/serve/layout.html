@@ -57,6 +57,9 @@
     ul,ol{margin:.75rem 0 .75rem 1.5rem;color:var(--text-muted)}
     li{margin:.25rem 0}
     blockquote{border-left:3px solid var(--blockquote-border);padding:.5rem 1rem;margin:1rem 0;color:var(--text-faint)}
+    .mermaid{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:1rem;margin:1.25rem 0;text-align:center;overflow-x:auto}
+    .mermaid:not([data-processed]){font-family:'JetBrains Mono','Fira Code',monospace;font-size:.8rem;text-align:left;white-space:pre;color:var(--text-faint)}
+    .mermaid svg{max-width:100%;height:auto}
   </style>
 </head>
 <body>
@@ -97,8 +100,36 @@
       document.documentElement.setAttribute('data-theme', next);
       try { localStorage.setItem('lathe-theme', next); } catch (e) {}
       refresh();
+      document.dispatchEvent(new CustomEvent('lathe:themechange', {detail:{theme:next}}));
     });
   })();
+</script>
+<script type="module">
+  // Render any ```mermaid fenced blocks the markdown renderer rewrote into
+  // <div class="mermaid"> elements. We stash the original source on each div so
+  // we can re-render with a fresh theme when the user toggles dark mode.
+  var divs = Array.prototype.slice.call(document.querySelectorAll('.mermaid'));
+  if (divs.length) {
+    divs.forEach(function(d){ d.dataset.source = d.textContent.trim(); });
+    function themeFor(){
+      return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default';
+    }
+    function render(mermaid){
+      divs.forEach(function(d){
+        d.removeAttribute('data-processed');
+        d.textContent = d.dataset.source;
+      });
+      mermaid.initialize({startOnLoad:false, theme: themeFor(), securityLevel:'loose'});
+      mermaid.run({nodes: divs}).catch(function(err){ console.warn('mermaid render failed', err); });
+    }
+    import('https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs')
+      .then(function(mod){
+        var mermaid = mod.default;
+        render(mermaid);
+        document.addEventListener('lathe:themechange', function(){ render(mermaid); });
+      })
+      .catch(function(err){ console.warn('mermaid load failed', err); });
+  }
 </script>
 </body>
 </html>

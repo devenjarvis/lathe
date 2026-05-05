@@ -33,6 +33,49 @@ func TestRenderMarkdown(t *testing.T) {
 	}
 }
 
+func TestRenderMermaidBlock(t *testing.T) {
+	src := []byte("intro paragraph\n\n```mermaid\nflowchart LR\n  A --> B\n  B --> C\n```\n\noutro paragraph\n")
+
+	out, err := serve.RenderMarkdown(src)
+	if err != nil {
+		t.Fatalf("RenderMarkdown() error = %v", err)
+	}
+	html := string(out)
+
+	if !strings.Contains(html, `<div class="mermaid">`) {
+		t.Errorf("mermaid block not rewritten to <div class=\"mermaid\">, got:\n%s", html)
+	}
+	// Chroma's <pre class="chroma"> wrapper should NOT appear for the mermaid
+	// block — it bypasses syntax highlighting entirely.
+	if strings.Contains(html, `class="chroma"`) {
+		t.Errorf("mermaid block was sent through chroma highlighter, got:\n%s", html)
+	}
+	// `-->` must survive: it's mermaid edge syntax, and HTML-escaping preserves
+	// the meaning in the DOM (browser un-escapes &gt; before mermaid reads it).
+	if !strings.Contains(html, "--&gt;") && !strings.Contains(html, "-->") {
+		t.Errorf("mermaid edge arrows missing from output, got:\n%s", html)
+	}
+	if !strings.Contains(html, "flowchart LR") {
+		t.Errorf("mermaid body content missing from output, got:\n%s", html)
+	}
+}
+
+func TestRenderNonMermaidCodeBlockUnchanged(t *testing.T) {
+	// A non-mermaid fenced block should still flow through chroma.
+	src := []byte("```python\nprint('ok')\n```")
+	out, err := serve.RenderMarkdown(src)
+	if err != nil {
+		t.Fatalf("RenderMarkdown() error = %v", err)
+	}
+	html := string(out)
+	if !strings.Contains(html, `class="chroma"`) {
+		t.Errorf("non-mermaid fenced block lost chroma classes, got:\n%s", html)
+	}
+	if strings.Contains(html, `<div class="mermaid">`) {
+		t.Errorf("non-mermaid block wrongly rewritten to mermaid div, got:\n%s", html)
+	}
+}
+
 func TestHighlightCSS(t *testing.T) {
 	css, err := serve.HighlightCSS()
 	if err != nil {
