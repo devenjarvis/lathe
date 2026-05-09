@@ -176,6 +176,17 @@
     .ask-bubble{border-radius:8px;padding:.6rem .8rem;max-width:92%;white-space:pre-wrap;word-wrap:break-word;color:var(--text);font-size:.9rem;line-height:1.5}
     .ask-question{align-self:flex-end;background:var(--active-bg);color:var(--active-text)}
     .ask-answer{align-self:flex-start;background:var(--hover-bg)}
+    /* Thinking-dots placeholder: shown in the answer bubble between submit
+       and the first streamed chunk. Three small circles with a staggered
+       pulse. Reduced-motion users get static dots (essentially a "…"). */
+    .ask-bubble.thinking{display:inline-flex;align-items:center;gap:.32rem;padding:.85rem 1rem;white-space:normal}
+    .ask-bubble.thinking .dot{width:.4rem;height:.4rem;border-radius:50%;background:var(--text-faint);opacity:.35;animation:askDotPulse 1.2s infinite ease-in-out}
+    .ask-bubble.thinking .dot:nth-child(2){animation-delay:.15s}
+    .ask-bubble.thinking .dot:nth-child(3){animation-delay:.3s}
+    @keyframes askDotPulse{0%,80%,100%{opacity:.25;transform:scale(.85)}40%{opacity:1;transform:scale(1)}}
+    @media (prefers-reduced-motion: reduce){
+      .ask-bubble.thinking .dot{animation:none;opacity:.55;transform:none}
+    }
     #askForm{display:flex;flex-direction:column;gap:.6rem;padding:1rem;border-top:1px solid var(--border)}
     #askInput{width:100%;resize:vertical;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:.55rem .7rem;font:inherit;font-size:.9rem;line-height:1.4}
     #askInput:focus{outline:2px solid var(--active-text);outline-offset:1px}
@@ -480,6 +491,33 @@
       if (was) pinBottom();
       return el;
     }
+    // Insert an answer bubble in "thinking" state — three pulsing dots — that
+    // gets swapped for streamed text on the first chunk. The bubble keeps the
+    // shape `<div class="ask-bubble ask-answer">` so existing scroll logic
+    // still finds it; the `thinking` class is purely a visual toggle.
+    function appendThinkingBubble(){
+      var was = nearBottom();
+      var el = document.createElement('div');
+      el.className = 'ask-bubble ask-answer thinking';
+      el.setAttribute('aria-label', 'Thinking');
+      for (var i = 0; i < 3; i++) {
+        var d = document.createElement('span');
+        d.className = 'dot';
+        el.appendChild(d);
+      }
+      log.appendChild(el);
+      if (was) pinBottom();
+      return el;
+    }
+    // Strip the thinking-dots placeholder content so the bubble is ready for
+    // text or rendered HTML. Idempotent — safe to call after the first chunk
+    // has already cleared the dots.
+    function clearThinking(el){
+      if (!el || !el.classList.contains('thinking')) return;
+      el.classList.remove('thinking');
+      el.removeAttribute('aria-label');
+      while (el.firstChild) el.removeChild(el.firstChild);
+    }
 
     function setSending(sending){
       submit.disabled = sending;
@@ -528,7 +566,7 @@
       if (!question) return;
 
       appendBubble('ask-question', question);
-      var answer = appendBubble('ask-answer', '');
+      var answer = appendThinkingBubble();
 
       input.value = '';
       setSending(true);
@@ -553,6 +591,7 @@
 
         function appendAnswer(text){
           var was = nearBottom();
+          if (answer.classList.contains('thinking')) clearThinking(answer);
           answer.textContent = answer.textContent + text;
           if (was) pinBottom();
         }
@@ -594,8 +633,16 @@
         }
         return pump();
       }).catch(function(err){
-        if (err && err.name === 'AbortError') return;
+        if (err && err.name === 'AbortError') {
+          // Abort before any text arrived — drop the empty thinking bubble so
+          // the user isn't left staring at orphaned pulsing dots.
+          if (answer.classList.contains('thinking') && answer.parentNode) {
+            answer.parentNode.removeChild(answer);
+          }
+          return;
+        }
         var was = nearBottom();
+        if (answer.classList.contains('thinking')) clearThinking(answer);
         answer.textContent = answer.textContent + '\n\n[error: ' + (err && err.message ? err.message : 'request failed') + ']';
         if (was) pinBottom();
       }).then(function(){
