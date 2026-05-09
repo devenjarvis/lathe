@@ -240,14 +240,17 @@ func sanitizeStderr(s string) string {
 }
 
 // extractTextDelta walks the JSON envelope of a claude --output-format
-// stream-json line and returns any assistant text it carries. It handles the
-// two common shapes:
+// stream-json line and returns any assistant text it carries. It only handles
+// content_block_delta partials:
 //
-//  1. content_block_delta with a text_delta:
-//     {"type":"content_block_delta","delta":{"type":"text_delta","text":"..."}}
-//     (optionally wrapped in {"type":"stream_event","event":{...}})
-//  2. assistant message with content blocks:
-//     {"type":"assistant","message":{"content":[{"type":"text","text":"..."}]}}
+//	{"type":"content_block_delta","delta":{"type":"text_delta","text":"..."}}
+//	(optionally wrapped in {"type":"stream_event","event":{...}})
+//
+// We deliberately ignore the final {"type":"assistant",...} envelope: with
+// --include-partial-messages, that frame contains the *complete* assistant
+// text, which is the concatenation of every partial we already streamed. If
+// we returned text from it, the client would see the answer twice. The
+// assistant frame is informational only.
 //
 // Anything else (tool_use, tool_result, message_start/stop, ping, system
 // banners) returns "" and is skipped by the caller.
@@ -264,7 +267,7 @@ func extractTextDelta(v any) string {
 		}
 	}
 
-	// Shape 1: content_block_delta with text_delta.
+	// content_block_delta with text_delta.
 	if t, _ := m["type"].(string); t == "content_block_delta" {
 		if delta, ok := m["delta"].(map[string]any); ok {
 			if dt, _ := delta["type"].(string); dt == "text_delta" {
@@ -274,27 +277,6 @@ func extractTextDelta(v any) string {
 			}
 		}
 		return ""
-	}
-
-	// Shape 2: full assistant message.
-	if t, _ := m["type"].(string); t == "assistant" {
-		if msg, ok := m["message"].(map[string]any); ok {
-			if content, ok := msg["content"].([]any); ok {
-				var b strings.Builder
-				for _, block := range content {
-					bm, ok := block.(map[string]any)
-					if !ok {
-						continue
-					}
-					if bt, _ := bm["type"].(string); bt == "text" {
-						if s, ok := bm["text"].(string); ok {
-							b.WriteString(s)
-						}
-					}
-				}
-				return b.String()
-			}
-		}
 	}
 
 	return ""

@@ -2,6 +2,7 @@ package serve
 
 import (
 	"bytes"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -207,4 +208,51 @@ func TestAskHandlerValidation(t *testing.T) {
 			t.Errorf("GET /-/ask = %d, want non-200 (method not allowed)", w.Code)
 		}
 	})
+}
+
+// TestExtractTextDelta feeds a representative claude stream-json sequence
+// (a few content_block_delta partials, then the final `assistant` envelope
+// containing the concatenated full text) into extractTextDelta line-by-line
+// and asserts the assistant frame contributes zero additional text. This is
+// the regression test for the duplicate-output bug: when claude is run with
+// --include-partial-messages, the trailing assistant frame is *always* a
+// duplicate of what already streamed, so we must ignore it.
+func TestExtractTextDelta(t *testing.T) {
+	lines := []string{
+		// Banner / system frames the client should ignore.
+		`{"type":"system","subtype":"init"}`,
+		`{"type":"message_start","message":{"id":"msg_1"}}`,
+		`{"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}`,
+
+		// Partials — these carry the actual streamed text.
+		`{"type":"content_block_delta","delta":{"type":"text_delta","text":"Hello"}}`,
+		`{"type":"content_block_delta","delta":{"type":"text_delta","text":", "}}`,
+		// Same partial wrapped in a stream_event envelope, which we must unwrap.
+		`{"type":"stream_event","event":{"type":"content_block_delta","delta":{"type":"text_delta","text":"world"}}}`,
+		`{"type":"content_block_delta","delta":{"type":"text_delta","text":"!"}}`,
+
+		// Stop frame.
+		`{"type":"content_block_stop","index":0}`,
+		`{"type":"message_delta","delta":{"stop_reason":"end_turn"}}`,
+
+		// Final assistant envelope — full concatenated text. Must contribute 0.
+		`{"type":"assistant","message":{"content":[{"type":"text","text":"Hello, world!"}]}}`,
+
+		// Result frame (no text).
+		`{"type":"result","subtype":"success"}`,
+	}
+
+	var streamed strings.Builder
+	for _, line := range lines {
+		var obj any
+		if err := json.Unmarshal([]byte(line), &obj); err != nil {
+			t.Fatalf("malformed test fixture line %q: %v", line, err)
+		}
+		streamed.WriteString(extractTextDelta(obj))
+	}
+
+	want := "Hello, world!"
+	if got := streamed.String(); got != want {
+		t.Errorf("streamed output = %q, want %q (duplication or loss of text)", got, want)
+	}
 }
