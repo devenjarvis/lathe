@@ -37,6 +37,8 @@
       --callout-warn-bg:#fffbeb;--callout-warn-border:#f59e0b;--callout-warn-label:#b45309;
       --callout-design-bg:#f5f3ff;--callout-design-border:#8b5cf6;--callout-design-label:#6d28d9;
       --callout-aside-bg:transparent;--callout-aside-border:#d1d5db;--callout-aside-label:#6b7280;
+      --callout-predict-bg:#fdf4ff;--callout-predict-border:#a855f7;--callout-predict-label:#7e22ce;
+      --callout-recall-bg:#fff7ed;--callout-recall-border:#f97316;--callout-recall-label:#c2410c;
     }
     [data-theme="dark"]{
       --bg:#0f1115;--surface:#181b22;--border:#2a2f3a;--text:#e5e7eb;--text-muted:#cbd5e1;--text-subtle:#9ca3af;--text-faint:#9ca3af;
@@ -48,6 +50,8 @@
       --callout-warn-bg:#2a1f0a;--callout-warn-border:#f59e0b;--callout-warn-label:#fcd34d;
       --callout-design-bg:#1d1730;--callout-design-border:#8b5cf6;--callout-design-label:#c4b5fd;
       --callout-aside-bg:transparent;--callout-aside-border:#374151;--callout-aside-label:#9ca3af;
+      --callout-predict-bg:#1e0a2e;--callout-predict-border:#a855f7;--callout-predict-label:#d8b4fe;
+      --callout-recall-bg:#2a1500;--callout-recall-border:#f97316;--callout-recall-label:#fdba74;
     }
     *{box-sizing:border-box;margin:0;padding:0}
     html,body{overflow-x:hidden}
@@ -127,6 +131,10 @@
     .callout-designnote .callout-label{color:var(--callout-design-label)}
     .callout-aside{background:var(--callout-aside-bg);border-color:var(--callout-aside-border);font-style:italic}
     .callout-aside .callout-label{color:var(--callout-aside-label);font-style:normal}
+    .callout-predict{background:var(--callout-predict-bg);border-color:var(--callout-predict-border)}
+    .callout-predict .callout-label{color:var(--callout-predict-label)}
+    .callout-recall{background:var(--callout-recall-bg);border-color:var(--callout-recall-border)}
+    .callout-recall .callout-label{color:var(--callout-recall-label)}
     .mermaid{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:1rem;margin:1.25rem 0;text-align:center;overflow-x:auto;max-width:100%}
     .mermaid:not([data-processed]){font-family:'JetBrains Mono','Fira Code',monospace;font-size:.8rem;text-align:left;white-space:pre;color:var(--text-faint)}
     .mermaid svg{max-width:100%;height:auto}

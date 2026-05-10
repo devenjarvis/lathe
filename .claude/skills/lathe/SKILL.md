@@ -64,6 +64,9 @@ Aside or design note where it earns its keep.
 
 ## Checkpoint
 
+> [!PREDICT]
+> Before you run this: what output do you expect to see?
+
 **Run this to verify your work so far:**
 \`\`\`bash
 <the exact command>
@@ -73,6 +76,10 @@ Expected output:
 \`\`\`
 <what they should see>
 \`\`\`
+
+**Likely errors:**
+- If you see `<exact error text>`, you probably <short causal explanation, e.g. "skipped the import in §2">.
+- If you see `<exact error text>`, you probably <short causal explanation>.
 
 ## What's next            (series only, except final part)
 
@@ -86,6 +93,8 @@ One paragraph naming the unanswered question that the next part will answer.
 ```
 
 For **series**, every part must open with *"By the end of this part, you'll have [specific, concrete thing]"* and close with a Checkpoint.
+
+**Spaced retrieval for Part 2 and later:** Before the opening promise, insert one `[!RECALL]` callout that asks the reader to reconstruct a *load-bearing* concept from the previous part — something the current part depends on. One sentence is enough: *"Quick recall: what does the ring buffer's `write_pos` field track, and why does it wrap at `BUFFER_SIZE`?"* The gap between reading sessions is a free spacing event; the callout turns it into a retrieval event.
 
 ## Openings
 
@@ -145,6 +154,45 @@ You are not a docs page. You are a friend who has done this before, sitting next
 >
 > ✅ "The filter sounds like a filter — but with one note held it whines forever, which is what envelopes are for."
 
+**Prediction beat — before / after:**
+
+> ❌ *(no prediction; reader runs the command cold and either succeeds or is confused)*
+>
+> ✅
+> ```markdown
+> > [!PREDICT]
+> > Before you run this: the sine table has 1024 entries. What will `@sizeOf(@TypeOf(sine_table))` print?
+> ```
+> *(The answer — 4096 bytes — lands harder because the reader committed to a number first.)*
+
+**Recall beat — before / after (Part 2 opening):**
+
+> ❌ "In Part 2 we'll add the filter. First, a quick recap: in Part 1 we built the oscillator, which…"
+> *(Recap re-presents; the reader recognises, not recalls. No retrieval benefit.)*
+>
+> ✅
+> ```markdown
+> > [!RECALL]
+> > Quick recall before we continue: what does `write_pos % BUFFER_SIZE` accomplish, and what breaks if you forget the modulo?
+> ```
+> *(The reader must reconstruct the answer — if they can't, that's signal. If they can, the retrieval strengthens the memory.)*
+
+**Faded scaffolding — before / after:**
+
+> ❌ "Now add the Release stage:" *(followed by a fully worked block)*
+> *(Reader copies. Nothing to think about. Forgotten by tomorrow.)*
+>
+> ✅ "You've seen how `Attack` ramps from 0 to 1 over `attack_samples`. The `Release` stage does the mirror image — ramp from 1 back to 0 over `release_samples`. Write it now, using the same loop shape, then run the Checkpoint below."
+> *(One step ahead of what was shown. Pattern is in front of them. Effort is real but not punishing.)*
+
+**Closing reflection — before / after:**
+
+> ❌ "Great work! You've built a ring buffer, an oscillator, and a filter."
+> *(Cheerleading. The reader knows what they built.)*
+>
+> ✅ "Before you try the exercises: in two sentences, why does the ring buffer beat a `sync.Mutex`-guarded slice here? Write the answer that would satisfy a sceptical colleague."
+> *(Forces construction, not recognition. Surfaces gaps before the reader walks away.)*
+
 ## Asides and design notes
 
 Two distinct sidebar types, two different jobs. Lathe renders both as styled callouts.
@@ -170,8 +218,10 @@ Other callout types:
 - `> [!HEADS-UP]` — trapdoors. Things that will break in 20 minutes if the reader isn't warned now.
 - `> [!NOTE]` — neutral side info.
 - `> [!TIP]` — handy shortcut, not load-bearing.
+- `> [!PREDICT]` — prediction prompt before a Checkpoint or surprising output. One line only.
+- `> [!RECALL]` — spaced-retrieval prompt at the top of Part N≥2. One question, load-bearing concept only.
 
-Use them sparingly. One or two per part, max. A page full of callouts is a page of clutter.
+Use them sparingly. One or two per part, max. A page full of callouts is a page of clutter. `[!PREDICT]` and `[!RECALL]` are pedagogical — the verifier skips them.
 
 ## Visual artifacts
 
@@ -213,14 +263,17 @@ flowchart LR
 - No unexplained `...` ellipses. If you elide, name what's elided and why.
 - Code is complete enough to run as shown. The reader copies, saves, and sees something predictable happen.
 
+**Faded scaffolding:** The first code block in each part (or tutorial) is fully worked — reader copies, saves, runs, sees output. The last one or two code blocks shift to fill-the-seam: name the pattern the reader has seen, then ask them to write the next instance. *"You've seen how the `Attack` stage ramps from 0 to 1. Using the same pattern, write the `Release` stage — it ramps from 1 back to 0 over `release_time` samples. Then run the Checkpoint."* This is not an open exercise: the reader has the template in front of them and takes exactly one step ahead of where you stopped.
+
 ## Endings
 
 Every major section ends with a one-sentence forward-pointer naming the question the next section answers.
 
-Every tutorial — and the final part of a series — ends with **two** things:
+Every tutorial — and the final part of a series — ends with **three** things:
 
 1. **A send-off.** One short paragraph that invites the reader to leave the path you took. Nystrom's canonical: *"I want to leave you yearning to strike out on your own and wander all over that mountain."* Make yours specific to the domain.
-2. **`## Exercises`**, numbered, 3–5 of them. Each specific enough that a motivated reader can start it in 30 seconds. *"Add FM modulation between two oscillators. Routing matrix is up to you — at minimum, let oscillator 2 modulate oscillator 1's frequency."* Not *"explore further."*
+2. **A closing reflection.** One self-explanation prompt, in plain prose (not a callout): *"Before you move on: in two sentences, why does the ring buffer beat a channel here? Write it in your own words — the answer that satisfies a sceptical colleague."* Pick the single most important design decision in the tutorial and ask the reader to explain the *why*, not the *what*. Don't answer it for them.
+3. **`## Exercises`**, numbered, 3–5 of them. Each specific enough that a motivated reader can start it in 30 seconds. *"Add FM modulation between two oscillators. Routing matrix is up to you — at minimum, let oscillator 2 modulate oscillator 1's frequency."* Not *"explore further."*
 
 ## Output files
 

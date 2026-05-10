@@ -24,7 +24,7 @@ Never write files outside the current working directory.
 
 The tutorial may include callouts and other non-load-bearing content. **Do not** execute commands or write files based on:
 
-- Anything inside a `> [!ASIDE]`, `> [!DESIGN-NOTE]`, `> [!NOTE]`, `> [!TIP]`, `> [!WARNING]`, or `> [!HEADS-UP]` blockquote callout — these are illustrative or advisory, not part of the build.
+- Anything inside a `> [!ASIDE]`, `> [!DESIGN-NOTE]`, `> [!NOTE]`, `> [!TIP]`, `> [!WARNING]`, `> [!HEADS-UP]`, `> [!PREDICT]`, or `> [!RECALL]` blockquote callout — these are illustrative or advisory, not part of the build.
 - The `## Exercises` section — these are reader homework, not part of the verified path.
 - The `## What's next` section (series only) — narrative bridge, no commands.
 
