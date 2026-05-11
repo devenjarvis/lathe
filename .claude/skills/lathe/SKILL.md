@@ -97,7 +97,7 @@ One paragraph naming the unanswered question that the next part will answer.
 1. [Title](url) — one sentence on why this source matters for the topic.
 2. ...
 
-(Numbered list. Each entry: `[Title](url) — one sentence`. Group by primary docs / papers / deep-dives if more than ~5 entries.)
+(Numbered list. Only sources cited inline. Each entry: `[Title](url) — one sentence`. Group by primary docs / papers / deep-dives if more than ~5 entries.)
 ```
 
 For **series**, every part must open with *"By the end of this part, you'll have [specific, concrete thing]"* and close with a Checkpoint.
