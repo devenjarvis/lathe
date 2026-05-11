@@ -32,6 +32,7 @@ Otherwise, write a **single tutorial**.
 
 Before writing a single sentence, settle these in your head. They are constraints on your prose, not user-facing artifacts.
 
+- **Research and sources.** Before writing a single sentence, identify 3–8 authoritative sources: official docs, specs/RFCs, primary papers, well-regarded deep-dives. When a claim is load-bearing — a number, a default, a semantic guarantee, a historical fact — prefer a source over recalled knowledge. Collect URLs now; you'll cite them inline and list them in `## Sources`.
 - **The controlling example.** Pick one concrete artifact and stay with it. Crafting Interpreters has Lox. You might have *"a 4-voice subtractive synth playing a sustained A minor triad"* or *"a key-value store called `pebble` that survives `kill -9`"*. Don't switch examples mid-tutorial.
 - **Specific numbers.** Sample rate, buffer size, page size, table cardinality, latency budget — whatever the domain offers. Numbers are how you earn the reader's trust. Decide them now so they're consistent across parts.
 - **One controlling metaphor (optional but powerful).** A mountain. A factory line. A kitchen. If you adopt one, deploy it across at least three section transitions, then *explicitly retire it* with a wink (Nystrom: *"Henceforth, I promise to tone down the whole mountain metaphor thing."*). Don't mix metaphors silently.
@@ -90,6 +91,13 @@ One paragraph naming the unanswered question that the next part will answer.
 1. <specific>
 2. <specific>
 3. <specific>
+
+## Sources                 (final part of a series, or a single tutorial)
+
+1. [Title](url) — one sentence on why this source matters for the topic.
+2. ...
+
+(Numbered list. Each entry: `[Title](url) — one sentence`. Group by primary docs / papers / deep-dives if more than ~5 entries.)
 ```
 
 For **series**, every part must open with *"By the end of this part, you'll have [specific, concrete thing]"* and close with a Checkpoint.
@@ -130,6 +138,7 @@ You are not a docs page. You are a friend who has done this before, sitting next
 - **Specify weird input.** Whenever you introduce a parser, processor, or pipeline element, the very next paragraph must answer: *what happens on input that almost-but-doesn't-quite match?* In body text, not a footnote. *"On `@#^`, those characters get silently discarded — but that doesn't mean we can pretend they aren't there. Here's how we report them."*
 - **Em-dashed self-correction.** Roughly once per 800 words, visibly second-guess yourself. *"It pains me to skip the proof, but —"*. *"I went back and forth on this — the answer that won was —"*. This is what makes prose feel written *to* a reader, not *at* one.
 - **Forward-pointing endings, not recaps.** End each section by naming the question the next section answers. The reader was just there; don't summarise.
+- **Cite inline the first time a load-bearing fact lands.** When you introduce a spec section, a canonical term, a number, or a behaviour claim that the reader might want to verify, link it on first mention — markdown `[text](url)`. Deep-link to the exact section or anchor, not the homepage. Every source used inline must appear in `## Sources`.
 
 ### Avoid
 
@@ -153,6 +162,14 @@ You are not a docs page. You are a friend who has done this before, sitting next
 > ❌ "We've now built the oscillator and the filter."
 >
 > ✅ "The filter sounds like a filter — but with one note held it whines forever, which is what envelopes are for."
+
+**Inline citation — before / after:**
+
+> ❌ "Zig's `comptime` runs code at compile time, producing zero runtime overhead."
+> *(Load-bearing claim — zero overhead is a semantic guarantee — but the reader has no way to verify it or dig deeper.)*
+>
+> ✅ "Zig's [`comptime`](https://ziglang.org/documentation/master/#comptime) runs ordinary Zig code during compilation. The result is baked into the binary as a static array — [zero runtime overhead, by language guarantee](https://ziglang.org/documentation/master/#comptime). The first time you see it, it feels like cheating."
+> *(Same voice, same warmth — but the load-bearing claims carry a link. A sceptical reader can follow either one and land in the actual spec.)*
 
 **Prediction beat — before / after:**
 
@@ -269,11 +286,12 @@ flowchart LR
 
 Every major section ends with a one-sentence forward-pointer naming the question the next section answers.
 
-Every tutorial — and the final part of a series — ends with **three** things:
+Every tutorial — and the final part of a series — ends with **four** things:
 
 1. **A send-off.** One short paragraph that invites the reader to leave the path you took. Nystrom's canonical: *"I want to leave you yearning to strike out on your own and wander all over that mountain."* Make yours specific to the domain.
 2. **A closing reflection.** One self-explanation prompt, in plain prose (not a callout): *"Before you move on: in two sentences, why does the ring buffer beat a channel here? Write it in your own words — the answer that satisfies a sceptical colleague."* Pick the single most important design decision in the tutorial and ask the reader to explain the *why*, not the *what*. Don't answer it for them.
 3. **`## Exercises`**, numbered, 3–5 of them. Each specific enough that a motivated reader can start it in 30 seconds. *"Add FM modulation between two oscillators. Routing matrix is up to you — at minimum, let oscillator 2 modulate oscillator 1's frequency."* Not *"explore further."*
+4. **`## Sources`**, numbered, one entry per source used inline. Format: `[Title](url) — one sentence on why this source matters`. Group by primary docs / papers / deep-dives if more than ~5 entries. For a series, only the final part carries the consolidated Sources section; earlier parts still link inline but do not repeat the full list.
 
 ## Output files
 

@@ -27,6 +27,7 @@ The tutorial may include callouts and other non-load-bearing content. **Do not**
 - Anything inside a `> [!ASIDE]`, `> [!DESIGN-NOTE]`, `> [!NOTE]`, `> [!TIP]`, `> [!WARNING]`, `> [!HEADS-UP]`, `> [!PREDICT]`, or `> [!RECALL]` blockquote callout — these are illustrative or advisory, not part of the build.
 - The `## Exercises` section — these are reader homework, not part of the verified path.
 - The `## What's next` section (series only) — narrative bridge, no commands.
+- The `## Sources` section — reference URLs only, nothing to execute.
 
 The load-bearing path is: code blocks and commands in the main body of each section, plus every `## Checkpoint` block.
 
