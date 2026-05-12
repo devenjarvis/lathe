@@ -159,6 +159,14 @@
     .part-nav .title{font-size:.92rem;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .part-nav .next{text-align:right}
     .part-nav .spacer{display:block}
+    .extend-section{margin-top:2rem;padding-top:1.5rem;border-top:1px solid var(--border)}
+    .extend-section h3{font-size:.95rem;font-weight:600;margin:0 0 .75rem;color:var(--text-muted)}
+    #extendForm{display:flex;flex-direction:column;gap:.6rem}
+    #extendForm textarea{width:100%;padding:.6rem .75rem;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);font:inherit;font-size:.92rem;resize:vertical;min-height:4.5rem}
+    #extendForm textarea:focus{outline:2px solid var(--active-text);outline-offset:1px}
+    #extendForm button[type="submit"]{align-self:flex-start;background:var(--active-bg);color:var(--active-text);border:1px solid var(--active-text);padding:.5rem 1.1rem;border-radius:6px;font:inherit;font-size:.9rem;font-weight:600;cursor:pointer}
+    #extendForm button[type="submit"]:hover{opacity:.85}
+    .extend-error{font-size:.85rem;color:var(--badge-failed-text);min-height:1.2em}
 
     /* Floating Ask button (wide screens) */
     #askButton{position:fixed;bottom:1.5rem;right:1.5rem;z-index:40;background:var(--active-bg);color:var(--active-text);border:1px solid var(--border);font:inherit;font-weight:600;font-size:.9rem;padding:.65rem 1.1rem;border-radius:9999px;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.15);transition:transform 150ms ease-out,box-shadow 150ms ease-out}
@@ -296,6 +304,18 @@
       </a>
       {{else}}<span class="spacer"></span>{{end}}
     </nav>
+    {{end}}
+    {{if .IsLastPart}}
+    {{if ne .Tutorial.Status "extending"}}
+    <section class="extend-section">
+      <form id="extendForm" method="POST" action="/-/extend/{{.Tutorial.Slug}}" data-pending-number="{{.NextPartNumber}}">
+        <h3>Continue this series</h3>
+        <textarea name="guidance" placeholder="What should the next part cover? (optional)" rows="3"></textarea>
+        <button type="submit">Add Part {{.NextPartNumber}}</button>
+        <p class="extend-error" aria-live="polite"></p>
+      </form>
+    </section>
+    {{end}}
     {{end}}
   </main>
 </div>
@@ -743,6 +763,36 @@
         setSending(false);
         controller = null;
         try { input.focus(); } catch(e){}
+      });
+    });
+  })();
+</script>
+<script>
+  (function(){
+    var form = document.getElementById('extendForm');
+    if (!form) return;
+    form.addEventListener('submit', function(e) {
+      e.preventDefault();
+      var action = form.getAttribute('action');
+      var guidance = form.querySelector('textarea[name="guidance"]').value;
+      var errEl = form.querySelector('.extend-error');
+      errEl.textContent = '';
+      var btn = form.querySelector('button[type="submit"]');
+      btn.disabled = true;
+      fetch(action, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({guidance: guidance})
+      }).then(function(r) {
+        if (r.status === 202) {
+          window.location.reload();
+        } else {
+          r.text().then(function(t){ errEl.textContent = 'Error: ' + (t || r.status); });
+          btn.disabled = false;
+        }
+      }).catch(function(err) {
+        errEl.textContent = 'Network error: ' + err.message;
+        btn.disabled = false;
       });
     });
   })();

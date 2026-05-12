@@ -194,6 +194,7 @@ func (s *Server) renderPart(w http.ResponseWriter, tut *store.Tutorial, tutDir, 
 	var prevPart, nextPart, prevTitle, nextTitle string
 	var prevNumber, nextNumber, currentNumber int
 	var seriesTOC []SeriesEntry
+	isLast := true
 	if tut.IsSeries() {
 		seriesTOC = make([]SeriesEntry, 0, len(tut.Parts))
 		for i, p := range tut.Parts {
@@ -205,6 +206,7 @@ func (s *Server) renderPart(w http.ResponseWriter, tut *store.Tutorial, tutDir, 
 			})
 			if p == part {
 				currentNumber = i + 1
+				isLast = i == len(tut.Parts)-1
 				if i > 0 {
 					prevPart = tut.Parts[i-1]
 					prevTitle = store.SlugToTitle(strings.TrimSuffix(prevPart, ".md"))
@@ -235,6 +237,8 @@ func (s *Server) renderPart(w http.ResponseWriter, tut *store.Tutorial, tutDir, 
 		"NextNumber":        nextNumber,
 		"TOC":               toc,
 		"SeriesTOC":         seriesTOC,
+		"IsLastPart":        isLast,
+		"NextPartNumber":    len(tut.Parts) + 1,
 	}); err != nil {
 		http.Error(w, "template error", http.StatusInternalServerError)
 		return

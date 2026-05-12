@@ -461,6 +461,84 @@ func TestPathTraversalBlocked(t *testing.T) {
 	}
 }
 
+func TestExtendFormRendersOnLastPart(t *testing.T) {
+	dir := t.TempDir()
+	makeSeriesTutorialWithParts(t, dir, "test-series", 3)
+	srv := serve.NewServer(dir)
+
+	req := httptest.NewRequest(http.MethodGet, "/test-series/part-03.md", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("GET /test-series/part-03.md = %d, want %d", w.Code, http.StatusOK)
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, `id="extendForm"`) {
+		t.Error("last part should render extend form with id=extendForm")
+	}
+	if !strings.Contains(body, `action="/-/extend/test-series"`) {
+		t.Error("extend form should post to /-/extend/test-series")
+	}
+	if !strings.Contains(body, `placeholder="What should the next part cover?`) {
+		t.Error("extend form should have guidance textarea with placeholder")
+	}
+}
+
+func TestExtendFormHiddenOnNonLastPart(t *testing.T) {
+	dir := t.TempDir()
+	makeSeriesTutorialWithParts(t, dir, "test-series", 3)
+	srv := serve.NewServer(dir)
+
+	for _, part := range []string{"part-01.md", "part-02.md"} {
+		t.Run(part, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "/test-series/"+part, nil)
+			w := httptest.NewRecorder()
+			srv.Handler().ServeHTTP(w, req)
+
+			if w.Code != http.StatusOK {
+				t.Fatalf("GET /test-series/%s = %d, want %d", part, w.Code, http.StatusOK)
+			}
+			if strings.Contains(w.Body.String(), `id="extendForm"`) {
+				t.Errorf("non-last part %s should not render extend form", part)
+			}
+		})
+	}
+}
+
+func TestExtendFormOnSinglePart(t *testing.T) {
+	dir := t.TempDir()
+	tutDir := filepath.Join(dir, "single-tut")
+	if err := os.MkdirAll(tutDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	tut := &store.Tutorial{
+		Slug:    "single-tut",
+		Title:   "Single Tutorial",
+		Status:  store.StatusVerified,
+		Parts:   []string{"part-01.md"},
+		Created: time.Now(),
+	}
+	if err := os.WriteFile(filepath.Join(tutDir, "part-01.md"), []byte("# Part 1"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.WriteMetadata(tutDir, tut); err != nil {
+		t.Fatal(err)
+	}
+
+	srv := serve.NewServer(dir)
+	req := httptest.NewRequest(http.MethodGet, "/single-tut/part-01.md", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("GET /single-tut/part-01.md = %d, want %d", w.Code, http.StatusOK)
+	}
+	if !strings.Contains(w.Body.String(), `id="extendForm"`) {
+		t.Error("single-part tutorial should render extend form on its only part")
+	}
+}
+
 func TestExtendingBadgeRendersOnList(t *testing.T) {
 	dir := t.TempDir()
 	tutDir := filepath.Join(dir, "test-extending")
