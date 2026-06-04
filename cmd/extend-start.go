@@ -51,7 +51,7 @@ var extendStartCmd = &cobra.Command{
 		}
 
 		// Print only the filename so the skill can capture it cleanly.
-		fmt.Fprintln(cmd.OutOrStdout(), pendingPart)
+		_, _ = fmt.Fprintln(cmd.OutOrStdout(), pendingPart)
 		return nil
 	},
 }

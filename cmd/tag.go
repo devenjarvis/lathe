@@ -70,9 +70,9 @@ var tagCmd = &cobra.Command{
 			return fmt.Errorf("write metadata: %w", err)
 		}
 		if len(tags) == 0 {
-			fmt.Fprintf(cmd.OutOrStdout(), "Cleared tags for %q\n", slug)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Cleared tags for %q\n", slug)
 		} else {
-			fmt.Fprintf(cmd.OutOrStdout(), "Tags for %q: %s\n", slug, strings.Join(tags, ", "))
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Tags for %q: %s\n", slug, strings.Join(tags, ", "))
 		}
 		return nil
 	},

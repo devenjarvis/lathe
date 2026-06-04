@@ -31,7 +31,7 @@ var verifyCmd = &cobra.Command{
 			return fmt.Errorf("no stored tutorial %q: %w", slug, err)
 		}
 
-		fmt.Fprintf(cmd.OutOrStdout(),
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(),
 			"To verify %q, run this in your Claude Code session:\n\n  /lathe-verify %s\n", slug, slug)
 		return nil
 	},

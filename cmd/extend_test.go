@@ -47,7 +47,7 @@ func TestExtendCommandFoldsGuidanceIntoHandoff(t *testing.T) {
 	extendCmd.SetOut(&out)
 	t.Cleanup(func() { extendCmd.SetOut(nil) })
 	extendCmd.Flags().Set("guidance", "cover the filter envelope") //nolint:errcheck
-	t.Cleanup(func() { extendCmd.Flags().Set("guidance", "") })     //nolint:errcheck
+	t.Cleanup(func() { extendCmd.Flags().Set("guidance", "") })    //nolint:errcheck
 	if err := extendCmd.RunE(extendCmd, []string{"test-slug"}); err != nil {
 		t.Fatalf("extend: %v", err)
 	}

@@ -52,7 +52,19 @@ go test ./...                     # run all tests
 go vet ./...                      # static checks
 ```
 
-There is no top-level test runner script — tests are plain `go test`. The `/lathe` (`lathe`) binary built from this repo is gitignored at the repo root.
+Tests are plain `go test` (no top-level runner script). The `/lathe` (`lathe`) binary built from this repo is gitignored at the repo root.
+
+### CI gate — run before opening a PR
+
+CI (`.github/workflows/ci.yml`) runs `mage check` on every PR and push to `main`: gofmt, `go vet`, `golangci-lint`, `go test -race ./...`, and `go build`. **Before opening or updating a PR, run `mage check` and make sure it's green** — don't push work that leaves CI red. `mage check` is the exact command CI runs, so local and CI cannot drift.
+
+`magefile.go` defines the targets (`mage fmt|fmtCheck|vet|lint|test|build`, and `mage check` for all of them; `mage` alone runs `check`). It's stdlib-only and build-tagged (`//go:build mage`), so it adds nothing to `go.mod`. Lint config lives in `.golangci.yml`. One-time tool install:
+
+```bash
+go install github.com/magefile/mage@v1.15.0
+curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b "$(go env GOPATH)/bin" v2.12.2
+mage fmt                          # auto-fix formatting; mage check is read-only on fmt
+```
 
 ## Architecture notes
 

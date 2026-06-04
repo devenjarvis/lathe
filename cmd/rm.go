@@ -18,18 +18,18 @@ var rmCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		slug := args[0]
 		if !rmForce {
-			fmt.Fprintf(cmd.OutOrStdout(), "Delete tutorial %q? [y/N]: ", slug)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Delete tutorial %q? [y/N]: ", slug)
 			reader := bufio.NewReader(cmd.InOrStdin())
 			line, _ := reader.ReadString('\n')
 			if strings.ToLower(strings.TrimSpace(line)) != "y" {
-				fmt.Fprintln(cmd.OutOrStdout(), "aborted")
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(), "aborted")
 				return nil
 			}
 		}
 		if err := store.Delete(slug); err != nil {
 			return err
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), "Deleted %s\n", slug)
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Deleted %s\n", slug)
 		return nil
 	},
 }

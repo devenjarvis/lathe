@@ -40,9 +40,7 @@ var storeCmd = &cobra.Command{
 func splitTags(raw []string) []string {
 	var out []string
 	for _, r := range raw {
-		for _, p := range strings.Split(r, ",") {
-			out = append(out, p)
-		}
+		out = append(out, strings.Split(r, ",")...)
 	}
 	return out
 }
