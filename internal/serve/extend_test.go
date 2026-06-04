@@ -85,26 +85,45 @@ func TestExtendOversizeBodyIs400(t *testing.T) {
 	}
 }
 
-func TestExtendBlankGuidanceAccepted(t *testing.T) {
+func TestExtendBlankGuidanceReturnsHandoff(t *testing.T) {
 	dir := t.TempDir()
-	t.Setenv("PATH", "") // prevent claude from spawning
 	makeExtendTutorial(t, dir, "test-tut", store.StatusVerified, []string{"part-01.md"})
 	srv := serve.NewServer(dir)
 
 	body, _ := json.Marshal(map[string]string{"guidance": ""})
 	w := postExtend(t, srv, "test-tut", body)
 
-	if w.Code != http.StatusAccepted {
-		t.Errorf("blank guidance = %d, want 202", w.Code)
+	if w.Code != http.StatusOK {
+		t.Errorf("blank guidance = %d, want 200", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), "/lathe-extend test-tut") {
+		t.Errorf("body = %q, want the /lathe-extend handoff command", w.Body.String())
 	}
 
+	// The web button must not change status — the /lathe-extend skill marks it
+	// extending when it actually starts.
 	tutDir := filepath.Join(dir, "test-tut")
 	got, err := store.ReadMetadata(tutDir)
 	if err != nil {
 		t.Fatalf("ReadMetadata: %v", err)
 	}
-	if got.Status != store.StatusExtending {
-		t.Errorf("Status = %q, want %q", got.Status, store.StatusExtending)
+	if got.Status != store.StatusVerified {
+		t.Errorf("Status = %q, want %q (handoff must not change status)", got.Status, store.StatusVerified)
+	}
+}
+
+func TestExtendGuidanceFlowsIntoHandoff(t *testing.T) {
+	dir := t.TempDir()
+	makeExtendTutorial(t, dir, "test-tut", store.StatusVerified, []string{"part-01.md"})
+	srv := serve.NewServer(dir)
+
+	body, _ := json.Marshal(map[string]string{"guidance": "cover the filter envelope"})
+	w := postExtend(t, srv, "test-tut", body)
+	if w.Code != http.StatusOK {
+		t.Fatalf("with guidance = %d, want 200", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), "/lathe-extend test-tut cover the filter envelope") {
+		t.Errorf("body = %q, want guidance folded into the handoff command", w.Body.String())
 	}
 }
 

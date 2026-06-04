@@ -2,11 +2,8 @@ package cmd
 
 import (
 	"fmt"
-	"path/filepath"
 
-	"github.com/devenjarvis/lathe/internal/config"
 	"github.com/devenjarvis/lathe/internal/store"
-	"github.com/devenjarvis/lathe/internal/verify"
 	"github.com/spf13/cobra"
 )
 
@@ -21,26 +18,18 @@ var storeCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		if withVerify {
-			tutorialsDir, err := config.TutorialsDir()
-			if err != nil {
-				return err
-			}
-			tutDir := filepath.Join(tutorialsDir, tut.Slug)
-			if err := verify.StartVerification(tut.Slug, tutDir); err != nil {
-				return fmt.Errorf("start verification: %w", err)
-			}
-			tut.Status = store.StatusVerifying
-		}
 		fmt.Printf("Stored: %s (%s)\n", tut.Title, tut.Status)
+		// Verification runs in the user's interactive Claude Code session via
+		// the /lathe-verify skill (no metered headless run), so --verify just
+		// surfaces the command to run rather than spawning anything.
 		if withVerify {
-			fmt.Println("Verification running in background. Run `lathe serve` to check status.")
+			fmt.Printf("\nTo verify it, run this in your Claude Code session:\n\n  /lathe-verify %s\n", tut.Slug)
 		}
 		return nil
 	},
 }
 
 func init() {
-	storeCmd.Flags().BoolVar(&withVerify, "verify", false, "run verification after storing")
+	storeCmd.Flags().BoolVar(&withVerify, "verify", false, "print the command to verify after storing")
 	rootCmd.AddCommand(storeCmd)
 }

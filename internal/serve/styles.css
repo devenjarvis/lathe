@@ -310,29 +310,19 @@ pre[data-overflow="true"]{box-shadow:inset -18px 0 14px -12px rgba(40,30,20,.20)
 [data-theme="dark"] #askBackdrop{background:rgba(0,0,0,.55)}
 #askLog{flex:1;overflow-y:auto;padding:1rem;display:flex;flex-direction:column;gap:.75rem}
 .ask-bubble{border-radius:var(--radius-md);padding:.6rem .8rem;max-width:92%;word-wrap:break-word;color:var(--text);font-size:.92rem;line-height:1.55}
-/* Question bubbles and the text fallback for answers both need pre-wrap so
-   SSE-streamed `\n`s render. Markdown-rendered answers don't — the HTML
-   structure carries line breaks and pre-wrap there would surface inter-element
-   whitespace as ugly blank lines. */
+/* Question and answer bubbles use pre-wrap so multi-line text keeps its line
+   breaks. */
 .ask-question{align-self:flex-end;background:var(--accent-soft);color:var(--accent);white-space:pre-wrap}
 .ask-answer{align-self:flex-start;background:var(--surface-sunken);white-space:pre-wrap}
-.ask-answer.markdown{white-space:normal}
-.ask-answer.markdown > :first-child{margin-top:0}
-.ask-answer.markdown > :last-child{margin-bottom:0}
-.ask-answer.markdown p{margin-bottom:.5rem;color:var(--text)}
-.ask-answer.markdown ul,.ask-answer.markdown ol{margin:.4rem 0 .4rem 1.25rem}
-.ask-answer.markdown pre{margin:.6rem 0}
-/* Thinking-dots placeholder: shown in the answer bubble between submit and the
-   first streamed chunk. Three small circles with a staggered pulse. Reduced-
-   motion users get static dots (essentially a "…"). */
-.ask-bubble.thinking{display:inline-flex;align-items:center;gap:.32rem;padding:.85rem 1rem;white-space:normal}
-.ask-bubble.thinking .dot{width:.4rem;height:.4rem;border-radius:50%;background:var(--text-faint);opacity:.35;animation:askDotPulse 1.2s infinite ease-in-out}
-.ask-bubble.thinking .dot:nth-child(2){animation-delay:.15s}
-.ask-bubble.thinking .dot:nth-child(3){animation-delay:.3s}
-@keyframes askDotPulse{0%,80%,100%{opacity:.25;transform:scale(.85)}40%{opacity:1;transform:scale(1)}}
-@media (prefers-reduced-motion: reduce){
-  .ask-bubble.thinking .dot{animation:none;opacity:.55;transform:none}
-}
+/* Handoff panels: answering, verifying, and extending now run in the user's
+   interactive Claude Code session, so these surfaces hand back a slash-command
+   to paste rather than streaming a result. Shared styling for the Ask-drawer
+   bubble variant (.ask-handoff*) and the verify/extend form variant
+   (.handoff-*). */
+.ask-handoff{white-space:normal}
+.ask-handoff-note,.handoff-note{font-size:.85rem;color:var(--text-muted);margin:0 0 .5rem}
+.ask-handoff-cmd,.handoff-cmd{margin:0 0 .6rem;white-space:pre-wrap;word-break:break-word;font-size:.85rem}
+.handoff-panel{margin-top:.5rem}
 #askForm{display:flex;flex-direction:column;gap:.6rem;padding:1rem;border-top:1px solid var(--border)}
 #askInput{width:100%;resize:vertical;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:var(--radius-md);padding:.55rem .7rem;font-family:var(--font-body);font-size:.92rem;line-height:1.4}
 #askInput:focus{outline:2px solid var(--accent);outline-offset:1px}

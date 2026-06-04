@@ -432,42 +432,6 @@ func TestStaticAssetWhitelist(t *testing.T) {
 	}
 }
 
-func TestStaticMarkedAndDompurifyAssets(t *testing.T) {
-	dir := t.TempDir()
-	srv := serve.NewServer(dir)
-
-	cases := []struct {
-		name     string
-		path     string
-		minBytes int
-		mustHave string
-	}{
-		{"marked", "/_static/marked.min.js", 10_000, "marked"},
-		{"dompurify", "/_static/dompurify.min.js", 10_000, "DOMPurify"},
-	}
-	for _, tc := range cases {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodGet, tc.path, nil)
-			w := httptest.NewRecorder()
-			srv.Handler().ServeHTTP(w, req)
-
-			if w.Code != http.StatusOK {
-				t.Fatalf("GET %s = %d, want %d", tc.path, w.Code, http.StatusOK)
-			}
-			if ct := w.Header().Get("Content-Type"); !strings.HasPrefix(ct, "application/javascript") {
-				t.Errorf("%s Content-Type = %q, want application/javascript", tc.name, ct)
-			}
-			if w.Body.Len() < tc.minBytes {
-				t.Errorf("%s bundle suspiciously small (%d bytes)", tc.name, w.Body.Len())
-			}
-			if !strings.Contains(w.Body.String(), tc.mustHave) {
-				t.Errorf("%s bundle missing identifier %q", tc.name, tc.mustHave)
-			}
-		})
-	}
-}
-
 func TestDeleteEndpointRemovesTutorial(t *testing.T) {
 	dir := t.TempDir()
 	tutDir := makeTestTutorial(t, dir, "doomed", false)

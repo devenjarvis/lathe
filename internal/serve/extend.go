@@ -4,13 +4,19 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"strings"
 
-	"github.com/devenjarvis/lathe/internal/extend"
 	"github.com/devenjarvis/lathe/internal/store"
 )
 
 const maxGuidanceBytes = 2 * 1024
 
+// handleExtend no longer spawns a generator. Adding a part runs in the user's
+// interactive Claude Code session via the /lathe-extend skill (so it stays on
+// their subscription instead of metering a headless `claude -p`). The button
+// hands back the exact skill command, folding in any guidance the reader typed;
+// the skill reserves the part (`lathe extend-start`), writes it, and records it
+// (`lathe extend-commit`).
 func (s *Server) handleExtend(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
 	tutDir, ok := s.safeTutorialPath(slug)
@@ -47,25 +53,10 @@ func (s *Server) handleExtend(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := store.PromoteIndexToPart(tutDir); err != nil {
-		http.Error(w, "promote failed", http.StatusInternalServerError)
-		return
+	command := "/lathe-extend " + slug
+	if g := strings.TrimSpace(payload.Guidance); g != "" {
+		// Collapse newlines so the handoff stays a single pasteable line.
+		command += " " + strings.Join(strings.Fields(g), " ")
 	}
-
-	// SpawnExtender writes metadata to "extending" before attempting spawn.
-	// A spawn failure leaves metadata committed; we return 202 regardless so
-	// the UI can show the in-flight badge (the background goroutine flips to
-	// "failed" if the subprocess exits badly).
-	extend.SpawnExtender(slug, tutDir, payload.Guidance) //nolint:errcheck
-
-	tut, err = store.ReadMetadata(tutDir)
-	if err != nil || tut.Status != store.StatusExtending {
-		http.Error(w, "extend failed", http.StatusInternalServerError)
-		return
-	}
-
-	if tut.PendingPart != "" {
-		w.Header().Set("Location", "/"+slug+"/"+tut.PendingPart)
-	}
-	w.WriteHeader(http.StatusAccepted)
+	writeHandoff(w, command)
 }

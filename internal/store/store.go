@@ -14,7 +14,7 @@ import (
 
 // Store copies a tutorial directory into ~/.lathe/tutorials/ and writes its
 // metadata with status=unverified. Verification is opt-in and never auto-runs
-// here — callers trigger it separately via verify.StartVerification.
+// here — the user triggers it separately via the /lathe-verify skill.
 func Store(srcPath string) (*Tutorial, error) {
 	slug := filepath.Base(strings.TrimSuffix(srcPath, string(filepath.Separator)))
 	// The generation skill writes to /tmp/lathe-<slug>/ (the "lathe-" prefix

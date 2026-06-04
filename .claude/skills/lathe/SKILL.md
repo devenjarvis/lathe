@@ -304,8 +304,9 @@ lathe store /tmp/lathe-<slug>
 Then tell the user:
 
 - "**Tutorial saved.** Run `lathe serve` to open it at http://localhost:4242."
-- "This is Part 1. To add more parts, open the tutorial in `lathe serve` and use **'Add a new part'** at the bottom — you can give guidance or let it continue naturally."
-- "Verification is opt-in: click **Verify this tutorial** in the web UI or run `lathe verify <slug>`. It needs the tutorial's toolchain installed locally; if a required tool is missing it shows a ⚠️ Skipped badge (not a failure)."
+- "This is Part 1. To add more parts, run `/lathe-extend <slug>` in your Claude Code session (the **'Add a new part'** button in `lathe serve` hands you that command) — give guidance or let it continue naturally."
+- "Verification is opt-in: run `/lathe-verify <slug>` in your Claude Code session (the **Verify this tutorial** button in the web UI hands you that command). It needs the tutorial's toolchain installed locally; if a required tool is missing it shows a ⚠️ Skipped badge (not a failure)."
+- "Reading in `lathe serve`? The **Ask** button hands you `/lathe-ask <slug> <part>` to ask questions about a part right here in this session."
 
 ## Stay in session
 

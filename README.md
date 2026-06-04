@@ -8,11 +8,11 @@ Lathe targets topics where good documentation is scarce — *"build a digital sy
 
 Two layers with a clean boundary:
 
-- **`/lathe` skill** (Claude Code) — generates the tutorial markdown. Asks one or two scoping questions, writes `part-01.md` to `/tmp/lathe-<slug>/`, then hands off to the CLI. Additional parts are added on demand via the browser UI.
-- **`lathe` CLI** (Go) — copies the tutorial into `~/.lathe/tutorials/`, serves the rendered output at `http://localhost:4242`, and — on demand — spawns a background Claude subprocess that works through the tutorial step by step to verify it compiles and runs.
+- **Claude Code skills** — generate and work with tutorials, all run in your **interactive** Claude Code session: `/lathe` writes `part-01.md`, `/lathe-extend` adds the next part, `/lathe-verify` works through a tutorial to confirm it compiles and runs, and `/lathe-ask` answers questions about a part you're reading. Running them interactively keeps the work on your Claude subscription (headless `claude -p` is metered as of 2026-06-15; interactive use is not).
+- **`lathe` CLI** (Go) — copies tutorials into `~/.lathe/tutorials/`, serves the rendered output at `http://localhost:4242`, and owns all durable state. It never calls `claude` itself: the web buttons and the `lathe verify`/`lathe extend` commands just hand you the skill command to paste into your session, and the skills call back into the CLI (`lathe store`, `lathe verify-result`, `lathe extend-start`/`extend-commit`) to record results.
 
 ```
-User: /lathe "build a digital synth in Zig"
+User: /lathe "build a digital synth in Zig"     (interactive Claude Code)
         │
         ▼
   [/lathe skill]                     generates part-01.md
@@ -24,12 +24,12 @@ User: /lathe "build a digital synth in Zig"
         │       metadata.json        status: unverified
         │       part-01.md, part-02.md, …
         │
-        └── on demand: `lathe verify <slug>` / "Verify this tutorial" button
-                │       metadata.json   status: verifying → verified | failed | skipped
-                ▼
-            [bg: claude + /lathe-verify skill in a /tmp temp dir]
-                works through each step, runs every checkpoint command,
-                writes verify-result.json + verify.log, updates metadata status
+        └── lathe serve → "Verify"/"Add Part"/"Ask" buttons hand you a command
+                │
+                ▼  paste into your session: /lathe-verify <slug>
+            [/lathe-verify skill, interactively]
+                works through each step, runs every checkpoint command, then
+                `lathe verify-result` updates metadata: verifying → verified | failed | skipped
 
 User: lathe serve  →  http://localhost:4242  (browser opens automatically)
 ```
@@ -50,7 +50,7 @@ cd lathe
 go build -o lathe
 ```
 
-The `/lathe` generation skill lives at `.claude/skills/lathe/lathe.md` in this repo. Copy it into your own project's `.claude/skills/` (or your user-level skills directory) so Claude Code can discover it.
+The skills live under `.claude/skills/` in this repo — `lathe/`, `lathe-verify/`, `lathe-extend/`, and `lathe-ask/`, each a `SKILL.md`. Copy them into your own project's `.claude/skills/` (or your user-level skills directory) so Claude Code can discover them.
 
 ## Usage
 
@@ -72,8 +72,9 @@ Other commands:
 lathe list               # show all stored tutorials with status badges
 lathe open <slug>        # open a specific tutorial (requires lathe serve)
 lathe store <path>       # save a tutorial directory manually (status: unverified)
-lathe store <path> --verify   # save and immediately run verification
-lathe verify <slug>      # run (or re-run) verification for a stored tutorial
+lathe store <path> --verify   # save, then print the /lathe-verify command to run
+lathe verify <slug>      # print the /lathe-verify <slug> command to run in your session
+lathe extend <slug>      # print the /lathe-extend <slug> command to run in your session
 lathe rm <slug>          # delete a stored tutorial (prompts unless --force)
 ```
 
@@ -115,29 +116,34 @@ Status is one of `unverified` (the default after `lathe store`; renders no badge
 
 ## Verification
 
-Verification is **opt-in**. Storing a tutorial leaves it `unverified` — nothing runs until you ask, either with `lathe verify <slug>`, the `--verify` flag on `lathe store`, or the **Verify this tutorial** button in the web UI.
+Verification is **opt-in** and runs in your interactive Claude Code session. Storing a tutorial leaves it `unverified` — nothing runs until you ask. The `lathe verify <slug>` command, the `--verify` flag on `lathe store`, and the **Verify this tutorial** button in the web UI all just hand you the same command to paste into your session:
 
-When triggered, Lathe spawns a detached `claude` subprocess **inside a fresh `/tmp/lathe-verify-*` directory** (its working directory is pinned there with `cmd.Dir`, so build artifacts never land in your repo) with the embedded `/lathe-verify` skill. The subprocess works through every step in the tutorial — creating files, running commands, executing each `## Checkpoint` block — and reports the result back into the tutorial's `metadata.json`. While it runs, the web page auto-refreshes every 5s, so the badge moves ⏳ → ✅ / ❌ / ⚠️ on its own. The subprocess's stdout/stderr are captured to `~/.lathe/tutorials/<slug>/verify.log`.
+```
+/lathe-verify <slug>
+```
 
-Verification only makes sense where the tutorial's toolchain is installed. If a required tool is missing (e.g. no `zig` binary), the run is reported as **skipped** (⚠️) rather than failed — "couldn't verify here" is not the same as "broken." A run is bounded by a 20-minute timeout (generous, to tolerate first-time toolchain downloads); if the subprocess hangs or crashes without reporting, the status falls back to `failed` with an explanatory error instead of sticking at ⏳.
+The `/lathe-verify` skill works through every step in the tutorial — creating files in a fresh `mktemp -d` scratch dir (never your repo), running commands, executing each `## Checkpoint` block — then calls `lathe verify-result` to record the outcome in the tutorial's `metadata.json`. It marks the run `verifying` when it starts and a terminal `verified` / `failed` / `skipped` when it finishes; while a run is in flight the web page auto-refreshes every 5s, so the badge moves ⏳ → ✅ / ❌ / ⚠️ on its own.
 
-Verification runs with `--dangerously-skip-permissions` and is sandboxed only by the temp working directory plus scoped `--add-dir` grants (the temp dir and the tutorial dir) and skill instructions to stay within them. Treat it as soft isolation, not a security boundary.
+Verification only makes sense where the tutorial's toolchain is installed. If a required tool is missing (e.g. no `zig` binary), the run is reported as **skipped** (⚠️) rather than failed — "couldn't verify here" is not the same as "broken."
+
+Because verification now runs in your own interactive session, it executes under your normal Claude Code permission model — you see and approve the tool calls. The scratch-dir convention keeps build artifacts out of your repo, but treat it as soft isolation, not a security boundary.
 
 ## Dependencies
 
 - [`spf13/cobra`](https://github.com/spf13/cobra) — CLI command structure
 - [`yuin/goldmark`](https://github.com/yuin/goldmark) + [`goldmark-highlighting`](https://github.com/yuin/goldmark-highlighting) — markdown rendering with Chroma syntax highlighting
-- `claude` CLI — required for verification (`lathe verify` / `--verify`) and for invoking the `/lathe` skill
+- `claude` CLI — Claude Code, where the `/lathe`, `/lathe-verify`, `/lathe-extend`, and `/lathe-ask` skills run
 
 ## Repository layout
 
 ```
-cmd/                CLI entry points (root, list, open, rm, serve, store)
+cmd/                CLI commands (root, list, open, rm, serve, store, verify, extend,
+                    verify-result, extend-start, extend-commit)
 internal/config/    ~/.lathe/tutorials path resolution
 internal/store/     copy + metadata read/write, slug detection
-internal/serve/     HTTP server, markdown renderer, embedded HTML templates
-internal/verify/    background subprocess + embedded /lathe-verify skill
-.claude/skills/     /lathe generation skill
+internal/serve/     HTTP server, markdown renderer, embedded HTML templates, handoff endpoints
+internal/extend/    NextPartFilename helper
+.claude/skills/     lathe, lathe-verify, lathe-extend, lathe-ask skills (user-invoked, interactive)
 docs/superpowers/   design spec and bootstrap plan
 main.go             cobra entrypoint
 ```

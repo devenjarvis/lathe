@@ -43,23 +43,27 @@ func TestVerifyUnknownSlugIs404(t *testing.T) {
 	}
 }
 
-func TestVerifyAcceptedSetsVerifying(t *testing.T) {
+func TestVerifyReturnsHandoffCommand(t *testing.T) {
 	dir := t.TempDir()
-	t.Setenv("PATH", "") // prevent claude from spawning; status flip still happens
 	makeExtendTutorial(t, dir, "test-tut", store.StatusUnverified, []string{"part-01.md"})
 	srv := serve.NewServer(dir)
 
 	w := postVerify(t, srv, "test-tut")
-	if w.Code != http.StatusAccepted {
-		t.Errorf("verify = %d, want 202", w.Code)
+	if w.Code != http.StatusOK {
+		t.Errorf("verify = %d, want 200", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), "/lathe-verify test-tut") {
+		t.Errorf("body = %q, want the /lathe-verify handoff command", w.Body.String())
 	}
 
+	// The web button must not change status — the /lathe-verify skill marks it
+	// verifying when it actually starts, so the badge can't get stuck.
 	got, err := store.ReadMetadata(filepath.Join(dir, "test-tut"))
 	if err != nil {
 		t.Fatalf("ReadMetadata: %v", err)
 	}
-	if got.Status != store.StatusVerifying {
-		t.Errorf("Status = %q, want %q", got.Status, store.StatusVerifying)
+	if got.Status != store.StatusUnverified {
+		t.Errorf("Status = %q, want %q (handoff must not change status)", got.Status, store.StatusUnverified)
 	}
 }
 

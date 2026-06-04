@@ -1,49 +1,58 @@
 package cmd
 
 import (
-	"os"
-	"path/filepath"
+	"bytes"
+	"strings"
 	"testing"
 
 	"github.com/devenjarvis/lathe/internal/store"
 )
 
-func TestExtendCommandFlipsMetadataToExtending(t *testing.T) {
+func TestExtendCommandPrintsHandoff(t *testing.T) {
 	homeDir := t.TempDir()
 	t.Setenv("HOME", homeDir)
-	t.Setenv("PATH", "") // prevent claude from being found
+	tutDir := writeTutorial(t, homeDir, "test-slug", store.StatusVerified, []string{"part-01.md"})
 
-	// Create a minimal tutorial under ~/.lathe/tutorials/test-slug/
-	tutDir := filepath.Join(homeDir, ".lathe", "tutorials", "test-slug")
-	if err := os.MkdirAll(tutDir, 0755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(tutDir, "part-01.md"), []byte("# Part 1"), 0644); err != nil {
-		t.Fatal(err)
-	}
-	tut := &store.Tutorial{
-		Slug:   "test-slug",
-		Title:  "Test Slug",
-		Status: store.StatusVerified,
-		Parts:  []string{"part-01.md"},
-	}
-	if err := store.WriteMetadata(tutDir, tut); err != nil {
-		t.Fatal(err)
-	}
-
-	// Run the command directly; PATH="" means SpawnExtender will fail fast but
-	// metadata flip happens before spawn.
+	var out bytes.Buffer
+	extendCmd.SetOut(&out)
+	t.Cleanup(func() { extendCmd.SetOut(nil) })
 	extendCmd.Flags().Set("guidance", "") //nolint:errcheck
-	extendCmd.RunE(extendCmd, []string{"test-slug"})
+	if err := extendCmd.RunE(extendCmd, []string{"test-slug"}); err != nil {
+		t.Fatalf("extend: %v", err)
+	}
 
+	if !strings.Contains(out.String(), "/lathe-extend test-slug") {
+		t.Errorf("output = %q, want the /lathe-extend handoff command", out.String())
+	}
+
+	// Handoff must not touch durable state — the skill does that.
 	got, err := store.ReadMetadata(tutDir)
 	if err != nil {
-		t.Fatalf("ReadMetadata after extend: %v", err)
+		t.Fatalf("ReadMetadata: %v", err)
 	}
-	if got.Status != store.StatusExtending {
-		t.Errorf("Status = %q, want %q", got.Status, store.StatusExtending)
+	if got.Status != store.StatusVerified {
+		t.Errorf("Status = %q, want %q (handoff must not change status)", got.Status, store.StatusVerified)
 	}
-	if got.PendingPart != "part-02.md" {
-		t.Errorf("PendingPart = %q, want %q", got.PendingPart, "part-02.md")
+	if got.PendingPart != "" {
+		t.Errorf("PendingPart = %q, want empty (handoff must not reserve a part)", got.PendingPart)
+	}
+}
+
+func TestExtendCommandFoldsGuidanceIntoHandoff(t *testing.T) {
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+	writeTutorial(t, homeDir, "test-slug", store.StatusVerified, []string{"part-01.md"})
+
+	var out bytes.Buffer
+	extendCmd.SetOut(&out)
+	t.Cleanup(func() { extendCmd.SetOut(nil) })
+	extendCmd.Flags().Set("guidance", "cover the filter envelope") //nolint:errcheck
+	t.Cleanup(func() { extendCmd.Flags().Set("guidance", "") })     //nolint:errcheck
+	if err := extendCmd.RunE(extendCmd, []string{"test-slug"}); err != nil {
+		t.Fatalf("extend: %v", err)
+	}
+
+	if !strings.Contains(out.String(), "/lathe-extend test-slug cover the filter envelope") {
+		t.Errorf("output = %q, want guidance folded into the handoff", out.String())
 	}
 }

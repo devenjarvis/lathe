@@ -126,7 +126,6 @@
     <textarea id="askInput" placeholder="Ask a question…" rows="2" required></textarea>
     <div class="ask-controls">
       <button type="submit" id="askSubmit" class="btn btn-primary btn-sm">Send</button>
-      <button type="button" id="askStop" class="btn btn-danger btn-sm" hidden>Stop</button>
     </div>
   </form>
 </aside>
@@ -274,54 +273,12 @@
     var form = document.getElementById('askForm');
     var input = document.getElementById('askInput');
     var submit = document.getElementById('askSubmit');
-    var stop = document.getElementById('askStop');
     if (!drawer || !openButtons.length || !form) return;
 
     var slug = drawer.getAttribute('data-slug') || '';
     var part = drawer.getAttribute('data-part') || '';
-    var controller = null;
-
-    // Lazy-load marked + DOMPurify the first time the drawer is opened. Both
-    // bundles are vendored under /_static/. State machine:
-    //   false       — not yet attempted
-    //   'pending'   — script tags injected, waiting on load/error
-    //   true        — both bundles ready, marked configured
-    //   'failed'    — at least one bundle failed; render path falls back to
-    //                 plain text and the chat still works
-    var mdLoaded = false;
-    function ensureMarkdownLibs(){
-      if (mdLoaded) return;
-      mdLoaded = 'pending';
-      var pending = 2;
-      var failed = false;
-      function done(success){
-        if (!success) failed = true;
-        if (--pending > 0) return;
-        if (failed || !window.marked || !window.DOMPurify) {
-          mdLoaded = 'failed';
-          return;
-        }
-        try {
-          // GFM features (tables, strikethrough) + soft line breaks rendered
-          // as <br> so chat-style replies look right.
-          window.marked.setOptions({ gfm: true, breaks: true });
-        } catch (e) {}
-        mdLoaded = true;
-      }
-      function load(src){
-        var s = document.createElement('script');
-        s.src = src;
-        s.async = true;
-        s.onload = function(){ done(true); };
-        s.onerror = function(){ done(false); };
-        document.body.appendChild(s);
-      }
-      load('/_static/marked.min.js');
-      load('/_static/dompurify.min.js');
-    }
 
     function openDrawer(){
-      ensureMarkdownLibs();
       drawer.classList.add('open');
       drawer.setAttribute('aria-hidden', 'false');
       backdrop.hidden = false;
@@ -331,9 +288,6 @@
       drawer.classList.remove('open');
       drawer.setAttribute('aria-hidden', 'true');
       backdrop.hidden = true;
-      if (controller) {
-        try { controller.abort(); } catch(e){}
-      }
     }
 
     openButtons.forEach(function(b){ b.addEventListener('click', openDrawer); });
@@ -360,37 +314,44 @@
       if (was) pinBottom();
       return el;
     }
-    // Insert an answer bubble in "thinking" state — three pulsing dots — that
-    // gets swapped for streamed text on the first chunk. The bubble keeps the
-    // shape `<div class="ask-bubble ask-answer">` so existing scroll logic
-    // still finds it; the `thinking` class is purely a visual toggle.
-    function appendThinkingBubble(){
+    // Append a bubble containing the paste-able handoff: a short instruction,
+    // the command in a <pre>, and a Copy button wired to the clipboard.
+    function appendHandoff(command){
       var was = nearBottom();
       var el = document.createElement('div');
-      el.className = 'ask-bubble ask-answer thinking';
-      el.setAttribute('aria-label', 'Thinking');
-      for (var i = 0; i < 3; i++) {
-        var d = document.createElement('span');
-        d.className = 'dot';
-        el.appendChild(d);
-      }
+      el.className = 'ask-bubble ask-answer ask-handoff';
+
+      var note = document.createElement('p');
+      note.className = 'ask-handoff-note';
+      note.textContent = 'Paste this into your Claude Code session to answer it there:';
+      el.appendChild(note);
+
+      var pre = document.createElement('pre');
+      pre.className = 'ask-handoff-cmd';
+      pre.textContent = command;
+      el.appendChild(pre);
+
+      var copy = document.createElement('button');
+      copy.type = 'button';
+      copy.className = 'btn btn-sm';
+      copy.textContent = 'Copy';
+      copy.addEventListener('click', function(){
+        try {
+          navigator.clipboard.writeText(command).then(function(){
+            copy.textContent = 'Copied';
+            setTimeout(function(){ copy.textContent = 'Copy'; }, 1500);
+          });
+        } catch (e) {}
+      });
+      el.appendChild(copy);
+
       log.appendChild(el);
       if (was) pinBottom();
       return el;
     }
-    // Strip the thinking-dots placeholder content so the bubble is ready for
-    // text or rendered HTML. Idempotent — safe to call after the first chunk
-    // has already cleared the dots.
-    function clearThinking(el){
-      if (!el || !el.classList.contains('thinking')) return;
-      el.classList.remove('thinking');
-      el.removeAttribute('aria-label');
-      while (el.firstChild) el.removeChild(el.firstChild);
-    }
 
     function setSending(sending){
       submit.disabled = sending;
-      stop.hidden = !sending;
       input.disabled = sending;
     }
 
@@ -401,214 +362,117 @@
       }
     });
 
-    stop.addEventListener('click', function(){
-      if (controller) {
-        try { controller.abort(); } catch(e){}
-      }
-    });
-
-    function parseSseFrame(frame){
-      var event = 'message';
-      var dataLines = [];
-      var lines = frame.split('\n');
-      for (var i = 0; i < lines.length; i++) {
-        var line = lines[i];
-        if (!line) continue;
-        if (line.charAt(0) === ':') continue;
-        var idx = line.indexOf(':');
-        var field, value;
-        if (idx === -1) { field = line; value = ''; }
-        else {
-          field = line.substring(0, idx);
-          value = line.substring(idx + 1);
-          if (value.charAt(0) === ' ') value = value.substring(1);
-        }
-        if (field === 'event') event = value;
-        else if (field === 'data') dataLines.push(value);
-      }
-      return { event: event, data: dataLines.join('\n') };
-    }
-
     form.addEventListener('submit', function(ev){
       ev.preventDefault();
       var question = (input.value || '').trim();
       if (!question) return;
 
       appendBubble('ask-question', question);
-      var answer = appendThinkingBubble();
-
       input.value = '';
       setSending(true);
       pinBottom();
 
-      // Per-question buffer of streamed text, plus a RAF token so we re-render
-      // at most once per frame regardless of how many chunks arrived. The
-      // answer bubble's HTML is replaced wholesale on each render — DOMPurify
-      // is the security boundary, sanitizing every rendered output. The
-      // `aborted` flag short-circuits any RAF that was queued before the user
-      // pressed Stop / closed the drawer, so we don't write to a detached
-      // node or to a bubble the user has already torn down.
-      var ansBuf = '';
-      var rafScheduled = false;
-      var aborted = false;
-      function renderAnswer(){
-        rafScheduled = false;
-        if (aborted) return;
-        var was = nearBottom();
-        if (answer.classList.contains('thinking')) clearThinking(answer);
-        var rendered = false;
-        if (mdLoaded === true && window.marked && window.DOMPurify) {
-          try {
-            answer.innerHTML = window.DOMPurify.sanitize(window.marked.parse(ansBuf));
-            rendered = true;
-          } catch (e) {
-            // Fall through to text fallback.
-          }
-        }
-        if (!rendered) {
-          // Pending or failed lib load (or marked threw) — show plain text. If
-          // libs finish loading mid-stream, the next chunk re-renders as HTML.
-          answer.textContent = ansBuf;
-        }
-        answer.classList.toggle('markdown', rendered);
-        if (was) pinBottom();
-      }
-      function appendAnswer(text){
-        ansBuf += text;
-        if (!rafScheduled) {
-          rafScheduled = true;
-          requestAnimationFrame(renderAnswer);
-        }
-      }
-
-      controller = new AbortController();
       var url = '/-/ask/' + encodeURIComponent(slug) + '/' + encodeURIComponent(part);
-
       fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question: question }),
-        signal: controller.signal
+        body: JSON.stringify({ question: question })
       }).then(function(response){
-        if (!response.ok || !response.body) {
-          throw new Error('HTTP ' + response.status);
-        }
-        var reader = response.body.getReader();
-        var decoder = new TextDecoder();
-        var buffer = '';
-        var done = false;
-
-        function processBuffer(){
-          var idx;
-          while ((idx = buffer.indexOf('\n\n')) !== -1) {
-            var frame = buffer.substring(0, idx);
-            buffer = buffer.substring(idx + 2);
-            if (!frame) continue;
-            var parsed = parseSseFrame(frame);
-            if (parsed.event === 'done') {
-              done = true;
-              return;
-            } else if (parsed.event === 'error') {
-              appendAnswer('\n\n[error: ' + parsed.data + ']');
-            } else {
-              appendAnswer(parsed.data);
-            }
-          }
-        }
-
-        function pump(){
-          return reader.read().then(function(result){
-            if (result.value) {
-              buffer += decoder.decode(result.value, { stream: true });
-              processBuffer();
-            }
-            if (done || result.done) {
-              if (!done && buffer) {
-                buffer += '\n\n';
-                processBuffer();
-              }
-              try { reader.cancel(); } catch(e){}
-              return;
-            }
-            return pump();
+        if (!response.ok) {
+          return response.text().then(function(t){
+            throw new Error(t || ('HTTP ' + response.status));
           });
         }
-        return pump();
+        return response.json().then(function(data){
+          appendHandoff(data.command || '');
+        });
       }).catch(function(err){
-        if (err && err.name === 'AbortError') {
-          // Suppress any RAF queued before the abort — without this flag, a
-          // pending render can fire after Stop and briefly redraw the bubble
-          // (or worse, write to a detached node in the no-text case below).
-          aborted = true;
-          // Abort before any text arrived — drop the empty thinking bubble so
-          // the user isn't left staring at orphaned pulsing dots.
-          if (answer.classList.contains('thinking') && answer.parentNode) {
-            answer.parentNode.removeChild(answer);
-          }
-          return;
-        }
-        appendAnswer('\n\n[error: ' + (err && err.message ? err.message : 'request failed') + ']');
+        appendBubble('ask-answer', 'Error: ' + (err && err.message ? err.message : 'request failed'));
       }).then(function(){
         setSending(false);
-        controller = null;
         try { input.focus(); } catch(e){}
       });
     });
   })();
 </script>
 <script>
+  // Verify and "Add Part" both hand off to the user's interactive Claude Code
+  // session instead of running anything server-side. On success the server
+  // returns {command}; we render a "copy this and paste it into Claude Code"
+  // panel in place of the form.
   (function(){
-    var form = document.getElementById('extendForm');
-    if (!form) return;
-    form.addEventListener('submit', function(e) {
-      e.preventDefault();
-      var action = form.getAttribute('action');
-      var guidance = form.querySelector('textarea[name="guidance"]').value;
-      var errEl = form.querySelector('.extend-error');
-      errEl.textContent = '';
-      var btn = form.querySelector('button[type="submit"]');
-      btn.disabled = true;
-      fetch(action, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({guidance: guidance})
-      }).then(function(r) {
-        if (r.status === 202) {
-          window.location.reload();
-        } else {
-          r.text().then(function(t){ errEl.textContent = 'Error: ' + (t || r.status); });
-          btn.disabled = false;
-        }
-      }).catch(function(err) {
-        errEl.textContent = 'Network error: ' + err.message;
-        btn.disabled = false;
+    function renderHandoff(section, command, lead){
+      var panel = document.createElement('div');
+      panel.className = 'handoff-panel';
+
+      var note = document.createElement('p');
+      note.className = 'handoff-note';
+      note.textContent = lead;
+      panel.appendChild(note);
+
+      var pre = document.createElement('pre');
+      pre.className = 'handoff-cmd';
+      pre.textContent = command;
+      panel.appendChild(pre);
+
+      var copy = document.createElement('button');
+      copy.type = 'button';
+      copy.className = 'btn btn-sm';
+      copy.textContent = 'Copy';
+      copy.addEventListener('click', function(){
+        try {
+          navigator.clipboard.writeText(command).then(function(){
+            copy.textContent = 'Copied';
+            setTimeout(function(){ copy.textContent = 'Copy'; }, 1500);
+          });
+        } catch (e) {}
       });
-    });
-  })();
-</script>
-<script>
-  (function(){
-    var form = document.getElementById('verifyForm');
-    if (!form) return;
-    form.addEventListener('submit', function(e) {
-      e.preventDefault();
-      var action = form.getAttribute('action');
-      var errEl = form.querySelector('.verify-error');
-      errEl.textContent = '';
-      var btn = form.querySelector('button[type="submit"]');
-      btn.disabled = true;
-      fetch(action, {method: 'POST'}).then(function(r) {
-        if (r.status === 202) {
-          window.location.reload();
-        } else {
-          r.text().then(function(t){ errEl.textContent = 'Error: ' + (t || r.status); });
+      panel.appendChild(copy);
+
+      section.innerHTML = '';
+      section.appendChild(panel);
+    }
+
+    function wire(formId, errClass, lead, bodyFn){
+      var form = document.getElementById(formId);
+      if (!form) return;
+      form.addEventListener('submit', function(e){
+        e.preventDefault();
+        var action = form.getAttribute('action');
+        var errEl = form.querySelector(errClass);
+        if (errEl) errEl.textContent = '';
+        var btn = form.querySelector('button[type="submit"]');
+        btn.disabled = true;
+        fetch(action, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: bodyFn(form)
+        }).then(function(r){
+          if (r.ok) {
+            return r.json().then(function(data){
+              renderHandoff(form.closest('section') || form.parentNode, data.command || '', lead);
+            });
+          }
+          return r.text().then(function(t){
+            if (errEl) errEl.textContent = 'Error: ' + (t || r.status);
+            btn.disabled = false;
+          });
+        }).catch(function(err){
+          if (errEl) errEl.textContent = 'Network error: ' + err.message;
           btn.disabled = false;
-        }
-      }).catch(function(err) {
-        errEl.textContent = 'Network error: ' + err.message;
-        btn.disabled = false;
+        });
       });
-    });
+    }
+
+    wire('verifyForm', '.verify-error',
+      'To verify this tutorial, paste this into your Claude Code session:',
+      function(){ return null; });
+    wire('extendForm', '.extend-error',
+      'To add this part, paste this into your Claude Code session:',
+      function(form){
+        var guidance = form.querySelector('textarea[name="guidance"]').value;
+        return JSON.stringify({guidance: guidance});
+      });
   })();
 </script>
 </body>
