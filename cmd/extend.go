@@ -37,7 +37,7 @@ var extendCmd = &cobra.Command{
 		if extendGuidance != "" {
 			handoff += " " + extendGuidance
 		}
-		fmt.Fprintf(cmd.OutOrStdout(),
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(),
 			"To add a new part to %q, run this in your Claude Code session:\n\n  %s\n", slug, handoff)
 		return nil
 	},

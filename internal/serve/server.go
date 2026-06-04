@@ -102,7 +102,7 @@ func (s *Server) handleStatic(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", contentType)
 	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
-	w.Write(data)
+	_, _ = w.Write(data)
 }
 
 func (s *Server) handleList(w http.ResponseWriter, r *http.Request) {
@@ -132,7 +132,7 @@ func (s *Server) handleList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	buf.WriteTo(w)
+	_, _ = buf.WriteTo(w)
 }
 
 func (s *Server) safeTutorialPath(parts ...string) (string, bool) {
@@ -288,7 +288,7 @@ func (s *Server) renderPart(w http.ResponseWriter, tut *store.Tutorial, tutDir, 
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	buf.WriteTo(w)
+	_, _ = buf.WriteTo(w)
 }
 
 func pendingPartNumber(pendingPart string, fallback int) int {

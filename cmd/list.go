@@ -29,7 +29,7 @@ var listCmd = &cobra.Command{
 			return nil
 		}
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(w, "SLUG\tTITLE\tSTATUS\tPARTS")
+		_, _ = fmt.Fprintln(w, "SLUG\tTITLE\tSTATUS\tPARTS")
 		for _, e := range entries {
 			if !e.IsDir() {
 				continue
@@ -43,7 +43,7 @@ var listCmd = &cobra.Command{
 				parts = fmt.Sprintf("%d parts", len(tut.Parts))
 			}
 			badge := statusBadge(tut.Status)
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", tut.Slug, tut.Title, badge, parts)
+			_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", tut.Slug, tut.Title, badge, parts)
 		}
 		return w.Flush()
 	},

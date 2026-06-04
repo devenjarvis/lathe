@@ -41,7 +41,7 @@ func openBrowser(url string) {
 		return
 	}
 	if err := exec.Command(bin, url).Start(); err != nil {
-		fmt.Fprintf(os.Stderr, "warning: could not open browser: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "warning: could not open browser: %v\n", err)
 	}
 }
 

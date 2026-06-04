@@ -81,7 +81,7 @@ var verifyResultCmd = &cobra.Command{
 		if err := store.WriteMetadata(tutDir, tut); err != nil {
 			return fmt.Errorf("write metadata: %w", err)
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), "Recorded %s for %q\n", status, slug)
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Recorded %s for %q\n", status, slug)
 		return nil
 	},
 }

@@ -57,7 +57,7 @@ var extendCommitCmd = &cobra.Command{
 		if err := store.WriteMetadata(tutDir, tut); err != nil {
 			return fmt.Errorf("write metadata: %w", err)
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), "Added %s to %q\n", partFile, slug)
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Added %s to %q\n", partFile, slug)
 		return nil
 	},
 }

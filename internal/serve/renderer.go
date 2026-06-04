@@ -90,7 +90,8 @@ func RenderMarkdownWithTOC(src []byte) ([]byte, []TOCEntry, error) {
 // formatting like `code` or *emphasis* contributes plain text only.
 func collectH2TOC(doc ast.Node, src []byte) []TOCEntry {
 	var toc []TOCEntry
-	ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+	// The walk callback never returns an error, so the Walk result is safe to drop.
+	_ = ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
 		if !entering {
 			return ast.WalkContinue, nil
 		}
@@ -120,7 +121,8 @@ func collectH2TOC(doc ast.Node, src []byte) []TOCEntry {
 // so this captures their visible text without HTML markup.
 func extractInlineText(n ast.Node, src []byte) string {
 	var b strings.Builder
-	ast.Walk(n, func(c ast.Node, entering bool) (ast.WalkStatus, error) {
+	// The walk callback never returns an error, so the Walk result is safe to drop.
+	_ = ast.Walk(n, func(c ast.Node, entering bool) (ast.WalkStatus, error) {
 		if !entering {
 			return ast.WalkContinue, nil
 		}

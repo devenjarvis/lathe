@@ -1,0 +1,15 @@
+version: "2"
+
+linters:
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+
+# Report every finding rather than capping repeats, so CI never silently hides
+# issues behind the default per-issue limits.
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
