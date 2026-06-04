@@ -28,6 +28,14 @@
     <a href="/" class="back-link">← All tutorials</a>
     <h2>{{.Tutorial.Title}}</h2>
     {{template "badge" .Tutorial.Status}}
+    {{if .VerifiedDate}}<p class="provenance verified-date">Verified {{.VerifiedDate}}</p>{{end}}
+    {{if .UnverifiedCount}}<p class="provenance unverified-note">{{.UnverifiedCount}} claim{{if ne .UnverifiedCount 1}}s{{end}} flagged unverified — marked inline.</p>{{end}}
+    {{if .Tutorial.Sources}}
+    <details class="provenance sources">
+      <summary>Researched against {{len .Tutorial.Sources}} source{{if ne (len .Tutorial.Sources) 1}}s{{end}}</summary>
+      <ul>{{range .Tutorial.Sources}}<li><a href="{{.}}" rel="noopener noreferrer" target="_blank">{{.}}</a></li>{{end}}</ul>
+    </details>
+    {{end}}
     {{if .TOC}}
     <h3 class="toc-label">On this page</h3>
     <ul class="toc">

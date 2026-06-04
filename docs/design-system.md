@@ -59,9 +59,11 @@ nothing screams against the paper.
 
 ### Color — callouts (`-bg` / `-border` / `-label`)
 
-Seven color groups (the `warning` and `headsup` classes share the warn triple):
+Eight color groups (the `warning` and `headsup` classes share the warn triple):
 `note` (dusty blue), `tip` (olive green), `warn` (amber), `design` (violet-gray),
-`aside` (transparent, italic), `predict` (berry), `recall` (orange).
+`aside` (transparent, italic), `predict` (berry), `recall` (orange),
+`unverified` (rust — for `[!UNVERIFIED]`, a load-bearing claim the generator
+couldn't ground in a source).
 
 ### Typography
 

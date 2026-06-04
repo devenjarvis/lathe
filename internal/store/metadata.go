@@ -27,6 +27,13 @@ type Tutorial struct {
 	Tags        []string  `json:"tags,omitempty"`
 	Parts       []string  `json:"parts,omitempty"`
 	PendingPart string    `json:"pending_part,omitempty"`
+	// Sources are the URLs the generation skill actually consulted while
+	// researching the tutorial — the research trail behind the prose. They are
+	// distinct from the per-part inline `## Sources` citations in the markdown:
+	// this is the durable, metadata-level record surfaced as provenance in the
+	// web UI. Populated via `lathe store --source` and `lathe extend-commit
+	// --source`; the skill never writes metadata.json directly.
+	Sources []string `json:"sources,omitempty"`
 }
 
 func (t *Tutorial) IsSeries() bool {

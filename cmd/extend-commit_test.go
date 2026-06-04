@@ -64,6 +64,43 @@ func TestExtendCommitIsIdempotent(t *testing.T) {
 	}
 }
 
+func TestExtendCommitAppendsSources(t *testing.T) {
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+	tutDir := writeTutorial(t, homeDir, "test-slug", store.StatusExtending, []string{"part-01.md"})
+	if err := os.WriteFile(filepath.Join(tutDir, "part-02.md"), []byte("# Part 2"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	// Seed an existing research trail; the new part adds one fresh source plus a
+	// duplicate of an existing one.
+	tut, _ := store.ReadMetadata(tutDir)
+	tut.Sources = []string{"https://a.com/spec"}
+	if err := store.WriteMetadata(tutDir, tut); err != nil {
+		t.Fatal(err)
+	}
+
+	extendCommitSources = []string{"https://a.com/spec", "https://b.com/paper"}
+	t.Cleanup(func() { extendCommitSources = nil })
+
+	if err := extendCommitCmd.RunE(extendCommitCmd, []string{"test-slug", "part-02.md"}); err != nil {
+		t.Fatalf("extend-commit: %v", err)
+	}
+
+	got, err := store.ReadMetadata(tutDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"https://a.com/spec", "https://b.com/paper"}
+	if len(got.Sources) != len(want) {
+		t.Fatalf("Sources = %v, want %v (de-duped union)", got.Sources, want)
+	}
+	for i := range want {
+		if got.Sources[i] != want[i] {
+			t.Errorf("Sources[%d] = %q, want %q", i, got.Sources[i], want[i])
+		}
+	}
+}
+
 func TestExtendCommitRejectsMissingFile(t *testing.T) {
 	homeDir := t.TempDir()
 	t.Setenv("HOME", homeDir)

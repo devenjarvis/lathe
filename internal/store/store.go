@@ -14,8 +14,10 @@ import (
 
 // Store copies a tutorial directory into ~/.lathe/tutorials/ and writes its
 // metadata with status=unverified. Verification is opt-in and never auto-runs
-// here — the user triggers it separately via the /lathe-verify skill.
-func Store(srcPath string, tags ...string) (*Tutorial, error) {
+// here — the user triggers it separately via the /lathe-verify skill. sources
+// is the research trail (URLs the skill consulted); both tags and sources are
+// normalized before they land in metadata.
+func Store(srcPath string, tags, sources []string) (*Tutorial, error) {
 	slug := filepath.Base(strings.TrimSuffix(srcPath, string(filepath.Separator)))
 	// The generation skill writes to /tmp/lathe-<slug>/ (the "lathe-" prefix
 	// namespaces the temp dir). Strip it so the prefix doesn't leak into the
@@ -42,6 +44,7 @@ func Store(srcPath string, tags ...string) (*Tutorial, error) {
 		Status:  StatusUnverified,
 		Tags:    NormalizeTags(tags),
 		Parts:   parts,
+		Sources: NormalizeSources(sources),
 	}
 
 	if err := WriteMetadata(destDir, t); err != nil {
@@ -144,6 +147,28 @@ func NormalizeTags(tags []string) []string {
 		}
 		seen[t] = struct{}{}
 		out = append(out, t)
+	}
+	return out
+}
+
+// NormalizeSources cleans a source-URL list: trims surrounding whitespace,
+// drops empties, and removes duplicates while preserving first-seen order.
+// Unlike NormalizeTags it does NOT lowercase — URLs are case-sensitive (paths,
+// query strings, and fragments can all carry meaning). Returns nil for an
+// all-empty input so it stays omitempty in metadata.json.
+func NormalizeSources(sources []string) []string {
+	seen := make(map[string]struct{}, len(sources))
+	var out []string
+	for _, s := range sources {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			continue
+		}
+		if _, ok := seen[s]; ok {
+			continue
+		}
+		seen[s] = struct{}{}
+		out = append(out, s)
 	}
 	return out
 }

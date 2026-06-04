@@ -12,6 +12,7 @@ var (
 	withVerify    bool
 	storeTags     []string
 	storeTagsList []string
+	storeSources  []string
 )
 
 var storeCmd = &cobra.Command{
@@ -19,7 +20,7 @@ var storeCmd = &cobra.Command{
 	Short: "Save a tutorial directory to ~/.lathe/tutorials/",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		tut, err := store.Store(args[0], splitTags(append(storeTags, storeTagsList...))...)
+		tut, err := store.Store(args[0], splitTags(append(storeTags, storeTagsList...)), storeSources)
 		if err != nil {
 			return err
 		}
@@ -49,5 +50,6 @@ func init() {
 	storeCmd.Flags().BoolVar(&withVerify, "verify", false, "print the command to verify after storing")
 	storeCmd.Flags().StringArrayVar(&storeTags, "tag", nil, "tag to attach (repeatable; --tag also accepts comma-separated values)")
 	storeCmd.Flags().StringSliceVar(&storeTagsList, "tags", nil, "comma-separated tags (alias for repeated --tag)")
+	storeCmd.Flags().StringArrayVar(&storeSources, "source", nil, "URL consulted while researching the tutorial (repeatable; the research trail surfaced as provenance)")
 	rootCmd.AddCommand(storeCmd)
 }

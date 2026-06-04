@@ -44,7 +44,7 @@ var mermaidBlock = regexp.MustCompile("(?ms)^[ \t]{0,3}```[ \t]*mermaid[ \t]*\r?
 // calloutBlock matches a GFM-alert-style blockquote whose first line is
 // `> [!TYPE]`. Group 1 is the type, group 2 is the body (still blockquote-
 // prefixed; preprocessCallouts strips the `> ` from each body line).
-var calloutBlock = regexp.MustCompile(`(?m)^[ \t]{0,3}>[ \t]*\[!(NOTE|TIP|WARNING|HEADS-UP|ASIDE|DESIGN-NOTE|PREDICT|RECALL)\][ \t]*\r?\n((?:[ \t]{0,3}>.*(?:\r?\n|$))*)`)
+var calloutBlock = regexp.MustCompile(`(?m)^[ \t]{0,3}>[ \t]*\[!(NOTE|TIP|WARNING|HEADS-UP|ASIDE|DESIGN-NOTE|PREDICT|RECALL|UNVERIFIED)\][ \t]*\r?\n((?:[ \t]{0,3}>.*(?:\r?\n|$))*)`)
 
 // calloutLineStrip removes the `>` (and one optional following space) from the
 // start of each body line of a callout, leaving the inner markdown.
@@ -180,6 +180,8 @@ func calloutLabel(kind string) string {
 		return "Predict"
 	case "RECALL":
 		return "Recall"
+	case "UNVERIFIED":
+		return "Unverified"
 	}
 	return kind
 }

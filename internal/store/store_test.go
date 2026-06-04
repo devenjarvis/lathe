@@ -16,7 +16,7 @@ func TestStoreSingleTutorial(t *testing.T) {
 	// Override home so we don't pollute the real ~/.lathe
 	t.Setenv("HOME", t.TempDir())
 
-	tut, err := store.Store(src)
+	tut, err := store.Store(src, nil, nil)
 	if err != nil {
 		t.Fatalf("Store() error = %v", err)
 	}
@@ -40,7 +40,7 @@ func TestStoreStripsLathePrefixFromSlug(t *testing.T) {
 	}
 	t.Setenv("HOME", t.TempDir())
 
-	tut, err := store.Store(src)
+	tut, err := store.Store(src, nil, nil)
 	if err != nil {
 		t.Fatalf("Store() error = %v", err)
 	}
@@ -61,7 +61,7 @@ func TestStoreSeriesTutorial(t *testing.T) {
 	}
 	t.Setenv("HOME", t.TempDir())
 
-	tut, err := store.Store(src)
+	tut, err := store.Store(src, nil, nil)
 	if err != nil {
 		t.Fatalf("Store() error = %v", err)
 	}
@@ -81,7 +81,7 @@ func TestStorePersistsAndNormalizesTags(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 
-	tut, err := store.Store(src, "  Rust ", "audio", "rust", "")
+	tut, err := store.Store(src, []string{"  Rust ", "audio", "rust", ""}, nil)
 	if err != nil {
 		t.Fatalf("Store() error = %v", err)
 	}
@@ -119,7 +119,7 @@ func TestStoreDefaultsToUnverified(t *testing.T) {
 	}
 	t.Setenv("HOME", t.TempDir())
 	// Store never auto-verifies; the default status is unverified.
-	tut, err := store.Store(src)
+	tut, err := store.Store(src, nil, nil)
 	if err != nil {
 		t.Fatalf("Store() error = %v", err)
 	}
@@ -136,7 +136,7 @@ func TestStoreDoesNotSpawnVerifier(t *testing.T) {
 	homeDir := t.TempDir()
 	t.Setenv("HOME", homeDir)
 
-	tut, err := store.Store(src)
+	tut, err := store.Store(src, nil, nil)
 	if err != nil {
 		t.Fatalf("Store() error = %v", err)
 	}
@@ -156,7 +156,7 @@ func TestDeleteRemovesTutorial(t *testing.T) {
 	homeDir := t.TempDir()
 	t.Setenv("HOME", homeDir)
 
-	tut, err := store.Store(src)
+	tut, err := store.Store(src, nil, nil)
 	if err != nil {
 		t.Fatalf("Store() error = %v", err)
 	}

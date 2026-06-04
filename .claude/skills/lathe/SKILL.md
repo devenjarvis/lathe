@@ -13,9 +13,19 @@ The user says something like `/lathe build a digital synth in Zig` or `/lathe ho
 
 1. Ask: **"What's your experience level going in — beginner, some familiarity, or experienced in adjacent areas?"**
 2. If the topic is genuinely ambiguous (language? scale? embedded vs. server?), ask **one** clarifying question. Otherwise skip.
-3. Run the **Pre-flight** in your head — silently. Don't ask the user to approve the choices.
-4. Write Part 1.
-5. Hand off to the CLI.
+3. **Research the topic first** (see below) — this is the single most important step for accuracy. Lathe exists to teach things with little training material behind them, which is exactly where recalled "knowledge" is most likely to be invented. Don't skip it.
+4. Run the **Pre-flight** in your head — silently. Don't ask the user to approve the choices.
+5. Write Part 1.
+6. Hand off to the CLI.
+
+## Research first (do this before drafting)
+
+Before you write a single sentence, **go read**. Use your web search and fetch tools to find and *actually open* 3–8 authoritative sources for this topic — official docs, specs/RFCs, primary papers, source code, well-regarded deep-dives. Don't reconstruct them from memory.
+
+- **Read for the load-bearing facts** you'll commit to in the tutorial: exact API/function signatures, default values, flag names, version numbers, sample rates, page sizes, semantic guarantees, error messages, historical claims. Take notes with the URL beside each fact — deep-link to the section or anchor, not the homepage.
+- **Ground the prose in what you read, not what you recall.** When a source contradicts your memory, the source wins. When you can't find a source for a load-bearing claim, that's not a green light to assert it confidently — mark it with `[!UNVERIFIED]` (see Callouts) and tell the reader what to check.
+- **Keep the list of URLs you consulted.** You'll cite the load-bearing ones inline, list them in each part's `## Sources`, and pass them to `lathe store --source` (see "After writing") so the research trail is recorded as provenance.
+- **No web tools in this session?** Say so to the user in one line ("Heads up — I don't have web access here, so I'm working from training knowledge; I've marked the load-bearing claims I couldn't confirm"). Then write more conservatively: claim fewer exact numbers, prefer "check your version's docs" over a guessed default, and `[!UNVERIFIED]`-flag the load-bearing unknowns (still only the load-bearing ones — don't paper the page with caveats).
 
 ## Always write Part 1 only
 
@@ -25,7 +35,7 @@ Every `/lathe` invocation produces exactly one file: `part-01.md`. Never write m
 
 Before writing a single sentence, settle these in your head. They are constraints on your prose, not user-facing artifacts.
 
-- **Research and sources.** Before writing a single sentence, identify 3–8 authoritative sources: official docs, specs/RFCs, primary papers, well-regarded deep-dives. When a claim is load-bearing — a number, a default, a semantic guarantee, a historical fact — prefer a source over recalled knowledge. Collect URLs now; you'll cite them inline and list them in `## Sources`.
+- **Research and sources.** You've already done the **Research first** step above — by now you've actually read 3–8 authoritative sources and have URLs beside the load-bearing facts. Hold those notes in front of you as you write: cite the load-bearing ones inline, list them in `## Sources`, and `[!UNVERIFIED]`-mark anything you couldn't confirm. A load-bearing claim — a number, a default, a semantic guarantee, a historical fact — is either grounded in a source you read or flagged; it is never asserted from recall as if settled.
 - **The controlling example.** Pick one concrete artifact and stay with it. Crafting Interpreters has Lox. You might have *"a 4-voice subtractive synth playing a sustained A minor triad"* or *"a key-value store called `pebble` that survives `kill -9`"*. Don't switch examples mid-tutorial.
 - **Specific numbers.** Sample rate, buffer size, page size, table cardinality, latency budget — whatever the domain offers. Numbers are how you earn the reader's trust. Decide them now so they're consistent across parts.
 - **One controlling metaphor (optional but powerful).** A mountain. A factory line. A kitchen. If you adopt one, deploy it across at least three section transitions, then *explicitly retire it* with a wink (Nystrom: *"Henceforth, I promise to tone down the whole mountain metaphor thing."*). Don't mix metaphors silently.
@@ -130,6 +140,7 @@ You are not a docs page. You are a friend who has done this before, sitting next
 - **Em-dashed self-correction.** Roughly once per 800 words, visibly second-guess yourself. *"It pains me to skip the proof, but —"*. *"I went back and forth on this — the answer that won was —"*. This is what makes prose feel written *to* a reader, not *at* one.
 - **Forward-pointing endings, not recaps.** End each section by naming the question the next section answers. The reader was just there; don't summarise.
 - **Cite inline the first time a load-bearing fact lands.** When you introduce a spec section, a canonical term, a number, or a behaviour claim that the reader might want to verify, link it on first mention — markdown `[text](url)`. Deep-link to the exact section or anchor, not the homepage. Every source used inline must appear in `## Sources`.
+- **Ground or flag — never bluff.** Every load-bearing claim has exactly one of two fates: a source you actually read (cite it inline) or, if you couldn't find one, an `[!UNVERIFIED]` callout that names what to check. The failure mode this kills is the confident-but-invented default, flag, or signature — the thing the reader copies, runs, and loses an hour to. On a sparse-data topic that risk is highest; treat "I'm fairly sure it's X" as a flag, not a fact.
 
 ### Avoid
 
@@ -228,8 +239,9 @@ Other callout types:
 - `> [!TIP]` — handy shortcut, not load-bearing.
 - `> [!PREDICT]` — prediction prompt before a Checkpoint or surprising output. One line only.
 - `> [!RECALL]` — spaced-retrieval prompt at the top of Part N≥2. One question, load-bearing concept only.
+- `> [!UNVERIFIED]` — a **genuinely load-bearing** claim you could not ground in a source you read: one the reader will *act on* and that would cost them real time if it's wrong (a default they'll rely on, a flag they'll type, a signature they'll call). State what you believe and, in the same breath, what to check. *"The default ring-buffer size is 4096 frames — I'm working from memory here and couldn't find this in the docs; confirm it with `default_config()` before you rely on it."* Reserve it for those; not for ordinary hedging or background colour you're merely unsure about. If a claim isn't load-bearing, either confirm it or cut it — don't flag it.
 
-Use them sparingly. One or two per part, max. A page full of callouts is a page of clutter. `[!PREDICT]` and `[!RECALL]` are pedagogical — the verifier skips them.
+Use them sparingly — `[!UNVERIFIED]` included. Reach for it only when a load-bearing unknown genuinely warrants it (a little more often when you had no web access, but still only for the load-bearing ones). One or two of the others per part, max; a page peppered with caveats reads as low-confidence and is its own kind of clutter. `[!PREDICT]` and `[!RECALL]` are pedagogical, and `[!UNVERIFIED]` is a provenance signal — the verifier skips all three.
 
 ## Visual artifacts
 
@@ -298,7 +310,9 @@ Decide the slug before writing. Never write `index.md` or multiple parts.
 Run:
 
 ```bash
-lathe store /tmp/lathe-<slug> --tag <a> --tag <b> --tag <c>
+lathe store /tmp/lathe-<slug> \
+  --tag <a> --tag <b> --tag <c> \
+  --source <url> --source <url>
 ```
 
 Choose **2–5** lowercase tags so the tutorial is findable in `lathe serve`'s
@@ -306,6 +320,12 @@ search and tag filters. Cover, where they apply: the language/runtime (`zig`,
 `rust`, `go`), the domain (`audio`, `compilers`, `databases`), and the core
 technique (`parsing`, `dsp`, `concurrency`). Prefer short, reusable tags that
 will group naturally with other tutorials over hyper-specific one-offs.
+
+Pass `--source <url>` once for each authoritative source you consulted during
+the **Research first** step — the research trail, not just the ones you cited
+inline. Lathe records them as provenance: the reading page shows "Researched
+against N sources" with the list, and the list page marks how many sources back
+each tutorial. If you genuinely had no web access, omit `--source`.
 
 Then tell the user:
 

@@ -42,7 +42,7 @@
 <div class="tutorial" data-title="{{.Title}}" data-slug="{{.Slug}}" data-topic="{{.Topic}}" data-tags="{{range .Tags}}{{.}},{{end}}" data-status="{{.Status}}" data-created="{{.Created.Format "2006-01-02T15:04:05Z07:00"}}" data-series="{{.IsSeries}}">
   <div>
     <a href="/{{.Slug}}/">{{.Title}}</a>
-    <div class="meta">{{if .IsSeries}}{{len .Parts}} parts{{else}}single tutorial{{end}} · {{.Created.Format "Jan 2, 2006"}}</div>
+    <div class="meta">{{if .IsSeries}}{{len .Parts}} parts{{else}}single tutorial{{end}} · {{.Created.Format "Jan 2, 2006"}}{{if .Sources}} · {{len .Sources}} source{{if ne (len .Sources) 1}}s{{end}}{{end}}</div>
     {{if .Tags}}<div class="tags">{{range .Tags}}<span class="tag">{{.}}</span>{{end}}</div>{{end}}
   </div>
   <div class="tutorial-actions">

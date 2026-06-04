@@ -52,6 +52,12 @@ var extendCommitCmd = &cobra.Command{
 		if !found {
 			tut.Parts = append(tut.Parts, partFile)
 		}
+		// Fold any newly-consulted sources into the existing trail so provenance
+		// stays live as parts are added. NormalizeSources de-dupes against what's
+		// already recorded.
+		if len(extendCommitSources) > 0 {
+			tut.Sources = store.NormalizeSources(append(tut.Sources, extendCommitSources...))
+		}
 		tut.PendingPart = ""
 		tut.Status = store.StatusUnverified
 		if err := store.WriteMetadata(tutDir, tut); err != nil {
@@ -62,6 +68,9 @@ var extendCommitCmd = &cobra.Command{
 	},
 }
 
+var extendCommitSources []string
+
 func init() {
+	extendCommitCmd.Flags().StringArrayVar(&extendCommitSources, "source", nil, "URL consulted while researching this part (repeatable; appended to the tutorial's research trail)")
 	rootCmd.AddCommand(extendCommitCmd)
 }

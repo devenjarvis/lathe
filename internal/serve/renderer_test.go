@@ -117,6 +117,7 @@ func TestRenderCalloutTypes(t *testing.T) {
 		{"HEADS-UP", "callout-headsup", "Heads up"},
 		{"ASIDE", "callout-aside", "Aside"},
 		{"DESIGN-NOTE", "callout-designnote", "Design note"},
+		{"UNVERIFIED", "callout-unverified", "Unverified"},
 	}
 	for _, c := range cases {
 		t.Run(c.marker, func(t *testing.T) {

@@ -335,6 +335,109 @@ func TestNonSeriesNoPartNav(t *testing.T) {
 	}
 }
 
+func TestProvenanceSourcesRendered(t *testing.T) {
+	dir := t.TempDir()
+	tutDir := filepath.Join(dir, "researched")
+	if err := os.MkdirAll(tutDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	tut := &store.Tutorial{
+		Slug:    "researched",
+		Title:   "Researched Tutorial",
+		Status:  store.StatusUnverified,
+		Created: time.Now(),
+		Parts:   []string{"part-01.md"},
+		Sources: []string{"https://ziglang.org/documentation/master/#comptime"},
+	}
+	if err := os.WriteFile(filepath.Join(tutDir, "part-01.md"), []byte("# Part 1"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.WriteMetadata(tutDir, tut); err != nil {
+		t.Fatal(err)
+	}
+
+	srv := serve.NewServer(dir)
+	req := httptest.NewRequest(http.MethodGet, "/researched/part-01.md", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	body := w.Body.String()
+	if !strings.Contains(body, "Researched against 1 source") {
+		t.Error("part page missing the 'Researched against N sources' provenance line")
+	}
+	if !strings.Contains(body, "https://ziglang.org/documentation/master/#comptime") {
+		t.Error("part page missing the consulted source link")
+	}
+}
+
+func TestVerifiedDateRendered(t *testing.T) {
+	dir := t.TempDir()
+	tutDir := filepath.Join(dir, "checked")
+	if err := os.MkdirAll(tutDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	tut := &store.Tutorial{
+		Slug:    "checked",
+		Title:   "Checked Tutorial",
+		Status:  store.StatusVerified,
+		Created: time.Now(),
+		Parts:   []string{"part-01.md"},
+	}
+	if err := os.WriteFile(filepath.Join(tutDir, "part-01.md"), []byte("# Part 1"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.WriteMetadata(tutDir, tut); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.WriteVerifyResult(tutDir, &store.VerifyResult{Status: store.StatusVerified, CheckedAt: "2026-06-03T12:00:00Z"}); err != nil {
+		t.Fatal(err)
+	}
+
+	srv := serve.NewServer(dir)
+	req := httptest.NewRequest(http.MethodGet, "/checked/part-01.md", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if !strings.Contains(w.Body.String(), "Verified Jun 3, 2026") {
+		t.Error("verified part page missing the 'Verified <date>' provenance line")
+	}
+}
+
+func TestUnverifiedCalloutCountRendered(t *testing.T) {
+	dir := t.TempDir()
+	tutDir := filepath.Join(dir, "shaky")
+	if err := os.MkdirAll(tutDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	tut := &store.Tutorial{
+		Slug:    "shaky",
+		Title:   "Shaky Tutorial",
+		Status:  store.StatusUnverified,
+		Created: time.Now(),
+		Parts:   []string{"part-01.md"},
+	}
+	body := "# Part 1\n\n> [!UNVERIFIED]\n> The default buffer size is 4096 — I couldn't confirm this.\n"
+	if err := os.WriteFile(filepath.Join(tutDir, "part-01.md"), []byte(body), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.WriteMetadata(tutDir, tut); err != nil {
+		t.Fatal(err)
+	}
+
+	srv := serve.NewServer(dir)
+	req := httptest.NewRequest(http.MethodGet, "/shaky/part-01.md", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	got := w.Body.String()
+	if !strings.Contains(got, `callout-unverified`) {
+		t.Error("part page missing rendered [!UNVERIFIED] callout")
+	}
+	if !strings.Contains(got, "1 claim flagged unverified") {
+		t.Error("part page missing the unverified-claim count note near the badge")
+	}
+}
+
 func TestNotFound(t *testing.T) {
 	dir := t.TempDir()
 	srv := serve.NewServer(dir)

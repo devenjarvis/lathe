@@ -36,6 +36,63 @@ func TestWriteReadMetadata(t *testing.T) {
 	}
 }
 
+func TestMetadataRoundTripSources(t *testing.T) {
+	dir := t.TempDir()
+	srcs := []string{"https://ziglang.org/documentation/master/#comptime", "https://example.com/spec#sec3"}
+	tut := &store.Tutorial{
+		Slug:    "test-tut",
+		Status:  store.StatusUnverified,
+		Sources: srcs,
+	}
+	if err := store.WriteMetadata(dir, tut); err != nil {
+		t.Fatalf("WriteMetadata: %v", err)
+	}
+	got, err := store.ReadMetadata(dir)
+	if err != nil {
+		t.Fatalf("ReadMetadata: %v", err)
+	}
+	if len(got.Sources) != len(srcs) {
+		t.Fatalf("Sources = %v, want %v", got.Sources, srcs)
+	}
+	for i := range srcs {
+		if got.Sources[i] != srcs[i] {
+			t.Errorf("Sources[%d] = %q, want %q", i, got.Sources[i], srcs[i])
+		}
+	}
+}
+
+func TestSourcesOmittedWhenEmpty(t *testing.T) {
+	dir := t.TempDir()
+	if err := store.WriteMetadata(dir, &store.Tutorial{Slug: "t", Status: store.StatusUnverified}); err != nil {
+		t.Fatalf("WriteMetadata: %v", err)
+	}
+	data, err := os.ReadFile(filepath.Join(dir, "metadata.json"))
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	if strings.Contains(string(data), "sources") {
+		t.Error("sources should be omitted from JSON when empty")
+	}
+}
+
+func TestNormalizeSources(t *testing.T) {
+	// Trims, drops empties, de-dupes first-seen — but preserves case (URLs are
+	// case-sensitive, unlike tags).
+	got := store.NormalizeSources([]string{" https://A.com/Path ", "", "https://A.com/Path", "https://b.com"})
+	want := []string{"https://A.com/Path", "https://b.com"}
+	if len(got) != len(want) {
+		t.Fatalf("NormalizeSources = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("NormalizeSources[%d] = %q, want %q", i, got[i], want[i])
+		}
+	}
+	if store.NormalizeSources([]string{"", "  "}) != nil {
+		t.Error("NormalizeSources of all-empty should be nil (stays omitempty)")
+	}
+}
+
 func TestReadMetadataNotFound(t *testing.T) {
 	_, err := store.ReadMetadata("/nonexistent/path/abc123")
 	if err == nil {

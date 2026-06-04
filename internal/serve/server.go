@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/devenjarvis/lathe/internal/store"
 )
@@ -252,21 +253,41 @@ func (s *Server) renderPart(w http.ResponseWriter, tut *store.Tutorial, tutDir, 
 		}
 	}
 
-	// On failure, surface the verifier's recorded part/step/error so the page
-	// explains what broke instead of just showing a red badge. Best-effort:
-	// a missing or malformed verify-result.json simply renders no panel.
+	// Surface the verifier's recorded result. On failure it explains what broke
+	// (part/step/error); on verified/skipped it carries the CheckedAt timestamp
+	// we show as "Verified <date>". Best-effort: a missing or malformed
+	// verify-result.json simply renders no panel and no date.
 	var verifyResult *store.VerifyResult
-	if tut.Status == store.StatusFailed {
+	switch tut.Status {
+	case store.StatusFailed, store.StatusVerified, store.StatusSkipped:
 		if vr, err := store.ReadVerifyResult(tutDir); err == nil {
 			verifyResult = vr
 		}
 	}
+
+	// On verified/skipped, format the verifier's timestamp as a friendly date for
+	// the "Verified <date>" provenance line. Best-effort: an unparseable or empty
+	// CheckedAt simply yields no date.
+	var verifiedDate string
+	if verifyResult != nil && (tut.Status == store.StatusVerified || tut.Status == store.StatusSkipped) {
+		if ts, err := time.Parse(time.RFC3339, verifyResult.CheckedAt); err == nil {
+			verifiedDate = ts.Format("Jan 2, 2006")
+		}
+	}
+
+	// Count inline [!UNVERIFIED] callouts so the page can flag, near the badge,
+	// how many claims the author couldn't ground in a source. Derived at render
+	// time from the rendered HTML, so it stays live as parts change with no
+	// metadata bookkeeping.
+	unverifiedCount := bytes.Count(content, []byte("callout-unverified"))
 
 	var buf bytes.Buffer
 	if err := s.layoutTmpl.Execute(&buf, map[string]any{
 		"Title":             tut.Title,
 		"Tutorial":          tut,
 		"VerifyResult":      verifyResult,
+		"VerifiedDate":      verifiedDate,
+		"UnverifiedCount":   unverifiedCount,
 		"CurrentPart":       part,
 		"CurrentPartNumber": currentNumber,
 		"Content":           template.HTML(content),
