@@ -325,6 +325,40 @@ func TestSeriesRedirect(t *testing.T) {
 	}
 }
 
+func TestSinglePartRedirect(t *testing.T) {
+	dir := t.TempDir()
+	tutDir := filepath.Join(dir, "single-part")
+	if err := os.MkdirAll(tutDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	tut := &store.Tutorial{
+		Slug:    "single-part",
+		Title:   "Single Part",
+		Status:  store.StatusUnverified,
+		Created: time.Now(),
+		Parts:   []string{"part-01.md"},
+	}
+	if err := os.WriteFile(filepath.Join(tutDir, "part-01.md"), []byte("# Only Part"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.WriteMetadata(tutDir, tut); err != nil {
+		t.Fatal(err)
+	}
+
+	srv := serve.NewServer(dir)
+	req := httptest.NewRequest(http.MethodGet, "/single-part/", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusFound {
+		t.Errorf("GET /single-part/ = %d, want %d (redirect)", w.Code, http.StatusFound)
+	}
+	loc := w.Header().Get("Location")
+	if loc != "/single-part/part-01.md" {
+		t.Errorf("redirect Location = %q, want %q", loc, "/single-part/part-01.md")
+	}
+}
+
 func TestStaticMermaidAsset(t *testing.T) {
 	dir := t.TempDir()
 	srv := serve.NewServer(dir)

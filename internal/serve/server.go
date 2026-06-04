@@ -157,7 +157,10 @@ func (s *Server) handleTutorial(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	if tut.IsSeries() && len(tut.Parts) > 0 {
+	// Any tutorial with parts (single or series) lives in part-NN.md files, not
+	// index.md, so redirect to the first part. The index.md fallback is only for
+	// legacy tutorials that were never split into parts.
+	if len(tut.Parts) > 0 {
 		http.Redirect(w, r, fmt.Sprintf("/%s/%s", slug, tut.Parts[0]), http.StatusFound)
 		return
 	}
