@@ -9,9 +9,12 @@
      1. Tokens        — :root (paper) + [data-theme="dark"] (ember)
      2. Fonts         — @font-face, served locally from /_static/*.woff2
      3. Base          — reset, reading typography, links, code, callouts
-     4. Components     — sidebar, TOC, series TOC, part-nav, verify/extend,
-                        ask drawer, progress bar, list-page cards
-     5. Responsive     — off-canvas sidebar, bottom dock, ask bottom-sheet
+     4. Components     — persistent top bar, article-header block, right-edge
+                        section rail (minimap ToC) + scroll-spy, narrow ToC
+                        drawer, series TOC, part-nav, verify/extend, ask drawer,
+                        progress bar, list-page cards
+     5. Responsive     — wide rail vs narrow off-canvas drawer, bottom dock,
+                        ask bottom-sheet
    ============================================================================ */
 
 /* ---- 1. Tokens ----------------------------------------------------------- */
@@ -56,6 +59,7 @@
   --shadow-sm:0 1px 2px rgba(40,30,20,.07);
   --shadow-md:0 4px 14px rgba(40,30,20,.12);
   --transition:120ms ease-out;
+  --transition-slow:240ms ease;
 }
 
 [data-theme="dark"]{
@@ -97,6 +101,9 @@
 /* ---- 3. Base ------------------------------------------------------------- */
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{overflow-x:hidden}
+/* In-page anchor clicks (section rail, ToC drawer, series links) glide to the
+   target instead of jumping. Disabled for reduced-motion users below. */
+html{scroll-behavior:smooth}
 body{
   font-family:var(--font-body);
   background:var(--bg);color:var(--text);
@@ -113,9 +120,10 @@ body{
 /* Layout shell (reading page) */
 .layout{display:flex;min-height:100vh}
 
-/* Reading column — measure-bound for comfortable line length */
+/* Reading column — measure-bound for comfortable line length, centered in the
+   layout so the right-edge rail sits in clean gutter space rather than over text. */
 main{
-  flex:1;width:100%;max-width:calc(var(--measure) + 7rem);
+  flex:1;width:100%;max-width:calc(var(--measure) + 7rem);margin-inline:auto;
   padding:clamp(1.75rem,1.2rem + 2vw,3rem) clamp(1.2rem,.7rem + 2.5vw,2.5rem);
   font-size:1.125rem;line-height:1.7;
 }
@@ -126,8 +134,9 @@ h1,h2,h3,h4,h5,h6{font-family:var(--font-display);color:var(--text);font-weight:
 h1{font-size:clamp(1.7rem,1.4rem + 1.4vw,2.1rem);margin-bottom:1.5rem}
 h2{font-size:clamp(1.3rem,1.15rem + .7vw,1.5rem);margin:2.5rem 0 .85rem;line-height:1.22}
 h3{font-size:clamp(1.1rem,1.03rem + .35vw,1.2rem);margin:1.9rem 0 .6rem;color:var(--text-muted);line-height:1.3}
-/* Anchor offset so headings aren't flush to the top when jumped to. */
-h2[id],h3[id]{scroll-margin-top:1rem}
+/* Anchor offset so a heading jumped to (rail / drawer link) clears the now-
+   persistent sticky #topBar (~2.75rem) instead of hiding beneath it. */
+h2[id],h3[id],#top{scroll-margin-top:3.5rem}
 
 p{margin-bottom:1.05rem;color:var(--text-muted)}
 em{font-style:italic}
@@ -230,40 +239,82 @@ pre[data-overflow="true"]{box-shadow:inset -18px 0 14px -12px rgba(40,30,20,.20)
 .theme-toggle .icon{font-size:.95rem;line-height:1}
 [data-theme="dark"] .theme-toggle .icon-light,[data-theme="light"] .theme-toggle .icon-dark,:root:not([data-theme]) .theme-toggle .icon-dark{display:none}
 
-/* Sidebar (reading page). Scoped to #sidebar, NOT a bare `nav` selector — the
-   part-nav is also a <nav>, and a bare selector would leak height:100vh, the
-   264px width, sticky positioning, and column direction onto it. */
-#sidebar{width:264px;background:var(--surface);border-right:1px solid var(--border);padding:1.6rem 1.4rem;position:sticky;top:0;height:100vh;overflow-y:auto;flex-shrink:0;display:flex;flex-direction:column;z-index:80}
-#sidebar h2{font-family:var(--font-display);font-size:1.05rem;font-weight:600;color:var(--text);margin-bottom:.6rem;line-height:1.25;letter-spacing:-.01em}
-#sidebar .badge{margin-bottom:.7rem}
-#sidebar .provenance{font-size:.78rem;line-height:1.4;color:var(--text-subtle);margin:.25rem 0}
-#sidebar .provenance:last-of-type{margin-bottom:1.4rem}
-#sidebar .provenance.unverified-note{color:var(--callout-unverified-label)}
-#sidebar details.provenance summary{cursor:pointer;color:var(--text-subtle)}
-#sidebar details.provenance ul{list-style:none;margin:.35rem 0 0;padding:0}
-#sidebar details.provenance li{margin:.2rem 0}
-#sidebar details.provenance a{display:block;font-size:.74rem;padding:.2rem .4rem;color:var(--accent);word-break:break-all;line-height:1.35}
-#sidebar ul{list-style:none}
-#sidebar li{margin:.2rem 0}
-#sidebar a{display:block;font-size:.85rem;color:var(--text-subtle);text-decoration:none;padding:.35rem .6rem;border-radius:var(--radius-sm);transition:background var(--transition),color var(--transition)}
-#sidebar a:hover{background:var(--surface-sunken);color:var(--text)}
-#sidebar a.active{background:var(--accent-soft);color:var(--accent);font-weight:600}
-.back-link{display:inline-flex;align-items:center;gap:.3rem;font-size:.78rem;color:var(--text-faint);text-decoration:none;padding:.2rem .25rem;margin:-.2rem 0 .9rem;border-radius:var(--radius-sm)}
+/* Article-header block — sits atop <main>: tutorial/series title, status badge,
+   provenance lines (verified date / unverified note), and the collapsible
+   sources list. Holds the metadata that used to live in the left sidebar; reads
+   well inline on narrow too. */
+.article-header{margin-bottom:1.8rem;padding-bottom:1.3rem;border-bottom:1px solid var(--border)}
+.article-header h2{font-family:var(--font-display);font-size:clamp(1.5rem,1.3rem + 1vw,1.9rem);font-weight:600;color:var(--text);margin:0 0 .55rem;line-height:1.2;letter-spacing:-.01em}
+.article-header .badge{margin-bottom:.6rem}
+.article-header .provenance{font-size:.82rem;line-height:1.45;color:var(--text-subtle);margin:.3rem 0}
+.article-header .provenance.unverified-note{color:var(--callout-unverified-label)}
+.article-header details.provenance summary{cursor:pointer;color:var(--text-subtle)}
+.article-header details.provenance ul{list-style:none;margin:.35rem 0 0;padding:0}
+.article-header details.provenance li{margin:.2rem 0}
+.article-header details.provenance a{display:inline-block;font-size:.78rem;padding:.15rem 0;color:var(--accent);word-break:break-all;line-height:1.4}
+
+/* Right-edge section rail (minimap ToC). Collapsed: a stack of ticks pinned to
+   the right gutter, one per h2, the current section's tick wider + accent-colored
+   (scroll-spy via IntersectionObserver). Hover / keyboard :focus-within expands
+   it into a labeled panel on --surface; the CSS reveal works with JS off. A
+   transparent border in the collapsed state reserves space so expanding doesn't
+   shift the ticks. Wide-only — hidden on narrow (the hamburger drawer takes
+   over). */
+#tocRail{position:fixed;top:50%;right:.4rem;transform:translateY(-50%);z-index:45;display:flex;flex-direction:column;gap:.15rem;max-height:80vh;overflow-y:auto;padding:.5rem .35rem;border:1px solid transparent;border-radius:var(--radius-md);transition:background var(--transition-slow),border-color var(--transition-slow),box-shadow var(--transition-slow),padding var(--transition-slow)}
+#tocRail a{display:flex;align-items:center;justify-content:flex-end;gap:.5rem;padding:.18rem .15rem;text-decoration:none;border-radius:var(--radius-sm)}
+/* The label is laid out at its final size the instant the rail expands (width is
+   deliberately NOT transitioned) and only fades in. Animating width/max-width
+   here makes the reveal stutter, because the easing tracks the 17rem cap rather
+   than the actual (shorter) text length. */
+#tocRail .label{width:0;max-width:17rem;overflow:hidden;white-space:nowrap;opacity:0;font-family:var(--font-display);font-size:.82rem;line-height:1.35;color:var(--text-subtle);transition:opacity var(--transition-slow)}
+#tocRail .tick{flex-shrink:0;width:1rem;height:2px;border-radius:1px;background:var(--border-strong);transition:width var(--transition),background var(--transition)}
+#tocRail a.active .tick{width:1.5rem;background:var(--accent)}
+#tocRail a.active .label{color:var(--accent);font-weight:600}
+/* Expanded panel (hover / keyboard focus) reads as a clean text-only mini-ToC.
+   The ONLY motion is a gentle opacity fade of the panel surface and the labels,
+   both already at their final size — no width easing to stutter. The ticks are
+   dropped instantly (display:none), so the dashes that would otherwise sit right
+   after each title never animate away (that retraction was the jarring bit).
+   Long section names wrap rather than truncate; each row gets a hover surface
+   for affordance. */
+#tocRail:hover,#tocRail:focus-within{background:var(--surface);border-color:var(--border);box-shadow:var(--shadow-md);padding:.5rem .5rem}
+#tocRail:hover a,#tocRail:focus-within a{justify-content:flex-start;padding:.3rem .55rem;border-radius:var(--radius-sm)}
+#tocRail:hover .tick,#tocRail:focus-within .tick{display:none}
+#tocRail:hover .label,#tocRail:focus-within .label{width:auto;opacity:1;white-space:normal;overflow-wrap:break-word}
+#tocRail:hover a:hover,#tocRail:focus-within a:hover{background:var(--surface-sunken)}
+#tocRail:hover a:hover .label,#tocRail:focus-within a:hover .label{color:var(--text)}
+#tocRail a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  #tocRail,#tocRail .tick,#tocRail .label{transition:none}
+}
+
+/* Back-link — persistent top bar (wide) and the ToC drawer (narrow). */
+.back-link{display:inline-flex;align-items:center;gap:.3rem;font-size:.78rem;color:var(--text-faint);text-decoration:none;padding:.2rem .25rem;border-radius:var(--radius-sm);flex-shrink:0}
 .back-link:hover{color:var(--accent);background:transparent}
-#sidebar .toc-label{font-family:var(--font-display);font-size:.7rem;font-weight:700;color:var(--text-faint);text-transform:uppercase;letter-spacing:.07em;margin:.9rem .4rem .35rem;line-height:1.3}
+
+/* Narrow-only ToC drawer. Hidden on wide (the rail replaces it); the off-canvas
+   fixed/transform positioning lives in the responsive block. Scoped to #sidebar,
+   NOT a bare `nav` selector — the part-nav and the rail are also <nav>. */
+#sidebar{display:none;flex-direction:column;background:var(--surface);border-right:1px solid var(--border);padding:1.6rem 1.4rem;overflow-y:auto;z-index:80}
+#sidebar .back-link{margin:-.2rem 0 .9rem}
+#sidebar .toc-label{font-family:var(--font-display);font-size:.7rem;font-weight:700;color:var(--text-faint);text-transform:uppercase;letter-spacing:.07em;margin:.4rem .4rem .35rem;line-height:1.3}
 #sidebar ul.toc{list-style:none;margin:0;padding:0}
 #sidebar ul.toc li{margin:.1rem 0}
-#sidebar ul.toc a{font-size:.82rem;line-height:1.4;padding:.32rem .6rem;color:var(--text-subtle)}
+#sidebar ul.toc a{display:block;font-size:.85rem;line-height:1.4;padding:.35rem .6rem;color:var(--text-subtle);text-decoration:none;border-radius:var(--radius-sm);transition:background var(--transition),color var(--transition)}
 #sidebar ul.toc a:hover{background:var(--surface-sunken);color:var(--text)}
-#sidebar .theme-toggle{margin-top:auto;width:100%}
+#sidebar ul.toc a.active{background:var(--accent-soft);color:var(--accent);font-weight:600}
 
 /* Off-canvas sidebar backdrop (narrow only) */
 #sidebarBackdrop{position:fixed;inset:0;background:rgba(27,23,20,.30);z-index:75;display:none}
 [data-theme="dark"] #sidebarBackdrop{background:rgba(0,0,0,.55)}
 
-/* Sticky narrow-screen top bar */
-#topBar{display:none;position:sticky;top:0;background:var(--surface);border-bottom:1px solid var(--border);padding:.55rem .85rem;z-index:50;align-items:center;gap:.7rem}
-#hamburger{background:transparent;border:1px solid var(--border);color:var(--text-subtle);font:inherit;cursor:pointer;padding:.3rem .55rem;border-radius:var(--radius-sm);line-height:1;font-size:1.15rem;flex-shrink:0}
+/* Persistent top bar — back-link + breadcrumb (left), theme toggle (right);
+   shown on every width. On narrow the hamburger replaces the back-link/toggle
+   (see the responsive block) and toggles the ToC drawer. */
+#topBar{display:flex;position:sticky;top:0;background:var(--surface);border-bottom:1px solid var(--border);padding:.55rem .85rem;z-index:50;align-items:center;gap:.7rem}
+#topBar .theme-toggle{margin-left:auto;flex-shrink:0}
+#hamburger{display:none;background:transparent;border:1px solid var(--border);color:var(--text-subtle);font:inherit;cursor:pointer;padding:.3rem .55rem;border-radius:var(--radius-sm);line-height:1;font-size:1.15rem;flex-shrink:0}
 #hamburger:hover{background:var(--surface-sunken);color:var(--text)}
 #topBar .crumb{font-size:.85rem;color:var(--text-subtle);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
 #topBar .crumb strong{color:var(--text);font-weight:600;font-family:var(--font-display)}
@@ -429,17 +480,20 @@ body.list h1{font-family:var(--font-display);font-size:clamp(1.7rem,1.3rem + 1.4
 
 /* ---- 5. Responsive ------------------------------------------------------- */
 
-/* Narrow viewport (<900px): off-canvas sidebar, sticky header, bottom dock */
+/* Narrow viewport (<900px): off-canvas ToC drawer + hamburger, no right rail,
+   bottom dock for theme + Ask. The persistent top bar stays but swaps its
+   back-link/theme-toggle for the hamburger. */
 @media (max-width:899px){
   .layout{display:block}
-  #sidebar{position:fixed;top:0;left:0;height:100vh;width:min(280px,82vw);transform:translateX(-100%);transition:transform 200ms ease-out;border-right:1px solid var(--border)}
+  #sidebar{display:flex;position:fixed;top:0;left:0;height:100vh;width:min(280px,82vw);transform:translateX(-100%);transition:transform 200ms ease-out}
   [data-sidebar="open"] #sidebar{transform:translateX(0)}
   [data-sidebar="open"] #sidebarBackdrop{display:block}
   main{max-width:none;padding-bottom:5.5rem}
-  #topBar{display:flex}
+  #tocRail{display:none}
+  #hamburger{display:inline-flex}
+  #topBar .back-link,#topBar .theme-toggle{display:none}
   #bottomDock{display:flex}
   #askButton{display:none}
-  #sidebar .theme-toggle{display:none}
 }
 
 /* Bottom-sheet Ask drawer (≤700px) */

@@ -44,6 +44,22 @@ func makeTestTutorial(t *testing.T, dir, slug string, series bool) string {
 	return tutDir
 }
 
+// articleHeader returns the markup of the <header class="article-header"> block
+// at the top of <main>, so callers can assert on title/badge/provenance without
+// matching the same text elsewhere on the page (top-bar crumb, <title>, etc.).
+func articleHeader(t *testing.T, body string) string {
+	t.Helper()
+	idx := strings.Index(body, `class="article-header"`)
+	if idx < 0 {
+		t.Fatalf("missing article-header block; body excerpt:\n%s", body)
+	}
+	end := strings.Index(body[idx:], "</header>")
+	if end < 0 {
+		t.Fatalf("article-header block not closed; body excerpt:\n%s", body)
+	}
+	return body[idx : idx+end]
+}
+
 func TestListPage(t *testing.T) {
 	dir := t.TempDir()
 	makeTestTutorial(t, dir, "test-tutorial", false)
@@ -334,18 +350,33 @@ func TestSeriesSidebarAndBottomList(t *testing.T) {
 	}
 	body := w.Body.String()
 
-	// Sidebar should contain the back-link and the on-page TOC (no parts list).
+	// The persistent top bar carries the back-link to the list page.
 	if !strings.Contains(body, `class="back-link"`) || !strings.Contains(body, "All tutorials") {
-		t.Error("sidebar missing back-link to /")
+		t.Error("page missing back-link to /")
 	}
-	if !strings.Contains(body, "On this page") {
-		t.Error("sidebar missing 'On this page' label")
+
+	// The on-page TOC now lives in the right-edge section rail (#tocRail), with one
+	// anchor per h2. (The same anchors also appear in the narrow drawer, so we
+	// scope the assertion to the markup after the rail marker.)
+	railIdx := strings.Index(body, `id="tocRail"`)
+	if railIdx < 0 {
+		t.Fatalf("missing #tocRail section rail; body excerpt:\n%s", body)
 	}
-	if !strings.Contains(body, `href="#setup"`) {
-		t.Errorf("sidebar TOC missing anchor to first h2; body excerpt:\n%s", body)
+	rail := body[railIdx:]
+	if !strings.Contains(rail, `href="#setup"`) {
+		t.Errorf("section rail missing anchor to first h2; body excerpt:\n%s", body)
 	}
-	if !strings.Contains(body, `href="#wire-it-up"`) {
-		t.Error("sidebar TOC missing anchor to second h2")
+	if !strings.Contains(rail, `href="#wire-it-up"`) {
+		t.Error("section rail missing anchor to second h2")
+	}
+
+	// The article-header block atop <main> carries the title and status badge.
+	header := articleHeader(t, body)
+	if !strings.Contains(header, "Test Series") {
+		t.Error("article-header missing tutorial title")
+	}
+	if !strings.Contains(header, `class="badge verified"`) {
+		t.Errorf("article-header missing status badge; header:\n%s", header)
 	}
 
 	// The old in-sidebar parts list pattern (an <a class="active"> inside the
@@ -369,6 +400,47 @@ func TestSeriesSidebarAndBottomList(t *testing.T) {
 	// Non-current parts must be real links.
 	if !strings.Contains(body, `href="/test-series/part-02.md"`) {
 		t.Error("series-toc missing link to non-current part")
+	}
+}
+
+func TestSectionRailOmittedWithoutMultipleHeadings(t *testing.T) {
+	// The rail is a minimap for jumping *between* sections, so it is omitted for a
+	// part with 0 or 1 h2 (a single tick navigates nowhere useful). Both boundary
+	// cases must drop #tocRail.
+	cases := []struct {
+		name string
+		body string
+	}{
+		{"zero-h2", "# Title only\n\nProse with no sections.\n"},
+		{"one-h2", "# Title\n\n## The only section\n\nProse.\n"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			tutDir := filepath.Join(dir, "solo")
+			if err := os.MkdirAll(tutDir, 0755); err != nil {
+				t.Fatal(err)
+			}
+			tut := &store.Tutorial{Slug: "solo", Title: "Solo", Status: store.StatusUnverified, Created: time.Now(), Parts: []string{"part-01.md"}}
+			if err := os.WriteFile(filepath.Join(tutDir, "part-01.md"), []byte(tc.body), 0644); err != nil {
+				t.Fatal(err)
+			}
+			if err := store.WriteMetadata(tutDir, tut); err != nil {
+				t.Fatal(err)
+			}
+
+			srv := serve.NewServer(dir)
+			req := httptest.NewRequest(http.MethodGet, "/solo/part-01.md", nil)
+			w := httptest.NewRecorder()
+			srv.Handler().ServeHTTP(w, req)
+
+			if w.Code != http.StatusOK {
+				t.Fatalf("GET /solo/part-01.md = %d, want %d", w.Code, http.StatusOK)
+			}
+			if strings.Contains(w.Body.String(), `id="tocRail"`) {
+				t.Errorf("part with <=1 h2 (%s) should not render the #tocRail section rail", tc.name)
+			}
+		})
 	}
 }
 
@@ -438,12 +510,14 @@ func TestProvenanceSourcesRendered(t *testing.T) {
 	w := httptest.NewRecorder()
 	srv.Handler().ServeHTTP(w, req)
 
-	body := w.Body.String()
-	if !strings.Contains(body, "Researched against 1 source") {
-		t.Error("part page missing the 'Researched against N sources' provenance line")
+	// Provenance now renders in the article-header block atop <main>, no longer
+	// in the (relocated) sidebar.
+	header := articleHeader(t, w.Body.String())
+	if !strings.Contains(header, "Researched against 1 source") {
+		t.Error("article-header missing the 'Researched against N sources' provenance line")
 	}
-	if !strings.Contains(body, "https://ziglang.org/documentation/master/#comptime") {
-		t.Error("part page missing the consulted source link")
+	if !strings.Contains(header, "https://ziglang.org/documentation/master/#comptime") {
+		t.Error("article-header missing the consulted source link")
 	}
 }
 
@@ -475,8 +549,10 @@ func TestVerifiedDateRendered(t *testing.T) {
 	w := httptest.NewRecorder()
 	srv.Handler().ServeHTTP(w, req)
 
-	if !strings.Contains(w.Body.String(), "Verified Jun 3, 2026") {
-		t.Error("verified part page missing the 'Verified <date>' provenance line")
+	// The verified-date line renders in the article-header block atop <main>.
+	header := articleHeader(t, w.Body.String())
+	if !strings.Contains(header, "Verified Jun 3, 2026") {
+		t.Error("article-header missing the 'Verified <date>' provenance line")
 	}
 }
 

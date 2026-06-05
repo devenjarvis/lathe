@@ -21,30 +21,33 @@
 <div id="progressBar" aria-hidden="true"><div></div></div>
 <header id="topBar">
   <button type="button" id="hamburger" aria-label="Toggle navigation" aria-controls="sidebar" aria-expanded="false">≡</button>
+  <a href="/" class="back-link">← All tutorials</a>
   <span class="crumb"><strong>{{.Tutorial.Title}}</strong>{{if and .Tutorial.IsSeries .CurrentPartNumber}}<span class="sep">›</span>Part {{.CurrentPartNumber}}{{end}}</span>
+  {{template "themeToggle" .}}
 </header>
 <div class="layout">
   <nav id="sidebar">
     <a href="/" class="back-link">← All tutorials</a>
-    <h2>{{.Tutorial.Title}}</h2>
-    {{template "badge" .Tutorial.Status}}
-    {{if .VerifiedDate}}<p class="provenance verified-date">Verified {{.VerifiedDate}}</p>{{end}}
-    {{if .UnverifiedCount}}<p class="provenance unverified-note">{{.UnverifiedCount}} claim{{if ne .UnverifiedCount 1}}s{{end}} flagged unverified — marked inline.</p>{{end}}
-    {{if .Tutorial.Sources}}
-    <details class="provenance sources">
-      <summary>Researched against {{len .Tutorial.Sources}} source{{if ne (len .Tutorial.Sources) 1}}s{{end}}</summary>
-      <ul>{{range .Tutorial.Sources}}<li><a href="{{.}}" rel="noopener noreferrer" target="_blank">{{.}}</a></li>{{end}}</ul>
-    </details>
-    {{end}}
     {{if .TOC}}
     <h3 class="toc-label">On this page</h3>
     <ul class="toc">
-      {{range .TOC}}<li><a href="#{{.ID}}">{{.Text}}</a></li>{{end}}
+      <li><a href="#top">Top</a></li>{{range .TOC}}<li><a href="#{{.ID}}">{{.Text}}</a></li>{{end}}
     </ul>
     {{end}}
-    {{template "themeToggle" .}}
   </nav>
   <main>
+    <header class="article-header" id="top">
+      <h2>{{.Tutorial.Title}}</h2>
+      {{template "badge" .Tutorial.Status}}
+      {{if .VerifiedDate}}<p class="provenance verified-date">Verified {{.VerifiedDate}}</p>{{end}}
+      {{if .UnverifiedCount}}<p class="provenance unverified-note">{{.UnverifiedCount}} claim{{if ne .UnverifiedCount 1}}s{{end}} flagged unverified — marked inline.</p>{{end}}
+      {{if .Tutorial.Sources}}
+      <details class="provenance sources">
+        <summary>Researched against {{len .Tutorial.Sources}} source{{if ne (len .Tutorial.Sources) 1}}s{{end}}</summary>
+        <ul>{{range .Tutorial.Sources}}<li><a href="{{.}}" rel="noopener noreferrer" target="_blank">{{.}}</a></li>{{end}}</ul>
+      </details>
+      {{end}}
+    </header>
     {{.Content}}
     {{if and (eq .Tutorial.Status "failed") .VerifyResult}}
     <div class="callout callout-warning verify-failure">
@@ -117,6 +120,11 @@
     {{end}}
     {{end}}
   </main>
+  {{if gt (len .TOC) 1}}
+  <nav id="tocRail" aria-label="On this page">
+    <a href="#top"><span class="label">Top</span><span class="tick" aria-hidden="true"></span></a>{{range .TOC}}<a href="#{{.ID}}"><span class="label">{{.Text}}</span><span class="tick" aria-hidden="true"></span></a>{{end}}
+  </nav>
+  {{end}}
 </div>
 <div id="sidebarBackdrop"></div>
 <button type="button" id="askButton" class="btn btn-primary btn-pill" data-ask-open aria-label="Ask a question about this tutorial">Ask</button>
@@ -222,6 +230,47 @@
     update();
     window.addEventListener('scroll', onScroll, {passive:true});
     window.addEventListener('resize', onScroll);
+  })();
+</script>
+<script>
+  // Section-rail scroll-spy — an IntersectionObserver over the article's h2[id]
+  // sets .active + aria-current on the matching #tocRail link (clearing the rest).
+  // Enhancement only: the rail links navigate fine with JS off.
+  (function(){
+    var rail = document.getElementById('tocRail');
+    if (!rail || !('IntersectionObserver' in window)) return;
+    var links = {};
+    rail.querySelectorAll('a').forEach(function(a){
+      var id = (a.getAttribute('href') || '').slice(1);
+      if (id) links[id] = a;
+    });
+    var heads = Array.prototype.slice.call(document.querySelectorAll('main h2[id]'));
+    if (!heads.length) return;
+    var visible = {};
+    function activate(id){
+      Object.keys(links).forEach(function(k){
+        var on = k === id;
+        links[k].classList.toggle('active', on);
+        if (on) links[k].setAttribute('aria-current', 'true');
+        else links[k].removeAttribute('aria-current');
+      });
+    }
+    var obs = new IntersectionObserver(function(entries){
+      entries.forEach(function(e){
+        if (e.isIntersecting) visible[e.target.id] = true;
+        else delete visible[e.target.id];
+      });
+      // Highlight the topmost heading currently in view.
+      var current = null, top = Infinity;
+      heads.forEach(function(h){
+        if (visible[h.id]) {
+          var t = h.getBoundingClientRect().top;
+          if (t < top) { top = t; current = h.id; }
+        }
+      });
+      if (current) activate(current);
+    }, {rootMargin: '0px 0px -70% 0px'});
+    heads.forEach(function(h){ obs.observe(h); });
   })();
 </script>
 <script>
