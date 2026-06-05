@@ -602,6 +602,30 @@ func TestStaticMermaidAsset(t *testing.T) {
 	}
 }
 
+func TestStaticFaviconAsset(t *testing.T) {
+	dir := t.TempDir()
+	srv := serve.NewServer(dir)
+	req := httptest.NewRequest(http.MethodGet, "/_static/favicon.svg", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("GET /_static/favicon.svg = %d, want %d", w.Code, http.StatusOK)
+	}
+	if ct := w.Header().Get("Content-Type"); ct != "image/svg+xml" {
+		t.Errorf("Content-Type = %q, want image/svg+xml", ct)
+	}
+	// Sanity-check it's the real SVG mark, including the dark-mode swap that lets
+	// the favicon follow the OS theme.
+	body := w.Body.String()
+	if !strings.Contains(body, "<svg") {
+		t.Error("favicon body is not an SVG document")
+	}
+	if !strings.Contains(body, "prefers-color-scheme: dark") {
+		t.Error("favicon missing the prefers-color-scheme dark swap")
+	}
+}
+
 func TestStaticFontAssets(t *testing.T) {
 	dir := t.TempDir()
 	srv := serve.NewServer(dir)

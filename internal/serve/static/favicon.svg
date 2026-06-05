@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <!--
+    Lathe mark: concentric arcs "turning" toward a solid spindle dot.
+    Color follows the OS theme (favicons can't read the in-page data-theme
+    toggle): brand terracotta in light, warm sand in dark.
+  -->
+  <style>
+    svg { --accent: #B5451F; }
+    @media (prefers-color-scheme: dark) { svg { --accent: #E89A5C; } }
+    .arc { fill: none; stroke: var(--accent); stroke-width: 2.6; stroke-linecap: round; }
+    .spindle { fill: var(--accent); }
+  </style>
+  <path class="arc" d="M11.76 20.24 A6 6 0 0 1 11.76 11.76"/>
+  <path class="arc" d="M9.28 22.72 A9.5 9.5 0 0 1 9.28 9.28"/>
+  <path class="arc" d="M6.81 25.19 A13 13 0 0 1 6.81 6.81"/>
+  <circle class="spindle" cx="16" cy="16" r="3"/>
+</svg>

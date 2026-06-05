@@ -27,6 +27,7 @@ var templateFS embed.FS
 var stylesCSS string
 
 //go:embed static/mermaid.min.js
+//go:embed static/favicon.svg
 //go:embed static/fonts/fraunces.woff2 static/fonts/newsreader.woff2 static/fonts/newsreader-italic.woff2 static/fonts/jetbrains-mono.woff2
 var staticFS embed.FS
 
@@ -78,6 +79,7 @@ func (s *Server) Handler() http.Handler {
 // slash, this is the cheap belt-and-suspenders check.
 var staticAssets = map[string]string{
 	"mermaid.min.js":          "application/javascript; charset=utf-8",
+	"favicon.svg":             "image/svg+xml",
 	"fraunces.woff2":          "font/woff2",
 	"newsreader.woff2":        "font/woff2",
 	"newsreader-italic.woff2": "font/woff2",
