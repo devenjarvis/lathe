@@ -1,0 +1,39 @@
+name: Release
+
+# Releases are cut by pushing a semver tag, e.g.:
+#   git tag v0.1.0 && git push origin v0.1.0
+# GoReleaser then builds the multi-platform binaries, publishes a GitHub
+# Release, and updates the Homebrew tap formula.
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history so GoReleaser can build the changelog from commits.
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # PAT with contents:write on devenjarvis/homebrew-tap so the formula
+          # can be committed there. Set this as a repo secret before releasing.
+          HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}

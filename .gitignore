@@ -1,3 +1,5 @@
 .superpowers/
 /lathe
 .claude/
+# GoReleaser build output
+/dist/

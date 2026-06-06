@@ -36,13 +36,32 @@ User: lathe serve  →  http://localhost:4242  (browser opens automatically)
 
 ## Install
 
-Requires Go 1.25+ and the `claude` CLI on `$PATH`.
+Lathe is a single self-contained binary. All you need is `lathe` on your `$PATH`; the
+skills run in an interactive Claude Code (or Cursor) session — the binary never spawns
+`claude` itself.
+
+**Homebrew** (macOS, recommended):
+
+```bash
+brew install devenjarvis/tap/lathe
+```
+
+Distributed as a cask (a pre-built binary), so it's macOS-only — on Linux use the
+install script or `go install` below.
+
+**Install script** (`curl | sh`):
+
+```bash
+curl -sSf https://raw.githubusercontent.com/devenjarvis/lathe/main/install.sh | sh
+```
+
+**Go** (needs Go 1.25+):
 
 ```bash
 go install github.com/devenjarvis/lathe@latest
 ```
 
-Or build from source:
+**From source:**
 
 ```bash
 git clone https://github.com/devenjarvis/lathe
@@ -50,7 +69,21 @@ cd lathe
 go build -o lathe
 ```
 
-The skills live under `.claude/skills/` in this repo — `lathe/`, `lathe-verify/`, `lathe-extend/`, `lathe-ask/`, and `lathe-tag/`, each a `SKILL.md`. Copy them into your own project's `.claude/skills/` (or your user-level skills directory) so Claude Code can discover them.
+### Install the skills
+
+The skills are bundled into the binary. After installing `lathe`, drop them into a
+project so Claude Code can discover them:
+
+```bash
+lathe skills install                 # ./.claude/skills/<name>/SKILL.md (this project)
+lathe skills install --user          # ~/.claude/skills/<name>/SKILL.md (all projects)
+lathe skills install --agent cursor  # ./.cursor/commands/<slug>.md (Cursor slash commands)
+lathe skills install --agent all     # both Claude Code and Cursor
+lathe skills list                    # show the bundled skills
+```
+
+Cursor commands are slash-invoked as `/<slug>` (e.g. `/lathe`); the interactive
+handoff model is documented for Claude Code, so a few runtime details differ on Cursor.
 
 ## Usage
 
@@ -162,6 +195,30 @@ internal/store/     copy + metadata read/write, slug detection
 internal/serve/     HTTP server, markdown renderer, embedded HTML templates, handoff endpoints
 internal/extend/    NextPartFilename helper
 .claude/skills/     lathe, lathe-verify, lathe-extend, lathe-ask, lathe-tag skills (user-invoked, interactive)
+internal/skills/    embedded copies of those skills (data/) + the skills install/catalog logic
+internal/buildinfo/ version/commit/date stamped into the binary at build time
 docs/superpowers/   design spec and bootstrap plan
 main.go             cobra entrypoint
+```
+
+## Releasing
+
+Releases are cut by pushing a semver tag:
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+The `release` workflow runs [GoReleaser](https://goreleaser.com) (config in
+`.goreleaser.yaml`): it builds darwin/linux × amd64/arm64 binaries, publishes a
+GitHub Release with checksums and a generated changelog, and updates the Homebrew
+cask in `devenjarvis/homebrew-tap`. The tap update needs a
+`HOMEBREW_TAP_GITHUB_TOKEN` repo secret (a PAT with `contents:write` on the tap repo).
+
+Dry-run locally without tagging:
+
+```bash
+goreleaser check
+goreleaser release --snapshot --clean
 ```

@@ -19,7 +19,11 @@ cmd/
   verify-result.go                lathe verify-result — skill records verify status/result
   extend-start.go, extend-commit.go    lathe extend-{start,commit} — skill reserves/records a part
   tag.go                          lathe tag — skill sets/adds/removes a tutorial's search tags
+  version.go                      lathe version — prints buildinfo.String() (alias for --version)
+  skills.go                       lathe skills install/list — write embedded skills to Claude Code / Cursor
 internal/
+  buildinfo/                      Version/Commit/Date vars (ldflags-injected) + Resolve()/String()
+  skills/                         embedded skills (//go:embed data) + catalog (skills.go), Cursor translation (cursor.go)
   config/                         TutorialsDir() → ~/.lathe/tutorials
   store/
     metadata.go                   Tutorial struct (incl. Repo/RepoBranch + Tool/Tools), Status enum, Read/WriteMetadata, RepoDisplay, VerifyResult
@@ -34,6 +38,7 @@ internal/
     static/mermaid.min.js         embedded diagram renderer; static/fonts/*.woff2 latin-subset fonts
   extend/
     extend.go                     NextPartFilename helper (no model work — that's the skill)
+  skills/data/                    generated, tracked, embeddable copy of .claude/skills (parity-gated by `mage skills`)
 .claude/skills/
   lathe/SKILL.md                  /lathe generation skill (user-invoked)
   lathe-verify/SKILL.md           /lathe-verify — runs verification interactively
@@ -58,7 +63,7 @@ Tests are plain `go test` (no top-level runner script). The `/lathe` (`lathe`) b
 
 CI (`.github/workflows/ci.yml`) runs `mage check` on every PR and push to `main`: gofmt, `go vet`, `golangci-lint`, `go test -race ./...`, and `go build`. **Before opening or updating a PR, run `mage check` and make sure it's green** — don't push work that leaves CI red. `mage check` is the exact command CI runs, so local and CI cannot drift.
 
-`magefile.go` defines the targets (`mage fmt|fmtCheck|vet|lint|test|build`, and `mage check` for all of them; `mage` alone runs `check`). It's stdlib-only and build-tagged (`//go:build mage`), so it adds nothing to `go.mod`. Lint config lives in `.golangci.yml`. One-time tool install:
+`magefile.go` defines the targets (`mage fmt|fmtCheck|skills|skillsCheck|vet|lint|test|build`, and `mage check` for all of them; `mage` alone runs `check`). It's stdlib-only and build-tagged (`//go:build mage`), so it adds nothing to `go.mod`. Lint config lives in `.golangci.yml`. One-time tool install:
 
 ```bash
 go install github.com/magefile/mage@v1.15.0
@@ -76,13 +81,16 @@ mage fmt                          # auto-fix formatting; mage check is read-only
 - **Design system**: `styles.css` is the single source of truth for all UI styling — light/dark color tokens, `@font-face`, base typography, and every component class. It's `go:embed`'d as `stylesCSS`, exposed to templates as `.CSS`, and injected inline via the `{{define "head"}}` partial (alongside `.HighlightCSS`) so there's no extra request and no FOUC. **Status and callout colors are CSS tokens in `styles.css`, not inline in the templates.** Full docs in `docs/design-system.md`.
 - **Fonts** are latin-subset `woff2` (`internal/serve/static/fonts/`), `go:embed`'d and served at flat `/_static/<name>.woff2` (single-segment route + explicit whitelist preserved; `handleStatic` resolves `.woff2` names into the `fonts/` subdir). The UI stays 100% offline.
 - **Markdown rendering** uses goldmark with the `tango` (light) / `gruvbox` (dark) Chroma styles, chosen to harmonize with the warm palette; the code-block container background is owned by our `--code-bg` token via `pre.chroma` in `styles.css`, so only syntax-token hues come from Chroma. Tests assert that `<pre>` and a highlight class appear in output (and spot-check `#8f5902`/`#fe8019`), so don't disable highlighting or swap styles without updating `renderer_test.go`.
+- **Versioning (`internal/buildinfo`).** Exported `Version`/`Commit`/`Date` vars are overridden at link time via `-ldflags "-X github.com/devenjarvis/lathe/internal/buildinfo.Version=…"`. `Resolve()` prefers an injected `Version`, else falls back to `runtime/debug.ReadBuildInfo().Main.Version` (so `go install`ed binaries show their module version, not `dev`). `cmd/root.go` sets `rootCmd.Version = Resolve()` and a version template printing `String()` (version + commit/date); `cmd/version.go` is a friendly alias. The ldflags **package path** (`github.com/devenjarvis/lathe/internal/buildinfo`) must match in the two places that inject it — `magefile.go` `Build()` and `.goreleaser.yaml` — or the `-X` is silently ignored. They stamp different var sets on purpose: `Build()` injects `Version`+`Commit` (git-derived, for local builds); `.goreleaser.yaml` also injects `Date` (release builds only — a local build date would just be churn).
+- **Embedded skills (`internal/skills`).** `.claude/skills/` stays the human-edited source of truth, but `go:embed` ignores paths starting with `.`, so `mage skills` generates a tracked, embeddable mirror under `internal/skills/data/` and `mage skillsCheck` (in `mage check`) fails if they drift. **Never hand-edit `internal/skills/data/`** — edit `.claude/skills/` and run `mage skills`. `skills.go` embeds `data` and exposes a typed catalog (`All()` parses the `name:`/`description:` frontmatter with no YAML dep); `cursor.go` translates a SKILL.md into a Cursor command (strip frontmatter, prepend a `/<slug>` header). `cmd/skills.go` (`lathe skills install`/`list`) writes them to Claude Code (`./.claude/skills/<name>/SKILL.md`, or `~/…` with `--user`) and/or Cursor (`./.cursor/commands/<slug>.md`); it writes only into the chosen agent dirs, never `~/.lathe/`.
+- **Release pipeline.** Tagging `vX.Y.Z` and pushing triggers `.github/workflows/release.yml`, which runs GoReleaser (`.goreleaser.yaml`): darwin/linux × amd64/arm64 binaries, GitHub Release with checksums + conventional-commit changelog, and a Homebrew **cask** committed to `devenjarvis/homebrew-tap` (needs the `HOMEBREW_TAP_GITHUB_TOKEN` repo secret; a cask ships the pre-built binary, so `brew install` is macOS-only — Linux uses `install.sh`/`go install`). `release.yml` is separate from `ci.yml` — don't merge them. Dry-run with `goreleaser check` / `goreleaser release --snapshot --clean`. `install.sh` (repo root) is the `curl | sh` path: it resolves the latest (or `$LATHE_VERSION`) release, verifies the checksum, and installs `lathe` to `~/.local/bin` (or `/usr/local/bin`).
 
 ## Conventions
 
 - One cobra subcommand per file in `cmd/`, registered via `init()` calling `rootCmd.AddCommand(...)`.
 - Errors flow up through `RunE`; the root `Execute()` exits non-zero on any error.
 - Keep `internal/` packages free of cobra imports — they should be usable from tests directly.
-- Skills are markdown files, all checked into `.claude/skills/<name>/SKILL.md` (`lathe`, `lathe-verify`, `lathe-extend`, `lathe-ask`, `lathe-tag`) and user-invoked in an interactive session. None are embedded in the binary — the binary spawns no `claude`.
+- Skills are markdown files, all checked into `.claude/skills/<name>/SKILL.md` (`lathe`, `lathe-verify`, `lathe-extend`, `lathe-ask`, `lathe-tag`) and user-invoked in an interactive session. They **are** embedded in the binary (via the generated `internal/skills/data/` mirror, so `lathe skills install` works post-`brew`/`go install`) — but the binary still spawns no `claude`: embedding ships the skill *text*, it doesn't run a model. Keep that distinction.
 - Status values are an enum (`store.Status`): `unverified` (default after store; renders no badge), `verifying`, `verified`, `failed`, `skipped` (required tool not installed — not a failure), `extending`. New states should be added there and reflected in `cmd/list.go` `statusBadge`, the `{{define "badge"}}` partial in `components.html`, and the `--badge-*` tokens + `.badge.<status>` rule in `styles.css` (see "how to add a new status" in `docs/design-system.md`).
 
 ## Things to avoid

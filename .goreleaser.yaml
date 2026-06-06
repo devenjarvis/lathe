@@ -1,0 +1,100 @@
+# GoReleaser config for Lathe. See https://goreleaser.com
+#
+# Local dry run (no tag needed):
+#   goreleaser check
+#   goreleaser release --snapshot --clean
+#
+# Real release: push a vX.Y.Z tag; .github/workflows/release.yml runs this.
+version: 2
+
+project_name: lathe
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: lathe
+    main: .
+    binary: lathe
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    # Stamp version metadata into internal/buildinfo (must match the package
+    # path used by magefile.go and internal/buildinfo).
+    ldflags:
+      - -s -w
+      - -X github.com/devenjarvis/lathe/internal/buildinfo.Version={{.Version}}
+      - -X github.com/devenjarvis/lathe/internal/buildinfo.Commit={{.Commit}}
+      - -X github.com/devenjarvis/lathe/internal/buildinfo.Date={{.Date}}
+
+archives:
+  - id: lathe
+    formats:
+      - tar.gz
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+    files:
+      - README.md
+      - LICENSE
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  use: github
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+      - "Merge pull request"
+      - "Merge branch"
+  groups:
+    - title: Features
+      regexp: '^.*?feat(\(.+\))??!?:.+$'
+      order: 0
+    - title: Bug fixes
+      regexp: '^.*?fix(\(.+\))??!?:.+$'
+      order: 1
+    - title: Others
+      order: 999
+
+# Homebrew cask (macOS only -- Homebrew on Linux can't install casks; Linux
+# users use install.sh or `go install`). Casks are GoReleaser's supported path
+# for distributing pre-built binaries (the deprecated `brews:`/formula path is
+# meant for build-from-source).
+homebrew_casks:
+  - name: lathe
+    repository:
+      owner: devenjarvis
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    homepage: https://github.com/devenjarvis/lathe
+    description: Generate, store, serve, verify, and extend hands-on technical tutorials
+    license: MIT
+    # Keep generated cask commits attributable.
+    commit_author:
+      name: goreleaser-bot
+      email: goreleaser-bot@users.noreply.github.com
+    # The release binaries are unsigned, so macOS Gatekeeper quarantines them on
+    # download. Strip the quarantine attribute on install so `lathe` runs without
+    # a "cannot be opened" prompt. Casks only run on macOS, so /usr/bin/xattr is
+    # always present -- no guard needed.
+    hooks:
+      post:
+        install: |
+          system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/lathe"]
+
+release:
+  draft: false
+  prerelease: auto
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-snapshot-{{ .ShortCommit }}"
