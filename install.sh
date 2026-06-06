@@ -125,4 +125,4 @@ esac
 
 info ""
 info "Next: cd into your project and run \`lathe skills install\` to install the"
-info "Claude Code / Cursor skills (add --agent cursor or --user as needed)."
+info "Claude Code / Cursor / Codex skills (add --agent cursor, --agent codex, or --user as needed)."

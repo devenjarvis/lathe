@@ -102,6 +102,44 @@ func TestSkillsInstallCursorUserFallsBackToProject(t *testing.T) {
 	}
 }
 
+func TestSkillsInstallCodexProject(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	resetSkillsFlags(t)
+
+	skillsAgent = "codex"
+	if err := skillsInstallCmd.RunE(skillsInstallCmd, nil); err != nil {
+		t.Fatalf("install codex: %v", err)
+	}
+	for _, slug := range []string{"lathe", "lathe-ask", "lathe-extend", "lathe-tag", "lathe-verify"} {
+		mustExist(t, filepath.Join(dir, ".agents", "skills", slug, "SKILL.md"))
+	}
+	// Codex ships the raw SKILL.md, so the frontmatter is preserved (the
+	// inverse of the Cursor test, which strips it).
+	data, err := os.ReadFile(filepath.Join(dir, ".agents", "skills", "lathe", "SKILL.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(string(data), "---") {
+		t.Errorf("codex skill should ship raw with YAML frontmatter, got:\n%.80s", data)
+	}
+}
+
+func TestSkillsInstallCodexUser(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	// Also chdir somewhere clean so a stray project dir can't mask a bug.
+	t.Chdir(t.TempDir())
+	resetSkillsFlags(t)
+
+	skillsAgent = "codex"
+	skillsUser = true
+	if err := skillsInstallCmd.RunE(skillsInstallCmd, nil); err != nil {
+		t.Fatalf("install codex --user: %v", err)
+	}
+	mustExist(t, filepath.Join(home, ".agents", "skills", "lathe", "SKILL.md"))
+}
+
 func TestSkillsInstallAll(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)
@@ -113,6 +151,7 @@ func TestSkillsInstallAll(t *testing.T) {
 	}
 	mustExist(t, filepath.Join(dir, ".claude", "skills", "lathe", "SKILL.md"))
 	mustExist(t, filepath.Join(dir, ".cursor", "commands", "lathe.md"))
+	mustExist(t, filepath.Join(dir, ".agents", "skills", "lathe", "SKILL.md"))
 }
 
 func TestSkillsInstallInvalidAgent(t *testing.T) {

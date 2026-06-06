@@ -72,18 +72,21 @@ go build -o lathe
 ### Install the skills
 
 The skills are bundled into the binary. After installing `lathe`, drop them into a
-project so Claude Code can discover them:
+project so Claude Code (or Cursor / Codex) can discover them:
 
 ```bash
 lathe skills install                 # ./.claude/skills/<name>/SKILL.md (this project)
 lathe skills install --user          # ~/.claude/skills/<name>/SKILL.md (all projects)
 lathe skills install --agent cursor  # ./.cursor/commands/<slug>.md (Cursor slash commands)
-lathe skills install --agent all     # both Claude Code and Cursor
+lathe skills install --agent codex   # ./.agents/skills/<name>/SKILL.md (Codex Agent Skills)
+lathe skills install --agent all     # Claude Code, Cursor, and Codex
 lathe skills list                    # show the bundled skills
 ```
 
-Cursor commands are slash-invoked as `/<slug>` (e.g. `/lathe`); the interactive
-handoff model is documented for Claude Code, so a few runtime details differ on Cursor.
+Codex uses the same `SKILL.md` format as Claude Code, so its skills ship verbatim
+(and `--user` installs to `~/.agents/skills/...`). Cursor commands are slash-invoked
+as `/<slug>` (e.g. `/lathe`); the interactive handoff model is documented for Claude
+Code, so a few runtime details differ on Cursor and Codex.
 
 ## Usage
 
