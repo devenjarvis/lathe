@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/devenjarvis/lathe/internal/store"
+	"github.com/devenjarvis/lathe/internal/voice"
 )
 
 //go:embed layout.html list.html components.html
@@ -340,6 +341,21 @@ func (s *Server) renderPart(w http.ResponseWriter, tut *store.Tutorial, tutDir, 
 	// metadata bookkeeping.
 	unverifiedCount := bytes.Count(content, []byte("callout-unverified"))
 
+	// Render the voice spec body (markdown) for the byline's inline reveal.
+	// Best-effort and only for voiced tutorials: a deleted/unresolvable custom
+	// voice — or a spec that fails to render — yields empty HTML, so the byline
+	// still shows the name but renders no <details>. Pre-feature tutorials (empty
+	// Voice) get no reveal — the byline shows the model only, matching the old
+	// footer behavior.
+	var voiceSpec template.HTML
+	if tut.Voice != "" {
+		if v, err := voice.Resolve(tut.Voice); err == nil {
+			if rendered, rerr := RenderMarkdown([]byte(v.Body())); rerr == nil {
+				voiceSpec = template.HTML(rendered)
+			}
+		}
+	}
+
 	var buf bytes.Buffer
 	if err := s.layoutTmpl.Execute(&buf, map[string]any{
 		"Title":             tut.Title,
@@ -347,6 +363,7 @@ func (s *Server) renderPart(w http.ResponseWriter, tut *store.Tutorial, tutDir, 
 		"VerifyResult":      verifyResult,
 		"VerifiedDate":      verifiedDate,
 		"UnverifiedCount":   unverifiedCount,
+		"VoiceSpec":         voiceSpec,
 		"CurrentPart":       part,
 		"CurrentPartNumber": currentNumber,
 		"Content":           template.HTML(content),

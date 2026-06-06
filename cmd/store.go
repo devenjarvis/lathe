@@ -17,6 +17,7 @@ var (
 	storeBranch   string
 	storeTools    []string
 	storeVoice    string
+	storeModel    string
 )
 
 var storeCmd = &cobra.Command{
@@ -31,6 +32,7 @@ var storeCmd = &cobra.Command{
 			Branch:  storeBranch,
 			Tools:   parseTools(storeTools),
 			Voice:   storeVoice,
+			Model:   storeModel,
 		})
 		if err != nil {
 			return err
@@ -86,5 +88,6 @@ func init() {
 	storeCmd.Flags().StringVar(&storeBranch, "repo-branch", "", "branch the tutorial targets (only recorded when --repo is set)")
 	storeCmd.Flags().StringArrayVar(&storeTools, "tool", nil, "language/tool and version the tutorial targets, as name:version (repeatable)")
 	storeCmd.Flags().StringVar(&storeVoice, "voice", "", "writing voice the tutorial was generated in (built-in preset or custom voice name)")
+	storeCmd.Flags().StringVar(&storeModel, "model", "", "LLM that authored the tutorial, as a display label (e.g. \"Claude Opus 4.8\"); shown in the reading-page byline")
 	rootCmd.AddCommand(storeCmd)
 }

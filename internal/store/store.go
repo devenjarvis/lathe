@@ -23,6 +23,7 @@ type StoreOptions struct {
 	Branch  string   // branch the tutorial targets (only meaningful with Repo)
 	Tools   []Tool   // languages/tools + versions (NormalizeTools)
 	Voice   string   // writing voice the tutorial was generated in (NormalizeVoice)
+	Model   string   // LLM that authored the tutorial, a display label (NormalizeModel)
 }
 
 // Store copies a tutorial directory into ~/.lathe/tutorials/ and writes its
@@ -68,6 +69,7 @@ func Store(srcPath string, opts StoreOptions) (*Tutorial, error) {
 		Tools:      NormalizeTools(opts.Tools),
 		Sources:    NormalizeSources(opts.Sources),
 		Voice:      NormalizeVoice(opts.Voice),
+		Model:      NormalizeModel(opts.Model),
 	}
 
 	if err := WriteMetadata(destDir, t); err != nil {
@@ -284,6 +286,15 @@ func NormalizeTools(tools []Tool) []Tool {
 // voice means "fall back to the configured default").
 func NormalizeVoice(voice string) string {
 	return strings.ToLower(strings.TrimSpace(voice))
+}
+
+// NormalizeModel canonicalizes a model label by trimming surrounding whitespace
+// only — case is preserved because it is a human-facing display label (e.g.
+// "Claude Opus 4.8"), not a selection key. Returns "" for empty input so Model
+// stays omitempty in metadata.json (an empty model falls back to "Claude" in the
+// reading-page byline).
+func NormalizeModel(model string) string {
+	return strings.TrimSpace(model)
 }
 
 func SlugToTitle(slug string) string {

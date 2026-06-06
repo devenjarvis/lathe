@@ -175,6 +175,60 @@ func TestStoreEmptyVoiceStaysOmitted(t *testing.T) {
 	}
 }
 
+func TestStorePersistsAndNormalizesModel(t *testing.T) {
+	src := t.TempDir()
+	if err := os.WriteFile(filepath.Join(src, "index.md"), []byte("# Hello"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	// Trim only — case is preserved because Model is a human-facing label.
+	tut, err := store.Store(src, store.StoreOptions{Model: "  Claude Opus 4.8  "})
+	if err != nil {
+		t.Fatalf("Store() error = %v", err)
+	}
+	if tut.Model != "Claude Opus 4.8" {
+		t.Errorf("Store() Model = %q, want %q", tut.Model, "Claude Opus 4.8")
+	}
+	read, err := store.ReadMetadata(filepath.Join(home, ".lathe", "tutorials", tut.Slug))
+	if err != nil {
+		t.Fatalf("ReadMetadata() error = %v", err)
+	}
+	if read.Model != "Claude Opus 4.8" {
+		t.Errorf("ReadMetadata() Model = %q, want %q", read.Model, "Claude Opus 4.8")
+	}
+}
+
+func TestStoreEmptyModelStaysOmitted(t *testing.T) {
+	src := t.TempDir()
+	if err := os.WriteFile(filepath.Join(src, "index.md"), []byte("# Hello"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", t.TempDir())
+	tut, err := store.Store(src, store.StoreOptions{})
+	if err != nil {
+		t.Fatalf("Store() error = %v", err)
+	}
+	if tut.Model != "" {
+		t.Errorf("Store() Model = %q, want empty", tut.Model)
+	}
+}
+
+func TestNormalizeModel(t *testing.T) {
+	cases := map[string]string{
+		"  Claude Opus 4.8  ": "Claude Opus 4.8",
+		"GPT-4o":              "GPT-4o", // case preserved
+		"":                    "",
+		"   ":                 "",
+	}
+	for in, want := range cases {
+		if got := store.NormalizeModel(in); got != want {
+			t.Errorf("NormalizeModel(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
 func TestStoreDropsBranchWithoutRepo(t *testing.T) {
 	src := t.TempDir()
 	if err := os.WriteFile(filepath.Join(src, "index.md"), []byte("# Hello"), 0644); err != nil {

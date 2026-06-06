@@ -101,6 +101,61 @@ func TestExtendCommitAppendsSources(t *testing.T) {
 	}
 }
 
+func TestExtendCommitUpdatesModel(t *testing.T) {
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+	tutDir := writeTutorial(t, homeDir, "test-slug", store.StatusExtending, []string{"part-01.md"})
+	if err := os.WriteFile(filepath.Join(tutDir, "part-02.md"), []byte("# Part 2"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	// Seed an existing model label; re-extending in a newer model should refresh it.
+	tut, _ := store.ReadMetadata(tutDir)
+	tut.Model = "Claude Opus 4.8"
+	if err := store.WriteMetadata(tutDir, tut); err != nil {
+		t.Fatal(err)
+	}
+
+	extendCommitModel = "  Claude Sonnet 4.6  "
+	t.Cleanup(func() { extendCommitModel = "" })
+
+	if err := extendCommitCmd.RunE(extendCommitCmd, []string{"test-slug", "part-02.md"}); err != nil {
+		t.Fatalf("extend-commit: %v", err)
+	}
+	got, err := store.ReadMetadata(tutDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Model != "Claude Sonnet 4.6" { // trimmed, last-writer-wins
+		t.Errorf("Model = %q, want %q", got.Model, "Claude Sonnet 4.6")
+	}
+}
+
+func TestExtendCommitOmittedModelLeavesExisting(t *testing.T) {
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+	tutDir := writeTutorial(t, homeDir, "test-slug", store.StatusExtending, []string{"part-01.md"})
+	if err := os.WriteFile(filepath.Join(tutDir, "part-02.md"), []byte("# Part 2"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	tut, _ := store.ReadMetadata(tutDir)
+	tut.Model = "Claude Opus 4.8"
+	if err := store.WriteMetadata(tutDir, tut); err != nil {
+		t.Fatal(err)
+	}
+
+	extendCommitModel = "" // omitted
+	if err := extendCommitCmd.RunE(extendCommitCmd, []string{"test-slug", "part-02.md"}); err != nil {
+		t.Fatalf("extend-commit: %v", err)
+	}
+	got, err := store.ReadMetadata(tutDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Model != "Claude Opus 4.8" {
+		t.Errorf("Model = %q, want existing %q untouched", got.Model, "Claude Opus 4.8")
+	}
+}
+
 func TestExtendCommitRejectsMissingFile(t *testing.T) {
 	homeDir := t.TempDir()
 	t.Setenv("HOME", homeDir)

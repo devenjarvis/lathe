@@ -253,11 +253,29 @@ pre[data-overflow="true"]{box-shadow:inset -18px 0 14px -12px rgba(40,30,20,.20)
 .article-header details.provenance li{margin:.2rem 0}
 .article-header details.provenance a{display:inline-block;font-size:.78rem;padding:.15rem 0;color:var(--accent);word-break:break-all;line-height:1.4}
 
-/* Authorship-disclosure footer — quiet metadata at the foot of a reading page.
-   Always names the LLM author; appends the voice when one was recorded. Muted to
-   read as a colophon, not body copy; tokens only, no new colors. */
-.article-footer{margin-top:2.5rem;padding-top:1.1rem;border-top:1px solid var(--border);font-size:.78rem;line-height:1.45;color:var(--text-faint)}
-.article-footer code{font-size:.95em;color:var(--text-subtle)}
+/* Author byline — quiet authorship line under the title: always names the LLM
+   model (falling back to "Claude"); appends the voice when one was recorded.
+   Muted so it reads as metadata, not body copy; tokens only, no new colors. */
+.article-byline{font-size:.82rem;line-height:1.5;color:var(--text-subtle);margin:.2rem 0 .7rem}
+.article-byline code{font-size:.95em;color:var(--text-subtle)}
+/* voice-reveal — inline <details> letting a reader expand the voice spec from
+   the byline (mirrors the Sources disclosure). Summary is a clickable voice chip;
+   the expanded body is the spec rendered as markdown in a quiet, scrollable
+   sunken panel. Inner typography is toned down from the full article scale so the
+   spec reads as a compact quoted document, not a second article. */
+.voice-reveal{display:inline}
+.voice-reveal summary{display:inline;cursor:pointer;list-style:none}
+.voice-reveal summary::-webkit-details-marker{display:none}
+.voice-reveal summary code{color:var(--accent)}
+.voice-reveal[open] summary{margin-bottom:.4rem}
+.voice-reveal-body{margin:.4rem 0 0;padding:.85rem 1.1rem;background:var(--surface-sunken);border:1px solid var(--border);border-radius:var(--radius-md);font-size:.86rem;line-height:1.55;color:var(--text-subtle);max-height:26rem;overflow:auto}
+.voice-reveal-body > :first-child{margin-top:0}
+.voice-reveal-body > :last-child{margin-bottom:0}
+.voice-reveal-body h1,.voice-reveal-body h2,.voice-reveal-body h3,.voice-reveal-body h4{font-size:.95rem;margin:1.1rem 0 .4rem;color:var(--text);line-height:1.3}
+.voice-reveal-body p,.voice-reveal-body li{font-size:.86rem;color:var(--text-subtle);margin-bottom:.5rem}
+.voice-reveal-body ul,.voice-reveal-body ol{margin:.5rem 0 .5rem 1.25rem}
+.voice-reveal-body li{margin:.2rem 0}
+.voice-reveal-body code{font-size:.82em}
 
 /* Right-edge section rail (minimap ToC). Collapsed: a stack of ticks pinned to
    the right gutter, one per h2, the current section's tick wider + accent-colored

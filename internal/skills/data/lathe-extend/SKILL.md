@@ -37,9 +37,9 @@ Add the next part to a stored tutorial. Triggered by `/lathe-extend <slug> [guid
 
 5. **Commit the part.** Run:
    ```bash
-   lathe extend-commit <slug> <printed-filename> [--source <url> …]
+   lathe extend-commit <slug> <printed-filename> [--source <url> …] --model "<model you are running as>"
    ```
-   Pass `--source` once for each source you newly consulted for this part — it folds them into the tutorial's research trail (de-duped). This registers the part, clears the pending marker, and resets status to `unverified`.
+   Pass `--source` once for each source you newly consulted for this part — it folds them into the tutorial's research trail (de-duped). Pass `--model` with the model *you* are running as (e.g. `--model "Claude Opus 4.8"`) so the reading-page byline reflects who wrote the latest part (last-writer-wins; omit it only to leave the existing label untouched). This registers the part, clears the pending marker, and resets status to `unverified`.
 
 6. **Tell the user** it's added: how to view it (`lathe serve`), and that verification is opt-in (`/lathe-verify <slug>` — the "Verify this tutorial" button hands you that command). Then stay in session for follow-ups.
 

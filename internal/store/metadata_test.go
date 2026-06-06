@@ -182,6 +182,35 @@ func TestMetadataRoundTripRepoAndTools(t *testing.T) {
 	}
 }
 
+func TestMetadataRoundTripModel(t *testing.T) {
+	dir := t.TempDir()
+	tut := &store.Tutorial{Slug: "test-tut", Status: store.StatusUnverified, Model: "Claude Opus 4.8"}
+	if err := store.WriteMetadata(dir, tut); err != nil {
+		t.Fatalf("WriteMetadata: %v", err)
+	}
+	got, err := store.ReadMetadata(dir)
+	if err != nil {
+		t.Fatalf("ReadMetadata: %v", err)
+	}
+	if got.Model != "Claude Opus 4.8" {
+		t.Errorf("Model = %q, want %q", got.Model, "Claude Opus 4.8")
+	}
+}
+
+func TestModelOmittedWhenEmpty(t *testing.T) {
+	dir := t.TempDir()
+	if err := store.WriteMetadata(dir, &store.Tutorial{Slug: "t", Status: store.StatusUnverified}); err != nil {
+		t.Fatalf("WriteMetadata: %v", err)
+	}
+	data, err := os.ReadFile(filepath.Join(dir, "metadata.json"))
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	if strings.Contains(string(data), "model") {
+		t.Error("\"model\" should be omitted from JSON when empty")
+	}
+}
+
 func TestRepoAndToolsOmittedWhenEmpty(t *testing.T) {
 	dir := t.TempDir()
 	if err := store.WriteMetadata(dir, &store.Tutorial{Slug: "t", Status: store.StatusUnverified}); err != nil {

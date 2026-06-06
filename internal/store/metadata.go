@@ -56,6 +56,12 @@ type Tutorial struct {
 	// Populated via `lathe store --voice`; the skill never writes metadata.json
 	// directly.
 	Voice string `json:"voice,omitempty"`
+	// Model is the free-form display label of the LLM that authored the tutorial
+	// (e.g. "Claude Opus 4.8"), shown in the byline on the served reading page.
+	// Populated via `lathe store --model` (and refreshed by `lathe extend-commit
+	// --model`); the skill never writes metadata.json directly. Empty (pre-feature
+	// tutorials) means the reader falls back to a generic "Claude".
+	Model string `json:"model,omitempty"`
 }
 
 // Tool is a single language/tool the tutorial targets, paired with the version
