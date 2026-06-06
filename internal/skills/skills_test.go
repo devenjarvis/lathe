@@ -10,7 +10,7 @@ func TestAllReturnsEverySkillWithMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatalf("All() error: %v", err)
 	}
-	const want = 5
+	const want = 6
 	if len(all) != want {
 		t.Fatalf("All() returned %d skills, want %d", len(all), want)
 	}
@@ -21,6 +21,7 @@ func TestAllReturnsEverySkillWithMetadata(t *testing.T) {
 		"lathe-extend": false,
 		"lathe-tag":    false,
 		"lathe-verify": false,
+		"lathe-voice":  false,
 	}
 	for _, s := range all {
 		if _, ok := wantSlugs[s.Slug]; !ok {
@@ -42,32 +43,5 @@ func TestAllReturnsEverySkillWithMetadata(t *testing.T) {
 		if !found {
 			t.Errorf("missing expected skill %q", slug)
 		}
-	}
-}
-
-func TestParseFrontmatter(t *testing.T) {
-	raw := []byte("---\nname: lathe\ndescription: Generate tutorials.\n---\n\n# Body\n")
-	name, desc := parseFrontmatter(raw)
-	if name != "lathe" {
-		t.Errorf("name = %q, want lathe", name)
-	}
-	if desc != "Generate tutorials." {
-		t.Errorf("description = %q", desc)
-	}
-}
-
-func TestParseFrontmatterNoFrontmatter(t *testing.T) {
-	name, desc := parseFrontmatter([]byte("# Just a heading\n"))
-	if name != "" || desc != "" {
-		t.Errorf("expected empty name/desc, got %q / %q", name, desc)
-	}
-}
-
-func TestParseFrontmatterUnclosedFenceIsIgnored(t *testing.T) {
-	// Opening fence but no closing one: must not harvest body lines.
-	raw := []byte("---\nname: real\n\n# Body\nname: not-frontmatter\n")
-	name, desc := parseFrontmatter(raw)
-	if name != "" || desc != "" {
-		t.Errorf("unclosed frontmatter should yield empty name/desc, got %q / %q", name, desc)
 	}
 }

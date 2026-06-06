@@ -49,6 +49,13 @@ type Tutorial struct {
 	// web UI. Populated via `lathe store --source` and `lathe extend-commit
 	// --source`; the skill never writes metadata.json directly.
 	Sources []string `json:"sources,omitempty"`
+	// Voice is the writing voice the tutorial was generated in (a built-in preset
+	// or a custom voice name). Recorded so /lathe-extend continues in the same
+	// voice and the served page can disclose it. Empty (pre-feature tutorials)
+	// means the reader/skill should fall back to the configured default voice.
+	// Populated via `lathe store --voice`; the skill never writes metadata.json
+	// directly.
+	Voice string `json:"voice,omitempty"`
 }
 
 // Tool is a single language/tool the tutorial targets, paired with the version

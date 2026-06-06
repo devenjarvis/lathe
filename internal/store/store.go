@@ -22,6 +22,7 @@ type StoreOptions struct {
 	Repo    string   // git remote the tutorial was written for (NormalizeRepo)
 	Branch  string   // branch the tutorial targets (only meaningful with Repo)
 	Tools   []Tool   // languages/tools + versions (NormalizeTools)
+	Voice   string   // writing voice the tutorial was generated in (NormalizeVoice)
 }
 
 // Store copies a tutorial directory into ~/.lathe/tutorials/ and writes its
@@ -66,6 +67,7 @@ func Store(srcPath string, opts StoreOptions) (*Tutorial, error) {
 		RepoBranch: branch,
 		Tools:      NormalizeTools(opts.Tools),
 		Sources:    NormalizeSources(opts.Sources),
+		Voice:      NormalizeVoice(opts.Voice),
 	}
 
 	if err := WriteMetadata(destDir, t); err != nil {
@@ -274,6 +276,14 @@ func NormalizeTools(tools []Tool) []Tool {
 		out = append(out, Tool{Name: name, Version: strings.TrimSpace(t.Version)})
 	}
 	return out
+}
+
+// NormalizeVoice canonicalizes a voice name to its selection key: trimmed and
+// lowercased, matching how the voice package keys its presets and custom files.
+// Returns "" for empty input so Voice stays omitempty in metadata.json (an empty
+// voice means "fall back to the configured default").
+func NormalizeVoice(voice string) string {
+	return strings.ToLower(strings.TrimSpace(voice))
 }
 
 func SlugToTitle(slug string) string {

@@ -136,6 +136,45 @@ func TestStorePersistsAndNormalizesRepoAndTools(t *testing.T) {
 	}
 }
 
+func TestStorePersistsAndNormalizesVoice(t *testing.T) {
+	src := t.TempDir()
+	if err := os.WriteFile(filepath.Join(src, "index.md"), []byte("# Hello"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	tut, err := store.Store(src, store.StoreOptions{Voice: "  Companion  "})
+	if err != nil {
+		t.Fatalf("Store() error = %v", err)
+	}
+	if tut.Voice != "companion" {
+		t.Errorf("Store() Voice = %q, want %q", tut.Voice, "companion")
+	}
+	read, err := store.ReadMetadata(filepath.Join(home, ".lathe", "tutorials", tut.Slug))
+	if err != nil {
+		t.Fatalf("ReadMetadata() error = %v", err)
+	}
+	if read.Voice != "companion" {
+		t.Errorf("ReadMetadata() Voice = %q, want companion", read.Voice)
+	}
+}
+
+func TestStoreEmptyVoiceStaysOmitted(t *testing.T) {
+	src := t.TempDir()
+	if err := os.WriteFile(filepath.Join(src, "index.md"), []byte("# Hello"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", t.TempDir())
+	tut, err := store.Store(src, store.StoreOptions{})
+	if err != nil {
+		t.Fatalf("Store() error = %v", err)
+	}
+	if tut.Voice != "" {
+		t.Errorf("Store() Voice = %q, want empty", tut.Voice)
+	}
+}
+
 func TestStoreDropsBranchWithoutRepo(t *testing.T) {
 	src := t.TempDir()
 	if err := os.WriteFile(filepath.Join(src, "index.md"), []byte("# Hello"), 0644); err != nil {

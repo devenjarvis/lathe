@@ -9,7 +9,7 @@ Lathe targets topics where good documentation is scarce — *"build a digital sy
 Two layers with a clean boundary:
 
 - **Claude Code skills** — generate and work with tutorials, all run in your **interactive** Claude Code session: `/lathe` writes `part-01.md`, `/lathe-extend` adds the next part, `/lathe-verify` works through a tutorial to confirm it compiles and runs, `/lathe-ask` answers questions about a part you're reading, and `/lathe-tag` adds search tags to existing tutorials. Running them interactively keeps the work on your Claude subscription (headless `claude -p` is metered as of 2026-06-15; interactive use is not).
-- **`lathe` CLI** (Go) — copies tutorials into `~/.lathe/tutorials/`, serves the rendered output at `http://localhost:4242`, and owns all durable state. It never calls `claude` itself: the web buttons and the `lathe verify`/`lathe extend` commands just hand you the skill command to paste into your session, and the skills call back into the CLI (`lathe store`, `lathe verify-result`, `lathe extend-start`/`extend-commit`) to record results.
+- **`lathe` CLI** (Go) — copies tutorials into `~/.lathe/tutorials/`, serves the rendered output at `http://localhost:4242`, and owns all durable state. It never calls `claude` itself: the web buttons and the `lathe verify`/`lathe extend` commands just hand you the skill command to paste into your session, and the skills call back into the CLI (`lathe store`, `lathe verify-result`, `lathe extend-start`/`extend-commit`, `lathe voice add`) to record results — and read the active writing voice via `lathe voice show`.
 
 ```
 User: /lathe "build a digital synth in Zig"     (interactive Claude Code)
@@ -113,10 +113,48 @@ lathe store <path> --verify   # save, then print the /lathe-verify command to ru
 lathe verify <slug>      # print the /lathe-verify <slug> command to run in your session
 lathe extend <slug>      # print the /lathe-extend <slug> command to run in your session
 lathe tag <slug> --set rust,audio   # set/--add/--remove a tutorial's tags
+lathe voice list         # show available writing voices (built-in + custom)
+lathe voice show [name]  # print a voice's spec (default voice if no name)
 lathe rm <slug>          # delete a stored tutorial (prompts unless --force)
 ```
 
 You can also delete tutorials from the web UI — each row on the list page has a `×` button that removes the tutorial after a confirmation.
+
+## Writing voices
+
+Every tutorial is written in a **voice** — a tone/register preset. A voice
+controls *how the prose sounds*; it can never change accuracy, research,
+citation, verification, or structure, which are fixed. Two voices ship built in:
+
+- **`plainspoken`** (the default) — honest and precise, with no invented persona
+  or fabricated first-person war stories. It's written to avoid anthropomorphizing
+  the LLM that produced it.
+- **`companion`** — the original warm, wry, first-person "friend at the keyboard".
+
+Pick one per run by naming it in your `/lathe` invocation (*"…in the companion
+voice"*), or change the global default:
+
+```bash
+lathe voice list                     # see what's available; * marks the default
+lathe voice show companion           # print a voice's full spec
+lathe voice set-default companion    # change the default for new tutorials
+```
+
+**Custom voices.** Author your own with `/lathe-voice` in a Claude Code session
+— it interviews you about register, person, and humor, drafts a spec, and (on
+your approval) saves it via `lathe voice add <name> --file -` into
+`~/.lathe/voices/`. You can also add one from a file directly:
+
+```bash
+lathe voice add field-notes --file ./my-voice.md   # or --file - for stdin
+lathe voice rm field-notes                          # remove a custom voice
+```
+
+Custom voices can't impersonate a real named person, fabricate credentials, or
+deny LLM authorship — `/lathe-voice` refuses those, and every voice is wrapped
+with a fixed preamble enforcing the same at generation time. The voice a tutorial
+was written in is recorded on it (so `/lathe-extend` continues in it) and
+disclosed in the reading page's footer alongside the LLM-authorship note.
 
 ## Finding tutorials
 
@@ -192,12 +230,14 @@ Because verification now runs in your own interactive session, it executes under
 
 ```
 cmd/                CLI commands (root, list, open, rm, serve, store, verify, extend,
-                    verify-result, extend-start, extend-commit, tag)
-internal/config/    ~/.lathe/tutorials path resolution
+                    verify-result, extend-start, extend-commit, tag, voice)
+internal/config/    ~/.lathe paths (tutorials, voices) + config.json (default voice)
 internal/store/     copy + metadata read/write, slug detection
 internal/serve/     HTTP server, markdown renderer, embedded HTML templates, handoff endpoints
+internal/voice/     embedded voice presets + custom-voice management + guardrail preamble
+internal/frontmatter/ shared name:/description: frontmatter scanner
 internal/extend/    NextPartFilename helper
-.claude/skills/     lathe, lathe-verify, lathe-extend, lathe-ask, lathe-tag skills (user-invoked, interactive)
+.claude/skills/     lathe, lathe-verify, lathe-extend, lathe-ask, lathe-tag, lathe-voice skills (user-invoked, interactive)
 internal/skills/    embedded copies of those skills (data/) + the skills install/catalog logic
 internal/buildinfo/ version/commit/date stamped into the binary at build time
 docs/superpowers/   design spec and bootstrap plan

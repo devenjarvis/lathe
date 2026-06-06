@@ -253,6 +253,12 @@ pre[data-overflow="true"]{box-shadow:inset -18px 0 14px -12px rgba(40,30,20,.20)
 .article-header details.provenance li{margin:.2rem 0}
 .article-header details.provenance a{display:inline-block;font-size:.78rem;padding:.15rem 0;color:var(--accent);word-break:break-all;line-height:1.4}
 
+/* Authorship-disclosure footer — quiet metadata at the foot of a reading page.
+   Always names the LLM author; appends the voice when one was recorded. Muted to
+   read as a colophon, not body copy; tokens only, no new colors. */
+.article-footer{margin-top:2.5rem;padding-top:1.1rem;border-top:1px solid var(--border);font-size:.78rem;line-height:1.45;color:var(--text-faint)}
+.article-footer code{font-size:.95em;color:var(--text-subtle)}
+
 /* Right-edge section rail (minimap ToC). Collapsed: a stack of ticks pinned to
    the right gutter, one per h2, the current section's tick wider + accent-colored
    (scroll-spy via IntersectionObserver). Hover / keyboard :focus-within expands

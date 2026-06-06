@@ -5,14 +5,19 @@ description: Write the next part of an existing Lathe tutorial, in session. Use 
 
 # Lathe — Extend a Tutorial
 
-Add the next part to a stored tutorial. Triggered by `/lathe-extend <slug> [guidance…]`. The new part must continue *that* tutorial — its example, its numbers, its voice — not a fresh generic one. Everything about shape, voice, research discipline, and callouts comes from the **`lathe`** skill; read it and apply it. This skill only adds what's different about extending: continuity and the `extend-start → write → extend-commit` handshake.
+Add the next part to a stored tutorial. Triggered by `/lathe-extend <slug> [guidance…]`. The new part must continue *that* tutorial — its example, its numbers, its voice — not a fresh generic one. Everything about shape, research discipline, and callouts comes from the **`lathe`** skill; read it and apply it. The **voice** is whatever the tutorial was generated in — fetch it from the CLI (see step 1), don't guess or re-pick. This skill only adds what's different about extending: continuity and the `extend-start → write → extend-commit` handshake.
 
 ## Protocol
 
 1. **Absorb the existing tutorial.** Read every part in `~/.lathe/tutorials/<slug>/` (`part-NN.md`). You need the load-bearing context before you write a word:
    - The **controlling example** and the **fixed numbers** (sample rate, page size, buffer size) — reuse them exactly; don't invent new ones.
    - The **controlling metaphor**, if any, and whether a prior part already retired it (if retired, don't resurrect it).
-   - The **voice** and the level of the reader.
+   - The **voice**. Fetch the tutorial's recorded voice and apply it for all tonal choices:
+     ```bash
+     lathe voice show --tutorial <slug>
+     ```
+     This prints the wrapped voice spec (guardrail preamble + tone guidance). It resolves the voice recorded on the tutorial's metadata, falling back to the configured default for tutorials stored before voices existed. Don't re-pick or drift the voice; structure and substance still defer to the `lathe` skill, which wins on any conflict with the voice.
+   - The **level of the reader**.
    - The **repo and pinned tool versions** in `metadata.json` (`repo`, `repo_branch`, `tools`) — the new part *inherits* them. Write against the same versions; don't silently bump to a newer toolchain. (If the reader explicitly wants to move the tutorial to a new version, that's a heads-up that it may be time for a fresh tutorial, not a quiet drift — flag it rather than re-pinning here.)
    - Where the previous part's **"What's next"** pointed — that's your mandate for this part unless the user's guidance redirects it.
 
