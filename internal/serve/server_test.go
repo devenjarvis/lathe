@@ -60,6 +60,110 @@ func articleHeader(t *testing.T, body string) string {
 	return body[idx : idx+end]
 }
 
+func TestDeleteRejectsForeignOrigin(t *testing.T) {
+	dir := t.TempDir()
+	tutDir := makeTestTutorial(t, dir, "victim", false)
+
+	srv := serve.NewServer(dir)
+	req := httptest.NewRequest(http.MethodPost, "/-/delete/victim", nil)
+	req.Header.Set("Origin", "http://evil.example.com")
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Errorf("cross-origin delete = %d, want %d", w.Code, http.StatusForbidden)
+	}
+	if _, err := os.Stat(tutDir); err != nil {
+		t.Errorf("tutorial was deleted by a cross-origin request: %v", err)
+	}
+}
+
+func TestDeleteRejectsForeignReferer(t *testing.T) {
+	dir := t.TempDir()
+	tutDir := makeTestTutorial(t, dir, "victim", false)
+
+	srv := serve.NewServer(dir)
+	req := httptest.NewRequest(http.MethodPost, "/-/delete/victim", nil)
+	req.Header.Set("Referer", "http://evil.example.com/page")
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Errorf("cross-referer delete = %d, want %d", w.Code, http.StatusForbidden)
+	}
+	if _, err := os.Stat(tutDir); err != nil {
+		t.Errorf("tutorial was deleted by a cross-referer request: %v", err)
+	}
+}
+
+func TestDeleteAllowsSameOrigin(t *testing.T) {
+	dir := t.TempDir()
+	tutDir := makeTestTutorial(t, dir, "victim", false)
+
+	srv := serve.NewServer(dir)
+	req := httptest.NewRequest(http.MethodPost, "/-/delete/victim", nil)
+	req.Header.Set("Origin", "http://localhost:4242")
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusSeeOther {
+		t.Errorf("same-origin delete = %d, want %d", w.Code, http.StatusSeeOther)
+	}
+	if _, err := os.Stat(tutDir); !os.IsNotExist(err) {
+		t.Errorf("same-origin delete did not remove the tutorial dir: err=%v", err)
+	}
+}
+
+func TestDeleteAllowsNoOriginHeaders(t *testing.T) {
+	// A plain form POST from the page itself may carry no Origin and an
+	// allowed Referer; a request with neither header (e.g. curl) is also
+	// allowed — the guard only rejects a *present* foreign origin/referer.
+	dir := t.TempDir()
+	tutDir := makeTestTutorial(t, dir, "victim", false)
+
+	srv := serve.NewServer(dir)
+	req := httptest.NewRequest(http.MethodPost, "/-/delete/victim", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusSeeOther {
+		t.Errorf("headerless delete = %d, want %d", w.Code, http.StatusSeeOther)
+	}
+	if _, err := os.Stat(tutDir); !os.IsNotExist(err) {
+		t.Errorf("headerless delete did not remove the tutorial dir: err=%v", err)
+	}
+}
+
+func TestPartRejectsNonPartFile(t *testing.T) {
+	dir := t.TempDir()
+	makeTestTutorial(t, dir, "test-series", true)
+
+	srv := serve.NewServer(dir)
+	// metadata.json lives in the tutorial dir but is not a part; it must not
+	// be readable/renderable through the {part} route.
+	req := httptest.NewRequest(http.MethodGet, "/test-series/metadata.json", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Errorf("GET /test-series/metadata.json = %d, want %d", w.Code, http.StatusNotFound)
+	}
+}
+
+func TestPartServesKnownPart(t *testing.T) {
+	dir := t.TempDir()
+	makeTestTutorial(t, dir, "test-series", true)
+
+	srv := serve.NewServer(dir)
+	req := httptest.NewRequest(http.MethodGet, "/test-series/part-01.md", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("GET /test-series/part-01.md = %d, want %d", w.Code, http.StatusOK)
+	}
+}
+
 func TestListPage(t *testing.T) {
 	dir := t.TempDir()
 	makeTestTutorial(t, dir, "test-tutorial", false)

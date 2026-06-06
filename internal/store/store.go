@@ -91,6 +91,11 @@ func copyDir(src, dst string) error {
 		if entry.IsDir() {
 			continue
 		}
+		// Skip symlinks: copyFile follows them, so a symlink in the source dir
+		// would copy an arbitrary file (e.g. /etc/passwd) into the store.
+		if entry.Type()&os.ModeSymlink != 0 {
+			continue
+		}
 		if err := copyFile(filepath.Join(src, entry.Name()), filepath.Join(dst, entry.Name())); err != nil {
 			return err
 		}

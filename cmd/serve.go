@@ -26,7 +26,10 @@ var serveCmd = &cobra.Command{
 		url := fmt.Sprintf("http://localhost:%d", servePort)
 		fmt.Printf("Serving tutorials at %s\n", url)
 		openBrowser(url)
-		return http.ListenAndServe(fmt.Sprintf(":%d", servePort), srv.Handler())
+		// Bind to loopback only: the server is unauthenticated and exposes a
+		// destructive delete endpoint, so it must never be reachable from other
+		// devices on a shared network.
+		return http.ListenAndServe(fmt.Sprintf("127.0.0.1:%d", servePort), srv.Handler())
 	},
 }
 

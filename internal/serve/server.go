@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -239,10 +240,63 @@ func (s *Server) handlePart(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
+	// Only render files the metadata declares as parts (plus the legacy
+	// index.md fallback). Without this, the {part} route would happily read and
+	// render any file in the tutorial dir — metadata.json, verify-result.json.
+	if !isKnownPart(tut, part) {
+		http.NotFound(w, r)
+		return
+	}
 	s.renderPart(w, tut, tutDir, part)
 }
 
+// isKnownPart reports whether part is one of the tutorial's declared parts or
+// the legacy single-file index.md.
+func isKnownPart(tut *store.Tutorial, part string) bool {
+	// index.md is the legacy single-file fallback — valid only when the
+	// tutorial was never split into parts (matching handleTutorial).
+	if part == "index.md" {
+		return len(tut.Parts) == 0
+	}
+	for _, p := range tut.Parts {
+		if p == part {
+			return true
+		}
+	}
+	return false
+}
+
+// sameOrigin reports whether a state-changing request originated from a page
+// served by this server. It rejects a *present* Origin or Referer that points
+// elsewhere — the defense against CSRF, where another site (or a LAN device)
+// POSTs to our predictable localhost port. A request with neither header (e.g.
+// curl, or a same-origin form POST that omits Origin) is allowed.
+func sameOrigin(r *http.Request) bool {
+	if origin := r.Header.Get("Origin"); origin != "" {
+		return isLocalOrigin(origin)
+	}
+	if ref := r.Header.Get("Referer"); ref != "" {
+		return isLocalOrigin(ref)
+	}
+	return true
+}
+
+// isLocalOrigin reports whether a URL's host is loopback. We match on host
+// rather than an exact port because the listen port is configurable (--port).
+func isLocalOrigin(raw string) bool {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return false
+	}
+	host := u.Hostname()
+	return host == "localhost" || host == "127.0.0.1" || host == "::1"
+}
+
 func (s *Server) handleDelete(w http.ResponseWriter, r *http.Request) {
+	if !sameOrigin(r) {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
 	slug := r.PathValue("slug")
 	tutDir, ok := s.safeTutorialPath(slug)
 	if !ok {

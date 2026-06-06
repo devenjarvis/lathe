@@ -28,6 +28,32 @@ func TestStoreSingleTutorial(t *testing.T) {
 	}
 }
 
+func TestStoreSkipsSymlinks(t *testing.T) {
+	// A tutorial source dir containing a symlink to a sensitive file must not
+	// have that file's contents copied into ~/.lathe/tutorials/.
+	src := t.TempDir()
+	if err := os.WriteFile(filepath.Join(src, "index.md"), []byte("# Hello"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	secret := filepath.Join(t.TempDir(), "secret.txt")
+	if err := os.WriteFile(secret, []byte("top secret"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(secret, filepath.Join(src, "leak.txt")); err != nil {
+		t.Fatal(err)
+	}
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	tut, err := store.Store(src, store.StoreOptions{})
+	if err != nil {
+		t.Fatalf("Store() error = %v", err)
+	}
+	if _, err := os.Lstat(filepath.Join(home, ".lathe", "tutorials", tut.Slug, "leak.txt")); !os.IsNotExist(err) {
+		t.Errorf("symlinked file was copied into the store: err=%v", err)
+	}
+}
+
 func TestStoreStripsLathePrefixFromSlug(t *testing.T) {
 	// The generation skill writes to /tmp/lathe-<slug>/; the "lathe-" prefix
 	// must not leak into the stored slug or the derived title.
