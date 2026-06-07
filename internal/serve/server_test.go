@@ -1228,3 +1228,106 @@ func TestExtendingBadgeRendersOnPart(t *testing.T) {
 		t.Error("part page missing extending badge for tutorial with status=extending")
 	}
 }
+
+func TestStaticKatexAssets(t *testing.T) {
+	dir := t.TempDir()
+	srv := serve.NewServer(dir)
+
+	cases := []struct {
+		name     string
+		wantType string
+		wantBody string
+	}{
+		{"katex.min.js", "application/javascript", "katex"},
+		{"katex-auto-render.min.js", "application/javascript", "renderMathInElement"},
+		{"katex.min.css", "text/css", ".katex"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "/_static/"+c.name, nil)
+			w := httptest.NewRecorder()
+			srv.Handler().ServeHTTP(w, req)
+
+			if w.Code != http.StatusOK {
+				t.Fatalf("GET /_static/%s = %d, want %d", c.name, w.Code, http.StatusOK)
+			}
+			if ct := w.Header().Get("Content-Type"); !strings.HasPrefix(ct, c.wantType) {
+				t.Errorf("%s Content-Type = %q, want prefix %q", c.name, ct, c.wantType)
+			}
+			if !strings.Contains(w.Body.String(), c.wantBody) {
+				t.Errorf("%s body missing %q", c.name, c.wantBody)
+			}
+		})
+	}
+}
+
+func TestStaticKatexFonts(t *testing.T) {
+	dir := t.TempDir()
+	srv := serve.NewServer(dir)
+
+	// A representative subset of the KaTeX woff2 faces. The vendored
+	// katex.min.css has its url(fonts/...) references flattened to url(...)
+	// so they resolve to the same flat /_static/<name>.woff2 scheme as the
+	// text fonts.
+	fonts := []string{
+		"KaTeX_Main-Regular.woff2",
+		"KaTeX_Math-Italic.woff2",
+		"KaTeX_AMS-Regular.woff2",
+		"KaTeX_Size2-Regular.woff2",
+	}
+	for _, name := range fonts {
+		t.Run(name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "/_static/"+name, nil)
+			w := httptest.NewRecorder()
+			srv.Handler().ServeHTTP(w, req)
+
+			if w.Code != http.StatusOK {
+				t.Fatalf("GET /_static/%s = %d, want %d", name, w.Code, http.StatusOK)
+			}
+			if ct := w.Header().Get("Content-Type"); ct != "font/woff2" {
+				t.Errorf("%s Content-Type = %q, want font/woff2", name, ct)
+			}
+			body := w.Body.Bytes()
+			if len(body) < 4 || string(body[:4]) != "wOF2" {
+				t.Errorf("%s missing wOF2 signature", name)
+			}
+		})
+	}
+}
+
+func TestPartPageLoadsKatex(t *testing.T) {
+	dir := t.TempDir()
+	tutDir := filepath.Join(dir, "mathy")
+	if err := os.MkdirAll(tutDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	part := "# Mathy\n\nThe loss is $D_{KL}(p \\| q)$ in disguise.\n"
+	if err := os.WriteFile(filepath.Join(tutDir, "part-01.md"), []byte(part), 0644); err != nil {
+		t.Fatal(err)
+	}
+	tut := &store.Tutorial{Slug: "mathy", Title: "Mathy", Status: store.StatusUnverified, Parts: []string{"part-01.md"}}
+	if err := store.WriteMetadata(tutDir, tut); err != nil {
+		t.Fatal(err)
+	}
+
+	srv := serve.NewServer(dir)
+	req := httptest.NewRequest(http.MethodGet, "/mathy/part-01.md", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("GET /mathy/part-01.md = %d, want %d", w.Code, http.StatusOK)
+	}
+	body := w.Body.String()
+	// TeX must arrive uncorrupted for the client-side renderer.
+	if !strings.Contains(body, `$D_{KL}(p \| q)$`) {
+		t.Error("part page corrupted the TeX before it reached the browser")
+	}
+	// The KaTeX loader mirrors the mermaid one: inline script, local bundle.
+	if !strings.Contains(body, "/_static/katex.min.js") {
+		t.Error("part page missing the KaTeX bundle loader")
+	}
+	if !strings.Contains(body, "renderMathInElement") {
+		t.Error("part page missing the auto-render invocation")
+	}
+}

@@ -10,6 +10,7 @@ import (
 
 	chromahtml "github.com/alecthomas/chroma/v2/formatters/html"
 	"github.com/alecthomas/chroma/v2/styles"
+	"github.com/gohugoio/hugo-goldmark-extensions/passthrough"
 	"github.com/yuin/goldmark"
 	highlighting "github.com/yuin/goldmark-highlighting/v2"
 	"github.com/yuin/goldmark/ast"
@@ -73,6 +74,22 @@ func RenderMarkdownWithTOC(src []byte) ([]byte, []TOCEntry, error) {
 			// GFM tables — without this, pipe-delimited tables fall through as
 			// literal text. styles.css already styles <table>/<th>/<td>.
 			extension.Table,
+			// LaTeX math passes through goldmark untouched — without this,
+			// CommonMark backslash-escapes corrupt TeX before it reaches the
+			// browser (`\|` -> `|`, `\;` -> `;`). KaTeX auto-render in
+			// layout.html picks up the same delimiters client-side. Parsing at
+			// the AST level (not a preprocess regex) means $ inside code spans
+			// and fenced blocks is naturally left alone.
+			passthrough.New(passthrough.Config{
+				InlineDelimiters: []passthrough.Delimiters{
+					{Open: "$", Close: "$"},
+					{Open: `\(`, Close: `\)`},
+				},
+				BlockDelimiters: []passthrough.Delimiters{
+					{Open: "$$", Close: "$$"},
+					{Open: `\[`, Close: `\]`},
+				},
+			}),
 		),
 		goldmark.WithParserOptions(parser.WithAutoHeadingID()),
 		goldmark.WithRendererOptions(

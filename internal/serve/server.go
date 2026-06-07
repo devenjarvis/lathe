@@ -29,8 +29,10 @@ var templateFS embed.FS
 var stylesCSS string
 
 //go:embed static/mermaid.min.js
+//go:embed static/katex.min.js static/katex-auto-render.min.js static/katex.min.css
 //go:embed static/favicon.svg
 //go:embed static/fonts/fraunces.woff2 static/fonts/newsreader.woff2 static/fonts/newsreader-italic.woff2 static/fonts/jetbrains-mono.woff2
+//go:embed static/fonts/KaTeX_*.woff2
 var staticFS embed.FS
 
 type Server struct {
@@ -80,12 +82,34 @@ func (s *Server) Handler() http.Handler {
 // unexpected route — even though the {name} wildcard already can't contain a
 // slash, this is the cheap belt-and-suspenders check.
 var staticAssets = map[string]string{
-	"mermaid.min.js":          "application/javascript; charset=utf-8",
-	"favicon.svg":             "image/svg+xml",
-	"fraunces.woff2":          "font/woff2",
-	"newsreader.woff2":        "font/woff2",
-	"newsreader-italic.woff2": "font/woff2",
-	"jetbrains-mono.woff2":    "font/woff2",
+	"mermaid.min.js":           "application/javascript; charset=utf-8",
+	"katex.min.js":             "application/javascript; charset=utf-8",
+	"katex-auto-render.min.js": "application/javascript; charset=utf-8",
+	"katex.min.css":            "text/css; charset=utf-8",
+	"favicon.svg":              "image/svg+xml",
+	"fraunces.woff2":           "font/woff2",
+	"newsreader.woff2":         "font/woff2",
+	"newsreader-italic.woff2":  "font/woff2",
+	"jetbrains-mono.woff2":     "font/woff2",
+}
+
+// The KaTeX math fonts join the whitelist from the embed FS itself rather than
+// by hand-listing all 20: the //go:embed glob (static/fonts/KaTeX_*.woff2) is
+// the explicit boundary, and reading it back keeps the whitelist in lockstep
+// across KaTeX upgrades. The vendored katex.min.css references them flat
+// (url(KaTeX_…)) so they resolve under the same /_static/<name>.woff2 route as
+// the text fonts.
+func init() {
+	entries, err := staticFS.ReadDir("static/fonts")
+	if err != nil {
+		panic(fmt.Sprintf("lathe: embedded font dir unreadable: %v", err))
+	}
+	for _, e := range entries {
+		name := e.Name()
+		if strings.HasPrefix(name, "KaTeX_") && strings.HasSuffix(name, ".woff2") {
+			staticAssets[name] = "font/woff2"
+		}
+	}
 }
 
 func (s *Server) handleStatic(w http.ResponseWriter, r *http.Request) {

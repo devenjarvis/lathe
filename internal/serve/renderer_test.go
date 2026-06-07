@@ -221,6 +221,87 @@ func TestRenderMarkdownWithTOCEmpty(t *testing.T) {
 	}
 }
 
+func TestRenderInlineMathSurvivesVerbatim(t *testing.T) {
+	// TeX must reach the browser byte-for-byte: CommonMark would otherwise eat
+	// the backslash escape (`\|` -> `|`) and corrupt what KaTeX renders.
+	src := []byte("the KL term $D_{KL}(p \\| q)$ in the loss\n")
+	out, err := serve.RenderMarkdown(src)
+	if err != nil {
+		t.Fatalf("RenderMarkdown() error = %v", err)
+	}
+	html := string(out)
+	if !strings.Contains(html, `$D_{KL}(p \| q)$`) {
+		t.Errorf("inline math not passed through verbatim, got:\n%s", html)
+	}
+	if strings.Contains(html, "<em>") {
+		t.Errorf("emphasis parsing fired inside math, got:\n%s", html)
+	}
+}
+
+func TestRenderDisplayMathSurvivesVerbatim(t *testing.T) {
+	src := []byte("Entropy is the average bill:\n\n$$H(p) = -\\sum_x p(x) \\log_2 p(x)$$\n\nIt is the compression limit.\n")
+	out, err := serve.RenderMarkdown(src)
+	if err != nil {
+		t.Fatalf("RenderMarkdown() error = %v", err)
+	}
+	html := string(out)
+	if !strings.Contains(html, `$$H(p) = -\sum_x p(x) \log_2 p(x)$$`) {
+		t.Errorf("display math not passed through verbatim, got:\n%s", html)
+	}
+}
+
+func TestRenderMathSpacingCommandsSurvive(t *testing.T) {
+	// `\,` `\;` `\!` escape ASCII punctuation, exactly what CommonMark
+	// backslash-escapes target — these are the first casualties without
+	// passthrough protection.
+	src := []byte("$\\sum_{x:\\,p(x)} f\\;g\\!h$\n")
+	out, err := serve.RenderMarkdown(src)
+	if err != nil {
+		t.Fatalf("RenderMarkdown() error = %v", err)
+	}
+	html := string(out)
+	if !strings.Contains(html, `$\sum_{x:\,p(x)} f\;g\!h$`) {
+		t.Errorf("TeX spacing commands corrupted, got:\n%s", html)
+	}
+}
+
+func TestRenderDollarInCodeUntouched(t *testing.T) {
+	// Shell snippets are full of $ — fenced blocks and inline code spans must
+	// never be parsed as math delimiters.
+	src := []byte("Run `SSL_CERT_FILE=$(uv run python -c \"...\")` first.\n\n```bash\necho $PATH and $HOME\n```\n")
+	out, err := serve.RenderMarkdown(src)
+	if err != nil {
+		t.Fatalf("RenderMarkdown() error = %v", err)
+	}
+	html := string(out)
+	if !strings.Contains(html, "SSL_CERT_FILE=$(uv run python -c") {
+		t.Errorf("inline code span with $ was corrupted, got:\n%s", html)
+	}
+	if !strings.Contains(html, "$PATH") || !strings.Contains(html, "$HOME") {
+		t.Errorf("fenced code block with $ was corrupted, got:\n%s", html)
+	}
+	if !strings.Contains(html, `class="chroma"`) {
+		t.Errorf("fenced block lost chroma highlighting, got:\n%s", html)
+	}
+}
+
+func TestRenderMathInsideCallout(t *testing.T) {
+	// Callout bodies are re-parsed as markdown inside the <aside>; math there
+	// needs the same protection as top-level math.
+	src := []byte("> [!ASIDE]\n> The likelihood is $\\prod_x q_x^{c_x}$ up to a constant.\n")
+	out, err := serve.RenderMarkdown(src)
+	if err != nil {
+		t.Fatalf("RenderMarkdown() error = %v", err)
+	}
+	html := string(out)
+	if !strings.Contains(html, `<aside class="callout callout-aside">`) {
+		t.Errorf("callout missing, got:\n%s", html)
+	}
+	if !strings.Contains(html, `$\prod_x q_x^{c_x}$`) {
+		t.Errorf("math inside callout body corrupted, got:\n%s", html)
+	}
+}
+
 func TestHighlightCSS(t *testing.T) {
 	css, err := serve.HighlightCSS()
 	if err != nil {

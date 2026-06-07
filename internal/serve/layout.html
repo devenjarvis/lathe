@@ -357,6 +357,44 @@
   })();
 </script>
 <script>
+  // Render LaTeX math. The goldmark passthrough extension delivers $…$ /
+  // $$…$$ / \(…\) / \[…\] spans to the browser verbatim; KaTeX auto-render
+  // finds and typesets them here. Like mermaid, the bundle is served locally
+  // from /_static/ (fully offline) and loaded lazily — only when the article
+  // text actually contains a math delimiter.
+  (function(){
+    var article = document.querySelector('main');
+    if (!article) return;
+    if (!/\$|\\\(|\\\[/.test(article.textContent)) return;
+    var css = document.createElement('link');
+    css.rel = 'stylesheet';
+    css.href = '/_static/katex.min.css';
+    document.head.appendChild(css);
+    function load(src, onload){
+      var s = document.createElement('script');
+      s.src = src;
+      s.onload = onload;
+      s.onerror = function(){ console.warn('katex bundle failed to load'); };
+      document.body.appendChild(s);
+    }
+    load('/_static/katex.min.js', function(){
+      load('/_static/katex-auto-render.min.js', function(){
+        window.renderMathInElement(article, {
+          // $$ before $ so the longer delimiter wins; pre/code are excluded
+          // by auto-render's default ignoredTags.
+          delimiters: [
+            {left: '$$', right: '$$', display: true},
+            {left: '\\[', right: '\\]', display: true},
+            {left: '\\(', right: '\\)', display: false},
+            {left: '$', right: '$', display: false}
+          ],
+          throwOnError: false
+        });
+      });
+    });
+  })();
+</script>
+<script>
   (function(){
     var drawer = document.getElementById('askDrawer');
     var openButtons = document.querySelectorAll('[data-ask-open]');
