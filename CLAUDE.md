@@ -4,7 +4,7 @@ Orientation for Claude Code working in this repo.
 
 ## What this is
 
-Lathe is a Go CLI plus a set of Claude Code skills that together generate, store, serve, verify, and extend hands-on technical tutorials. See `README.md` for user-facing docs and `docs/superpowers/specs/2026-05-03-lathe-design.md` for the design spec.
+Lathe is a Go CLI plus a set of Claude Code skills that together generate, store, serve, verify, and extend hands-on technical tutorials. See `README.md` for user-facing docs.
 
 The boundary is strict: **skills generate content; the CLI owns durable state.** All model work — generating, verifying, extending, answering reader questions, and authoring voices — runs in the user's **interactive** Claude Code session via user-invoked skills (`/lathe`, `/lathe-verify`, `/lathe-extend`, `/lathe-ask`, `/lathe-tag`, `/lathe-voice`). The Go binary never spawns `claude` (headless `claude -p` is metered as of 2026-06-15; interactive sessions are not). Don't move generation logic into Go, and don't have skills write to `~/.lathe/` directly — they call `lathe` commands (`lathe store`, `lathe verify-result`, `lathe extend-start`/`extend-commit`, `lathe voice add`) instead. The one skill→CLI **read** path is `lathe voice show` (the active voice spec) — still consistent with the boundary: the CLI stays the sole owner of the voice files and config; the skill only asks for text.
 
@@ -50,7 +50,6 @@ internal/
   lathe-tag/SKILL.md              /lathe-tag — picks/backfills search tags for stored tutorials
   lathe-voice/SKILL.md            /lathe-voice — authors a custom writing voice, then persists it via lathe voice add
 docs/design-system.md            design-system docs (tokens, type scale, components, how-to-add)
-docs/superpowers/                 specs/ and plans/
 ```
 
 ## Build, test, run
