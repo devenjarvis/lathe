@@ -317,9 +317,12 @@ func TestTutorialPage(t *testing.T) {
 		t.Error("GET /test-tutorial/ response does not contain page content")
 	}
 	body := w.Body.String()
-	buttonMarkup := `<button type="button" class="btn btn-ghost btn-sm checkpoint-button" data-checkpoint-save>Save checkpoint</button>`
-	if strings.Count(body, buttonMarkup) != 2 {
-		t.Errorf("tutorial page should render desktop and dock checkpoint controls; body excerpt:\n%s", body)
+	if !strings.Contains(body, `id="checkpointButton"`) {
+		t.Error("tutorial page missing floating desktop checkpoint control")
+	}
+	dockButtonMarkup := `<button type="button" class="btn btn-ghost btn-sm checkpoint-button" data-checkpoint-save>Save checkpoint</button>`
+	if strings.Count(body, dockButtonMarkup) != 1 {
+		t.Errorf("tutorial page should render one dock checkpoint control; body excerpt:\n%s", body)
 	}
 	if !strings.Contains(body, `id="checkpointStatus"`) {
 		t.Error("tutorial page missing checkpoint status live region")

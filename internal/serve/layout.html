@@ -37,7 +37,6 @@
         {{end}}
       </ul>
     </details>{{end}}</span>
-  <button type="button" class="btn btn-ghost btn-sm checkpoint-button" data-checkpoint-save>Save checkpoint</button>
   {{template "themeToggle" .}}
 </header>
 <div class="layout">
@@ -145,7 +144,10 @@
   {{end}}
 </div>
 <div id="sidebarBackdrop"></div>
-<button type="button" id="askButton" class="btn btn-primary btn-pill" data-ask-open aria-label="Ask a question about this tutorial">Ask</button>
+<div id="floatingActions">
+  <button type="button" id="checkpointButton" class="btn btn-ghost btn-pill checkpoint-button" data-checkpoint-save>Save checkpoint</button>
+  <button type="button" id="askButton" class="btn btn-primary btn-pill" data-ask-open aria-label="Ask a question about this tutorial">Ask</button>
+</div>
 <p id="checkpointStatus" class="checkpoint-status" aria-live="polite"></p>
 <div id="bottomDock">
   {{template "themeToggle" .}}
