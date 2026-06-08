@@ -18,7 +18,7 @@
   </script>
 </head>
 <body>
-<div id="progressBar" aria-hidden="true" data-checkpoint-progress="{{if .CurrentCheckpoint}}{{.CurrentCheckpoint.Progress}}{{end}}"><div></div><span id="checkpointMarker" hidden></span></div>
+<div id="progressBar" aria-hidden="true" data-slug="{{.Tutorial.Slug}}" data-part="{{.CurrentPart}}" data-checkpoint-progress="{{if .CurrentCheckpoint}}{{.CurrentCheckpoint.Progress}}{{end}}"><div></div><span id="checkpointMarker" hidden></span></div>
 <header id="topBar">
   <button type="button" id="hamburger" aria-label="Toggle navigation" aria-controls="sidebar" aria-expanded="false">≡</button>
   <a href="/" class="back-link">← All tutorials</a>
@@ -146,6 +146,7 @@
 </div>
 <div id="sidebarBackdrop"></div>
 <button type="button" id="askButton" class="btn btn-primary btn-pill" data-ask-open aria-label="Ask a question about this tutorial">Ask</button>
+<p id="checkpointStatus" class="checkpoint-status" aria-live="polite"></p>
 <div id="bottomDock">
   {{template "themeToggle" .}}
   <button type="button" class="btn btn-ghost btn-sm checkpoint-button" data-checkpoint-save>Save checkpoint</button>
@@ -273,6 +274,10 @@
       marker.hidden = false;
       marker.style.left = (ratio * 100) + '%';
     }
+    function setCheckpointProgress(ratio){
+      progress.setAttribute('data-checkpoint-progress', String(clamp(ratio)));
+      renderCheckpointMarker();
+    }
     function update(){
       pending = false;
       var ratio = currentRatio();
@@ -283,10 +288,67 @@
       pending = true;
       requestAnimationFrame(update);
     }
+    window.latheReadingProgress.setCheckpointProgress = setCheckpointProgress;
     renderCheckpointMarker();
     update();
     window.addEventListener('scroll', onScroll, {passive:true});
     window.addEventListener('resize', onScroll);
+  })();
+</script>
+<script>
+  // Save checkpoint — explicit user action that persists the current progress
+  // ratio through the local server and updates the marker from the response.
+  (function(){
+    var progress = document.getElementById('progressBar');
+    var buttons = document.querySelectorAll('[data-checkpoint-save]');
+    var status = document.getElementById('checkpointStatus');
+    if (!progress || !buttons.length) return;
+
+    function setStatus(message, error){
+      if (!status) return;
+      status.textContent = message || '';
+      status.dataset.state = error ? 'error' : 'ok';
+      if (message && !error) {
+        setTimeout(function(){
+          if (status.textContent === message) status.textContent = '';
+        }, 1800);
+      }
+    }
+    function setBusy(busy){
+      buttons.forEach(function(button){ button.disabled = busy; });
+    }
+    buttons.forEach(function(button){
+      button.addEventListener('click', function(){
+        var slug = progress.getAttribute('data-slug') || '';
+        var part = progress.getAttribute('data-part') || '';
+        var reader = window.latheReadingProgress;
+        if (!slug || !part || !reader || !reader.currentRatio) return;
+
+        setBusy(true);
+        setStatus('', false);
+        var ratio = reader.currentRatio();
+        fetch('/-/checkpoint/' + encodeURIComponent(slug) + '/' + encodeURIComponent(part), {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({progress: ratio})
+        }).then(function(response){
+          if (!response.ok) {
+            return response.text().then(function(text){
+              throw new Error(text || ('HTTP ' + response.status));
+            });
+          }
+          return response.json();
+        }).then(function(data){
+          var saved = data && data.checkpoint ? data.checkpoint.progress : ratio;
+          if (reader.setCheckpointProgress) reader.setCheckpointProgress(saved);
+          setStatus('Checkpoint saved', false);
+        }).catch(function(err){
+          setStatus('Checkpoint failed: ' + (err && err.message ? err.message : 'request failed'), true);
+        }).then(function(){
+          setBusy(false);
+        });
+      });
+    });
   })();
 </script>
 <script>
