@@ -20,14 +20,15 @@ const (
 )
 
 type Tutorial struct {
-	Slug        string    `json:"slug"`
-	Title       string    `json:"title"`
-	Topic       string    `json:"topic"`
-	Created     time.Time `json:"created"`
-	Status      Status    `json:"status"`
-	Tags        []string  `json:"tags,omitempty"`
-	Parts       []string  `json:"parts,omitempty"`
-	PendingPart string    `json:"pending_part,omitempty"`
+	Slug        string      `json:"slug"`
+	Title       string      `json:"title"`
+	Topic       string      `json:"topic"`
+	Created     time.Time   `json:"created"`
+	Status      Status      `json:"status"`
+	Tags        []string    `json:"tags,omitempty"`
+	Parts       []string    `json:"parts,omitempty"`
+	PendingPart string      `json:"pending_part,omitempty"`
+	Checkpoint  *Checkpoint `json:"checkpoint,omitempty"`
 	// Repo is the canonical identifier (host/org/repo) of the git repository the
 	// tutorial was written for, derived from the repo's origin remote by the
 	// generation skill and normalized by NormalizeRepo. Tutorials with no repo
