@@ -71,6 +71,17 @@ type Tool struct {
 	Version string `json:"version,omitempty"`
 }
 
+// Checkpoint is a reader-saved position within a tutorial. Part is the rendered
+// markdown file (part-NN.md or legacy index.md), Progress is a 0..1 scroll ratio,
+// HeadingID is an optional best-effort hint, and UpdatedAt records when the
+// checkpoint was last saved.
+type Checkpoint struct {
+	Part      string    `json:"part"`
+	Progress  float64   `json:"progress"`
+	HeadingID string    `json:"heading_id,omitempty"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
 func (t *Tutorial) IsSeries() bool {
 	return len(t.Parts) > 1
 }
