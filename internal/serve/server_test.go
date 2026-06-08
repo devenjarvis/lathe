@@ -244,7 +244,7 @@ func TestListPageRendersCardsAndVersions(t *testing.T) {
 	// Three tutorials with distinct created times — exercises the flat
 	// newest-first list, repo as searchable metadata (data-repo), and version
 	// chips + the Versions filter row.
-	mk := func(slug string, repo string, tools []store.Tool, created time.Time) {
+	mk := func(slug string, repo string, tools []store.Tool, created time.Time, checkpoint *store.Checkpoint) {
 		tutDir := filepath.Join(dir, slug)
 		if err := os.MkdirAll(tutDir, 0755); err != nil {
 			t.Fatal(err)
@@ -253,21 +253,22 @@ func TestListPageRendersCardsAndVersions(t *testing.T) {
 			t.Fatal(err)
 		}
 		tut := &store.Tutorial{
-			Slug:    slug,
-			Title:   slug,
-			Status:  store.StatusUnverified,
-			Created: created,
-			Repo:    repo,
-			Tools:   tools,
+			Slug:       slug,
+			Title:      slug,
+			Status:     store.StatusUnverified,
+			Created:    created,
+			Repo:       repo,
+			Tools:      tools,
+			Checkpoint: checkpoint,
 		}
 		if err := store.WriteMetadata(tutDir, tut); err != nil {
 			t.Fatal(err)
 		}
 	}
 	now := time.Now()
-	mk("synth-zig", "github.com/devenjarvis/lathe", []store.Tool{{Name: "zig", Version: "0.13.0"}}, now)
-	mk("compiler-go", "github.com/devenjarvis/lathe", []store.Tool{{Name: "go", Version: "1.22"}}, now.Add(-time.Hour))
-	mk("standalone", "", nil, now.Add(-2*time.Hour))
+	mk("synth-zig", "github.com/devenjarvis/lathe", []store.Tool{{Name: "zig", Version: "0.13.0"}}, now, &store.Checkpoint{Part: "index.md", Progress: 0.42, UpdatedAt: now})
+	mk("compiler-go", "github.com/devenjarvis/lathe", []store.Tool{{Name: "go", Version: "1.22"}}, now.Add(-time.Hour), nil)
+	mk("standalone", "", nil, now.Add(-2*time.Hour), nil)
 
 	srv := serve.NewServer(dir)
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -287,6 +288,12 @@ func TestListPageRendersCardsAndVersions(t *testing.T) {
 	}
 	if !strings.Contains(body, `id="versionFilters"`) {
 		t.Error("list page missing the Versions filter row")
+	}
+	if !strings.Contains(body, `aria-label="Checkpoint at 42%"`) {
+		t.Error("list page missing checkpoint progress label")
+	}
+	if !strings.Contains(body, `style="width:42%"`) {
+		t.Error("list page missing checkpoint progress bar width")
 	}
 
 	// All three cards render in one flat list, newest-first.

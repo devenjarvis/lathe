@@ -5,6 +5,7 @@ import (
 	"embed"
 	"fmt"
 	"html/template"
+	"math"
 	"net/http"
 	"net/url"
 	"os"
@@ -43,7 +44,8 @@ type Server struct {
 
 func NewServer(tutorialsDir string) *Server {
 	funcMap := template.FuncMap{
-		"add": func(a, b int) int { return a + b },
+		"add":     func(a, b int) int { return a + b },
+		"percent": percent,
 	}
 	// components.html is parsed into both template sets so its shared partials
 	// ({{define "head"}}, "badge", "themeToggle") are available to each page.
@@ -74,6 +76,16 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /-/extend/{slug}", s.handleExtend)
 	mux.HandleFunc("POST /-/verify/{slug}", s.handleVerify)
 	return mux
+}
+
+func percent(progress float64) int {
+	if progress < 0 {
+		progress = 0
+	}
+	if progress > 1 {
+		progress = 1
+	}
+	return int(math.Round(progress * 100))
 }
 
 // staticAssets whitelists the embedded files we expose under /_static/. Keeping
