@@ -841,6 +841,56 @@ func TestSeriesRedirect(t *testing.T) {
 	}
 }
 
+func TestSeriesRedirectUsesCheckpointPart(t *testing.T) {
+	dir := t.TempDir()
+	tutDir := makeTestTutorial(t, dir, "test-series", true)
+	tut, err := store.ReadMetadata(tutDir)
+	if err != nil {
+		t.Fatalf("ReadMetadata: %v", err)
+	}
+	tut.Checkpoint = &store.Checkpoint{Part: "part-02.md", Progress: 0.5, UpdatedAt: time.Now()}
+	if err := store.WriteMetadata(tutDir, tut); err != nil {
+		t.Fatalf("WriteMetadata: %v", err)
+	}
+
+	srv := serve.NewServer(dir)
+	req := httptest.NewRequest(http.MethodGet, "/test-series/", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusFound {
+		t.Errorf("GET /test-series/ = %d, want %d (redirect)", w.Code, http.StatusFound)
+	}
+	if loc := w.Header().Get("Location"); loc != "/test-series/part-02.md" {
+		t.Errorf("redirect Location = %q, want %q", loc, "/test-series/part-02.md")
+	}
+}
+
+func TestSeriesRedirectIgnoresStaleCheckpointPart(t *testing.T) {
+	dir := t.TempDir()
+	tutDir := makeTestTutorial(t, dir, "test-series", true)
+	tut, err := store.ReadMetadata(tutDir)
+	if err != nil {
+		t.Fatalf("ReadMetadata: %v", err)
+	}
+	tut.Checkpoint = &store.Checkpoint{Part: "part-99.md", Progress: 0.5, UpdatedAt: time.Now()}
+	if err := store.WriteMetadata(tutDir, tut); err != nil {
+		t.Fatalf("WriteMetadata: %v", err)
+	}
+
+	srv := serve.NewServer(dir)
+	req := httptest.NewRequest(http.MethodGet, "/test-series/", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusFound {
+		t.Errorf("GET /test-series/ = %d, want %d (redirect)", w.Code, http.StatusFound)
+	}
+	if loc := w.Header().Get("Location"); loc != "/test-series/part-01.md" {
+		t.Errorf("redirect Location = %q, want %q", loc, "/test-series/part-01.md")
+	}
+}
+
 func TestSinglePartRedirect(t *testing.T) {
 	dir := t.TempDir()
 	tutDir := filepath.Join(dir, "single-part")
