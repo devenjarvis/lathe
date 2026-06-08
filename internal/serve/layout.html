@@ -18,7 +18,7 @@
   </script>
 </head>
 <body>
-<div id="progressBar" aria-hidden="true" data-slug="{{.Tutorial.Slug}}" data-part="{{.CurrentPart}}" data-checkpoint-progress="{{if .CurrentCheckpoint}}{{.CurrentCheckpoint.Progress}}{{end}}"><div></div><span id="checkpointMarker" hidden></span></div>
+<div id="progressBar" aria-hidden="true" data-slug="{{.Tutorial.Slug}}" data-part="{{.CurrentPart}}" data-saved-progress="{{if .CurrentProgress}}{{.CurrentProgress.Ratio}}{{end}}"><div></div><span id="savedProgressMarker" hidden></span></div>
 <header id="topBar">
   <button type="button" id="hamburger" aria-label="Toggle navigation" aria-controls="sidebar" aria-expanded="false">≡</button>
   <a href="/" class="back-link">← All tutorials</a>
@@ -145,13 +145,13 @@
 </div>
 <div id="sidebarBackdrop"></div>
 <div id="floatingActions">
-  <button type="button" id="checkpointButton" class="btn btn-ghost btn-pill checkpoint-button" data-checkpoint-save>Save checkpoint</button>
+  <button type="button" id="saveProgressButton" class="btn btn-ghost btn-pill progress-button" data-progress-save>Save progress</button>
   <button type="button" id="askButton" class="btn btn-primary btn-pill" data-ask-open aria-label="Ask a question about this tutorial">Ask</button>
 </div>
-<p id="checkpointStatus" class="checkpoint-status" aria-live="polite"></p>
+<p id="progressStatus" class="progress-status" aria-live="polite"></p>
 <div id="bottomDock">
   {{template "themeToggle" .}}
-  <button type="button" class="btn btn-ghost btn-sm checkpoint-button" data-checkpoint-save>Save checkpoint</button>
+  <button type="button" class="btn btn-ghost btn-sm progress-button" data-progress-save>Save progress</button>
   <button type="button" id="dockAsk" class="btn btn-primary btn-pill" data-ask-open aria-label="Ask a question about this tutorial">Ask</button>
 </div>
 <aside id="askDrawer" data-slug="{{.Tutorial.Slug}}" data-part="{{.CurrentPart}}" aria-hidden="true">
@@ -251,12 +251,12 @@
 </script>
 <script>
   // Reading-progress bar — RAF-throttled, transform-based to avoid layout thrash.
-  // Exposes the current ratio for checkpoint saves and positions the saved
-  // checkpoint marker when the current part has one.
+  // Exposes the current ratio for progress saves and positions the saved
+  // progress marker when the current part has one.
   (function(){
     var progress = document.getElementById('progressBar');
     var bar = progress && progress.querySelector(':scope > div');
-    var marker = document.getElementById('checkpointMarker');
+    var marker = document.getElementById('savedProgressMarker');
     if (!progress || !bar) return;
     var pending = false;
     function clamp(n){ return Math.min(1, Math.max(0, n)); }
@@ -267,27 +267,27 @@
       return max > 0 ? clamp(scroll / max) : 0;
     }
     window.latheReadingProgress = {currentRatio: currentRatio};
-    function renderCheckpointMarker(){
+    function renderSavedProgressMarker(){
       if (!marker) return;
-      var raw = progress.getAttribute('data-checkpoint-progress');
+      var raw = progress.getAttribute('data-saved-progress');
       if (!raw) return;
       var ratio = clamp(parseFloat(raw));
       if (Number.isNaN(ratio)) return;
       marker.hidden = false;
       marker.style.left = (ratio * 100) + '%';
     }
-    function setCheckpointProgress(ratio){
-      progress.setAttribute('data-checkpoint-progress', String(clamp(ratio)));
-      renderCheckpointMarker();
+    function setSavedProgress(ratio){
+      progress.setAttribute('data-saved-progress', String(clamp(ratio)));
+      renderSavedProgressMarker();
     }
-    function checkpointRatio(){
-      var raw = progress.getAttribute('data-checkpoint-progress');
+    function savedProgressRatio(){
+      var raw = progress.getAttribute('data-saved-progress');
       if (!raw) return null;
       var ratio = clamp(parseFloat(raw));
       return Number.isNaN(ratio) ? null : ratio;
     }
-    function restoreCheckpoint(){
-      var ratio = checkpointRatio();
+    function restoreProgress(){
+      var ratio = savedProgressRatio();
       if (ratio === null) return;
       var doc = document.documentElement;
       var max = (doc.scrollHeight - doc.clientHeight) || 0;
@@ -305,25 +305,25 @@
       pending = true;
       requestAnimationFrame(update);
     }
-    window.latheReadingProgress.setCheckpointProgress = setCheckpointProgress;
-    renderCheckpointMarker();
+    window.latheReadingProgress.setSavedProgress = setSavedProgress;
+    renderSavedProgressMarker();
     update();
     window.addEventListener('scroll', onScroll, {passive:true});
     window.addEventListener('resize', onScroll);
     if (document.readyState === 'complete') {
-      setTimeout(restoreCheckpoint, 0);
+      setTimeout(restoreProgress, 0);
     } else {
-      window.addEventListener('load', function(){ setTimeout(restoreCheckpoint, 0); }, {once:true});
+      window.addEventListener('load', function(){ setTimeout(restoreProgress, 0); }, {once:true});
     }
   })();
 </script>
 <script>
-  // Save checkpoint — explicit user action that persists the current progress
+  // Save progress — explicit user action that persists the current progress
   // ratio through the local server and updates the marker from the response.
   (function(){
     var progress = document.getElementById('progressBar');
-    var buttons = document.querySelectorAll('[data-checkpoint-save]');
-    var status = document.getElementById('checkpointStatus');
+    var buttons = document.querySelectorAll('[data-progress-save]');
+    var status = document.getElementById('progressStatus');
     if (!progress || !buttons.length) return;
 
     function setStatus(message, error){
@@ -349,10 +349,10 @@
         setBusy(true);
         setStatus('', false);
         var ratio = reader.currentRatio();
-        fetch('/-/checkpoint/' + encodeURIComponent(slug) + '/' + encodeURIComponent(part), {
+        fetch('/-/progress/' + encodeURIComponent(slug) + '/' + encodeURIComponent(part), {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({progress: ratio})
+          body: JSON.stringify({ratio: ratio})
         }).then(function(response){
           if (!response.ok) {
             return response.text().then(function(text){
@@ -361,11 +361,11 @@
           }
           return response.json();
         }).then(function(data){
-          var saved = data && data.checkpoint ? data.checkpoint.progress : ratio;
-          if (reader.setCheckpointProgress) reader.setCheckpointProgress(saved);
-          setStatus('Checkpoint saved', false);
+          var saved = data && data.progress ? data.progress.ratio : ratio;
+          if (reader.setSavedProgress) reader.setSavedProgress(saved);
+          setStatus('Progress saved', false);
         }).catch(function(err){
-          setStatus('Checkpoint failed: ' + (err && err.message ? err.message : 'request failed'), true);
+          setStatus('Progress save failed: ' + (err && err.message ? err.message : 'request failed'), true);
         }).then(function(){
           setBusy(false);
         });

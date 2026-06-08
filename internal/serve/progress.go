@@ -10,9 +10,9 @@ import (
 	"github.com/devenjarvis/lathe/internal/store"
 )
 
-const maxCheckpointBytes = 1024
+const maxProgressBytes = 1024
 
-func (s *Server) handleCheckpoint(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleProgress(w http.ResponseWriter, r *http.Request) {
 	if !sameOrigin(r) {
 		http.Error(w, "forbidden", http.StatusForbidden)
 		return
@@ -36,7 +36,7 @@ func (s *Server) handleCheckpoint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	r.Body = http.MaxBytesReader(w, r.Body, maxCheckpointBytes)
+	r.Body = http.MaxBytesReader(w, r.Body, maxProgressBytes)
 	raw, err := io.ReadAll(r.Body)
 	if err != nil {
 		http.Error(w, "request body too large", http.StatusBadRequest)
@@ -48,25 +48,31 @@ func (s *Server) handleCheckpoint(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var payload struct {
-		Progress  float64 `json:"progress"`
-		HeadingID string  `json:"heading_id"`
+		Ratio     *float64 `json:"ratio"`
+		Progress  *float64 `json:"progress"`
+		HeadingID string   `json:"heading_id"`
 	}
 	if err := json.Unmarshal(raw, &payload); err != nil {
 		http.Error(w, "invalid JSON", http.StatusBadRequest)
 		return
 	}
 
-	progress := payload.Progress
-	if progress < 0 {
-		progress = 0
+	var ratio float64
+	if payload.Ratio != nil {
+		ratio = *payload.Ratio
+	} else if payload.Progress != nil {
+		ratio = *payload.Progress
 	}
-	if progress > 1 {
-		progress = 1
+	if ratio < 0 {
+		ratio = 0
+	}
+	if ratio > 1 {
+		ratio = 1
 	}
 
-	tut.Checkpoint = &store.Checkpoint{
+	tut.Progress = &store.Progress{
 		Part:      part,
-		Progress:  progress,
+		Ratio:     ratio,
 		HeadingID: strings.TrimSpace(payload.HeadingID),
 		UpdatedAt: time.Now().UTC(),
 	}
@@ -77,6 +83,6 @@ func (s *Server) handleCheckpoint(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(struct {
-		Checkpoint *store.Checkpoint `json:"checkpoint"`
-	}{Checkpoint: tut.Checkpoint})
+		Progress *store.Progress `json:"progress"`
+	}{Progress: tut.Progress})
 }

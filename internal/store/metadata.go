@@ -20,15 +20,15 @@ const (
 )
 
 type Tutorial struct {
-	Slug        string      `json:"slug"`
-	Title       string      `json:"title"`
-	Topic       string      `json:"topic"`
-	Created     time.Time   `json:"created"`
-	Status      Status      `json:"status"`
-	Tags        []string    `json:"tags,omitempty"`
-	Parts       []string    `json:"parts,omitempty"`
-	PendingPart string      `json:"pending_part,omitempty"`
-	Checkpoint  *Checkpoint `json:"checkpoint,omitempty"`
+	Slug        string    `json:"slug"`
+	Title       string    `json:"title"`
+	Topic       string    `json:"topic"`
+	Created     time.Time `json:"created"`
+	Status      Status    `json:"status"`
+	Tags        []string  `json:"tags,omitempty"`
+	Parts       []string  `json:"parts,omitempty"`
+	PendingPart string    `json:"pending_part,omitempty"`
+	Progress    *Progress `json:"progress,omitempty"`
 	// Repo is the canonical identifier (host/org/repo) of the git repository the
 	// tutorial was written for, derived from the repo's origin remote by the
 	// generation skill and normalized by NormalizeRepo. Tutorials with no repo
@@ -72,13 +72,13 @@ type Tool struct {
 	Version string `json:"version,omitempty"`
 }
 
-// Checkpoint is a reader-saved position within a tutorial. Part is the rendered
-// markdown file (part-NN.md or legacy index.md), Progress is a 0..1 scroll ratio,
-// HeadingID is an optional best-effort hint, and UpdatedAt records when the
-// checkpoint was last saved.
-type Checkpoint struct {
+// Progress is a reader-saved position within a tutorial. Part is the rendered
+// markdown file (part-NN.md or legacy index.md), Ratio is a 0..1 scroll ratio,
+// HeadingID is an optional best-effort hint, and UpdatedAt records when progress
+// was last saved.
+type Progress struct {
 	Part      string    `json:"part"`
-	Progress  float64   `json:"progress"`
+	Ratio     float64   `json:"ratio"`
 	HeadingID string    `json:"heading_id,omitempty"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
@@ -115,7 +115,18 @@ func ReadMetadata(tutorialDir string) (*Tutorial, error) {
 		return nil, err
 	}
 	var t Tutorial
-	return &t, json.Unmarshal(data, &t)
+	if err := json.Unmarshal(data, &t); err != nil {
+		return nil, err
+	}
+	if t.Progress == nil {
+		var legacy struct {
+			LegacyProgress *Progress `json:"checkpoint"`
+		}
+		if err := json.Unmarshal(data, &legacy); err == nil {
+			t.Progress = legacy.LegacyProgress
+		}
+	}
+	return &t, nil
 }
 
 func WriteMetadata(tutorialDir string, t *Tutorial) error {

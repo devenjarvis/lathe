@@ -197,15 +197,15 @@ func TestMetadataRoundTripModel(t *testing.T) {
 	}
 }
 
-func TestMetadataRoundTripCheckpoint(t *testing.T) {
+func TestMetadataRoundTripProgress(t *testing.T) {
 	dir := t.TempDir()
 	updatedAt := time.Date(2026, 6, 8, 12, 34, 56, 0, time.UTC)
 	tut := &store.Tutorial{
 		Slug:   "test-tut",
 		Status: store.StatusUnverified,
-		Checkpoint: &store.Checkpoint{
+		Progress: &store.Progress{
 			Part:      "part-02.md",
-			Progress:  0.42,
+			Ratio:     0.42,
 			HeadingID: "wire-the-parser",
 			UpdatedAt: updatedAt,
 		},
@@ -217,20 +217,20 @@ func TestMetadataRoundTripCheckpoint(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadMetadata: %v", err)
 	}
-	if got.Checkpoint == nil {
-		t.Fatal("Checkpoint = nil, want saved checkpoint")
+	if got.Progress == nil {
+		t.Fatal("Progress = nil, want saved progress")
 	}
-	if got.Checkpoint.Part != "part-02.md" {
-		t.Errorf("Checkpoint.Part = %q, want %q", got.Checkpoint.Part, "part-02.md")
+	if got.Progress.Part != "part-02.md" {
+		t.Errorf("Progress.Part = %q, want %q", got.Progress.Part, "part-02.md")
 	}
-	if got.Checkpoint.Progress != 0.42 {
-		t.Errorf("Checkpoint.Progress = %v, want %v", got.Checkpoint.Progress, 0.42)
+	if got.Progress.Ratio != 0.42 {
+		t.Errorf("Progress.Ratio = %v, want %v", got.Progress.Ratio, 0.42)
 	}
-	if got.Checkpoint.HeadingID != "wire-the-parser" {
-		t.Errorf("Checkpoint.HeadingID = %q, want %q", got.Checkpoint.HeadingID, "wire-the-parser")
+	if got.Progress.HeadingID != "wire-the-parser" {
+		t.Errorf("Progress.HeadingID = %q, want %q", got.Progress.HeadingID, "wire-the-parser")
 	}
-	if !got.Checkpoint.UpdatedAt.Equal(updatedAt) {
-		t.Errorf("Checkpoint.UpdatedAt = %v, want %v", got.Checkpoint.UpdatedAt, updatedAt)
+	if !got.Progress.UpdatedAt.Equal(updatedAt) {
+		t.Errorf("Progress.UpdatedAt = %v, want %v", got.Progress.UpdatedAt, updatedAt)
 	}
 }
 
@@ -248,7 +248,7 @@ func TestModelOmittedWhenEmpty(t *testing.T) {
 	}
 }
 
-func TestCheckpointOmittedWhenUnset(t *testing.T) {
+func TestProgressOmittedWhenUnset(t *testing.T) {
 	dir := t.TempDir()
 	if err := store.WriteMetadata(dir, &store.Tutorial{Slug: "t", Status: store.StatusUnverified}); err != nil {
 		t.Fatalf("WriteMetadata: %v", err)
@@ -257,8 +257,34 @@ func TestCheckpointOmittedWhenUnset(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadFile: %v", err)
 	}
-	if strings.Contains(string(data), "checkpoint") {
-		t.Error("\"checkpoint\" should be omitted from JSON when unset")
+	if strings.Contains(string(data), "progress") {
+		t.Error("\"progress\" should be omitted from JSON when unset")
+	}
+}
+
+func TestReadMetadataAcceptsLegacyCheckpoint(t *testing.T) {
+	dir := t.TempDir()
+	data := `{
+  "slug": "legacy",
+  "status": "unverified",
+  "checkpoint": {
+    "part": "part-02.md",
+    "ratio": 0.42,
+    "updated_at": "2026-06-08T12:34:56Z"
+  }
+}`
+	if err := os.WriteFile(filepath.Join(dir, "metadata.json"), []byte(data), 0644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	got, err := store.ReadMetadata(dir)
+	if err != nil {
+		t.Fatalf("ReadMetadata: %v", err)
+	}
+	if got.Progress == nil {
+		t.Fatal("Progress = nil, want legacy checkpoint mapped to progress")
+	}
+	if got.Progress.Part != "part-02.md" || got.Progress.Ratio != 0.42 {
+		t.Errorf("Progress = %+v, want part-02.md at 0.42", got.Progress)
 	}
 }
 

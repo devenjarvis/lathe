@@ -50,9 +50,9 @@
     <div class="tutorial-body">
       <a class="tutorial-link" href="/{{.Slug}}/">{{.Title}}</a>
       <div class="meta">{{if .IsSeries}}{{len .Parts}} parts{{else}}single tutorial{{end}} · {{.Created.Format "Jan 2, 2006"}}{{if .Sources}} · {{len .Sources}} source{{if ne (len .Sources) 1}}s{{end}}{{end}}</div>
-      {{if .Checkpoint}}<div class="tutorial-progress" aria-label="Checkpoint at {{percent .Checkpoint.Progress}}%">
-        <div class="tutorial-progress-track"><span style="width:{{percent .Checkpoint.Progress}}%"></span></div>
-        <span class="tutorial-progress-label">Checkpoint {{percent .Checkpoint.Progress}}%</span>
+      {{if .Progress}}<div class="tutorial-progress" aria-label="Progress at {{percent .Progress.Ratio}}%">
+        <div class="tutorial-progress-track"><span style="width:{{percent .Progress.Ratio}}%"></span></div>
+        <span class="tutorial-progress-label">Progress {{percent .Progress.Ratio}}%</span>
       </div>{{end}}
       {{if .Tools}}<div class="versions">{{range .Tools}}<span class="version">{{.Name}}{{if .Version}} {{.Version}}{{end}}</span>{{end}}</div>{{end}}
       {{if .Tags}}<div class="tags">{{range .Tags}}<span class="tag">{{.}}</span>{{end}}</div>{{end}}

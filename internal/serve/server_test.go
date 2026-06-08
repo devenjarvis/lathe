@@ -244,7 +244,7 @@ func TestListPageRendersCardsAndVersions(t *testing.T) {
 	// Three tutorials with distinct created times — exercises the flat
 	// newest-first list, repo as searchable metadata (data-repo), and version
 	// chips + the Versions filter row.
-	mk := func(slug string, repo string, tools []store.Tool, created time.Time, checkpoint *store.Checkpoint) {
+	mk := func(slug string, repo string, tools []store.Tool, created time.Time, progress *store.Progress) {
 		tutDir := filepath.Join(dir, slug)
 		if err := os.MkdirAll(tutDir, 0755); err != nil {
 			t.Fatal(err)
@@ -253,20 +253,20 @@ func TestListPageRendersCardsAndVersions(t *testing.T) {
 			t.Fatal(err)
 		}
 		tut := &store.Tutorial{
-			Slug:       slug,
-			Title:      slug,
-			Status:     store.StatusUnverified,
-			Created:    created,
-			Repo:       repo,
-			Tools:      tools,
-			Checkpoint: checkpoint,
+			Slug:     slug,
+			Title:    slug,
+			Status:   store.StatusUnverified,
+			Created:  created,
+			Repo:     repo,
+			Tools:    tools,
+			Progress: progress,
 		}
 		if err := store.WriteMetadata(tutDir, tut); err != nil {
 			t.Fatal(err)
 		}
 	}
 	now := time.Now()
-	mk("synth-zig", "github.com/devenjarvis/lathe", []store.Tool{{Name: "zig", Version: "0.13.0"}}, now, &store.Checkpoint{Part: "index.md", Progress: 0.42, UpdatedAt: now})
+	mk("synth-zig", "github.com/devenjarvis/lathe", []store.Tool{{Name: "zig", Version: "0.13.0"}}, now, &store.Progress{Part: "index.md", Ratio: 0.42, UpdatedAt: now})
 	mk("compiler-go", "github.com/devenjarvis/lathe", []store.Tool{{Name: "go", Version: "1.22"}}, now.Add(-time.Hour), nil)
 	mk("standalone", "", nil, now.Add(-2*time.Hour), nil)
 
@@ -289,11 +289,11 @@ func TestListPageRendersCardsAndVersions(t *testing.T) {
 	if !strings.Contains(body, `id="versionFilters"`) {
 		t.Error("list page missing the Versions filter row")
 	}
-	if !strings.Contains(body, `aria-label="Checkpoint at 42%"`) {
-		t.Error("list page missing checkpoint progress label")
+	if !strings.Contains(body, `aria-label="Progress at 42%"`) {
+		t.Error("list page missing progress label")
 	}
 	if !strings.Contains(body, `style="width:42%"`) {
-		t.Error("list page missing checkpoint progress bar width")
+		t.Error("list page missing progress bar width")
 	}
 
 	// All three cards render in one flat list, newest-first.
@@ -324,29 +324,29 @@ func TestTutorialPage(t *testing.T) {
 		t.Error("GET /test-tutorial/ response does not contain page content")
 	}
 	body := w.Body.String()
-	if !strings.Contains(body, `id="checkpointButton"`) {
-		t.Error("tutorial page missing floating desktop checkpoint control")
+	if !strings.Contains(body, `id="saveProgressButton"`) {
+		t.Error("tutorial page missing floating desktop progress control")
 	}
-	dockButtonMarkup := `<button type="button" class="btn btn-ghost btn-sm checkpoint-button" data-checkpoint-save>Save checkpoint</button>`
+	dockButtonMarkup := `<button type="button" class="btn btn-ghost btn-sm progress-button" data-progress-save>Save progress</button>`
 	if strings.Count(body, dockButtonMarkup) != 1 {
-		t.Errorf("tutorial page should render one dock checkpoint control; body excerpt:\n%s", body)
+		t.Errorf("tutorial page should render one dock progress control; body excerpt:\n%s", body)
 	}
-	if !strings.Contains(body, `id="checkpointStatus"`) {
-		t.Error("tutorial page missing checkpoint status live region")
+	if !strings.Contains(body, `id="progressStatus"`) {
+		t.Error("tutorial page missing progress status live region")
 	}
 	if !strings.Contains(body, `data-slug="test-tutorial"`) || !strings.Contains(body, `data-part="index.md"`) {
-		t.Error("tutorial page missing checkpoint routing data on progress bar")
+		t.Error("tutorial page missing progress routing data on progress bar")
 	}
 }
 
-func TestTutorialPageRendersCurrentCheckpointData(t *testing.T) {
+func TestTutorialPageRendersCurrentProgressData(t *testing.T) {
 	dir := t.TempDir()
 	tutDir := makeTestTutorial(t, dir, "test-series", true)
 	tut, err := store.ReadMetadata(tutDir)
 	if err != nil {
 		t.Fatalf("ReadMetadata: %v", err)
 	}
-	tut.Checkpoint = &store.Checkpoint{Part: "part-02.md", Progress: 0.42, UpdatedAt: time.Now()}
+	tut.Progress = &store.Progress{Part: "part-02.md", Ratio: 0.42, UpdatedAt: time.Now()}
 	if err := store.WriteMetadata(tutDir, tut); err != nil {
 		t.Fatalf("WriteMetadata: %v", err)
 	}
@@ -361,13 +361,13 @@ func TestTutorialPageRendersCurrentCheckpointData(t *testing.T) {
 	}
 	body := w.Body.String()
 	if !strings.Contains(body, `data-slug="test-series"`) || !strings.Contains(body, `data-part="part-02.md"`) {
-		t.Error("checkpoint progress bar missing current tutorial/part data")
+		t.Error("progress bar missing current tutorial/part data")
 	}
-	if !strings.Contains(body, `data-checkpoint-progress="0.42"`) {
-		t.Error("checkpoint progress bar missing current checkpoint progress")
+	if !strings.Contains(body, `data-saved-progress="0.42"`) {
+		t.Error("progress bar missing current saved progress")
 	}
-	if !strings.Contains(body, `id="checkpointMarker"`) {
-		t.Error("tutorial page missing checkpoint marker element")
+	if !strings.Contains(body, `id="savedProgressMarker"`) {
+		t.Error("tutorial page missing progress marker element")
 	}
 }
 
@@ -894,14 +894,14 @@ func TestSeriesRedirect(t *testing.T) {
 	}
 }
 
-func TestSeriesRedirectUsesCheckpointPart(t *testing.T) {
+func TestSeriesRedirectUsesProgressPart(t *testing.T) {
 	dir := t.TempDir()
 	tutDir := makeTestTutorial(t, dir, "test-series", true)
 	tut, err := store.ReadMetadata(tutDir)
 	if err != nil {
 		t.Fatalf("ReadMetadata: %v", err)
 	}
-	tut.Checkpoint = &store.Checkpoint{Part: "part-02.md", Progress: 0.5, UpdatedAt: time.Now()}
+	tut.Progress = &store.Progress{Part: "part-02.md", Ratio: 0.5, UpdatedAt: time.Now()}
 	if err := store.WriteMetadata(tutDir, tut); err != nil {
 		t.Fatalf("WriteMetadata: %v", err)
 	}
@@ -919,14 +919,14 @@ func TestSeriesRedirectUsesCheckpointPart(t *testing.T) {
 	}
 }
 
-func TestSeriesRedirectIgnoresStaleCheckpointPart(t *testing.T) {
+func TestSeriesRedirectIgnoresStaleProgressPart(t *testing.T) {
 	dir := t.TempDir()
 	tutDir := makeTestTutorial(t, dir, "test-series", true)
 	tut, err := store.ReadMetadata(tutDir)
 	if err != nil {
 		t.Fatalf("ReadMetadata: %v", err)
 	}
-	tut.Checkpoint = &store.Checkpoint{Part: "part-99.md", Progress: 0.5, UpdatedAt: time.Now()}
+	tut.Progress = &store.Progress{Part: "part-99.md", Ratio: 0.5, UpdatedAt: time.Now()}
 	if err := store.WriteMetadata(tutDir, tut); err != nil {
 		t.Fatalf("WriteMetadata: %v", err)
 	}
@@ -1124,138 +1124,138 @@ func TestDeleteEndpointMissingSlug(t *testing.T) {
 	}
 }
 
-func TestCheckpointEndpointSavesMetadata(t *testing.T) {
+func TestProgressEndpointSavesMetadata(t *testing.T) {
 	dir := t.TempDir()
 	tutDir := makeTestTutorial(t, dir, "test-series", true)
 
 	srv := serve.NewServer(dir)
-	req := httptest.NewRequest(http.MethodPost, "/-/checkpoint/test-series/part-02.md", bytes.NewBufferString(`{"progress":0.42,"heading_id":"next-step"}`))
+	req := httptest.NewRequest(http.MethodPost, "/-/progress/test-series/part-02.md", bytes.NewBufferString(`{"ratio":0.42,"heading_id":"next-step"}`))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Origin", "http://localhost:4242")
 	w := httptest.NewRecorder()
 	srv.Handler().ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("POST /-/checkpoint/test-series/part-02.md = %d, want %d; body=%s", w.Code, http.StatusOK, w.Body.String())
+		t.Fatalf("POST /-/progress/test-series/part-02.md = %d, want %d; body=%s", w.Code, http.StatusOK, w.Body.String())
 	}
 	var response struct {
-		Checkpoint *store.Checkpoint `json:"checkpoint"`
+		Progress *store.Progress `json:"progress"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
-		t.Fatalf("decode checkpoint response: %v", err)
+		t.Fatalf("decode progress response: %v", err)
 	}
-	if response.Checkpoint == nil {
-		t.Fatal("response checkpoint = nil, want saved checkpoint")
+	if response.Progress == nil {
+		t.Fatal("response progress = nil, want saved progress")
 	}
-	if response.Checkpoint.Part != "part-02.md" || response.Checkpoint.Progress != 0.42 || response.Checkpoint.HeadingID != "next-step" {
-		t.Errorf("response checkpoint = %+v, want part/progress/heading to match request", response.Checkpoint)
+	if response.Progress.Part != "part-02.md" || response.Progress.Ratio != 0.42 || response.Progress.HeadingID != "next-step" {
+		t.Errorf("response progress = %+v, want part/ratio/heading to match request", response.Progress)
 	}
 
 	tut, err := store.ReadMetadata(tutDir)
 	if err != nil {
 		t.Fatalf("ReadMetadata: %v", err)
 	}
-	if tut.Checkpoint == nil {
-		t.Fatal("metadata checkpoint = nil, want saved checkpoint")
+	if tut.Progress == nil {
+		t.Fatal("metadata progress = nil, want saved progress")
 	}
-	if tut.Checkpoint.Part != "part-02.md" {
-		t.Errorf("metadata checkpoint part = %q, want part-02.md", tut.Checkpoint.Part)
+	if tut.Progress.Part != "part-02.md" {
+		t.Errorf("metadata progress part = %q, want part-02.md", tut.Progress.Part)
 	}
-	if tut.Checkpoint.Progress != 0.42 {
-		t.Errorf("metadata checkpoint progress = %v, want 0.42", tut.Checkpoint.Progress)
+	if tut.Progress.Ratio != 0.42 {
+		t.Errorf("metadata progress ratio = %v, want 0.42", tut.Progress.Ratio)
 	}
-	if tut.Checkpoint.HeadingID != "next-step" {
-		t.Errorf("metadata checkpoint heading = %q, want next-step", tut.Checkpoint.HeadingID)
+	if tut.Progress.HeadingID != "next-step" {
+		t.Errorf("metadata progress heading = %q, want next-step", tut.Progress.HeadingID)
 	}
-	if tut.Checkpoint.UpdatedAt.IsZero() {
-		t.Error("metadata checkpoint updated_at is zero")
+	if tut.Progress.UpdatedAt.IsZero() {
+		t.Error("metadata progress updated_at is zero")
 	}
 }
 
-func TestCheckpointEndpointRejectsForeignOrigin(t *testing.T) {
+func TestProgressEndpointRejectsForeignOrigin(t *testing.T) {
 	dir := t.TempDir()
 	tutDir := makeTestTutorial(t, dir, "test-series", true)
 
 	srv := serve.NewServer(dir)
-	req := httptest.NewRequest(http.MethodPost, "/-/checkpoint/test-series/part-01.md", bytes.NewBufferString(`{"progress":0.5}`))
+	req := httptest.NewRequest(http.MethodPost, "/-/progress/test-series/part-01.md", bytes.NewBufferString(`{"ratio":0.5}`))
 	req.Header.Set("Origin", "http://evil.example.com")
 	w := httptest.NewRecorder()
 	srv.Handler().ServeHTTP(w, req)
 
 	if w.Code != http.StatusForbidden {
-		t.Errorf("foreign-origin checkpoint = %d, want %d", w.Code, http.StatusForbidden)
+		t.Errorf("foreign-origin progress = %d, want %d", w.Code, http.StatusForbidden)
 	}
 	tut, err := store.ReadMetadata(tutDir)
 	if err != nil {
 		t.Fatalf("ReadMetadata: %v", err)
 	}
-	if tut.Checkpoint != nil {
-		t.Errorf("foreign-origin checkpoint wrote metadata: %+v", tut.Checkpoint)
+	if tut.Progress != nil {
+		t.Errorf("foreign-origin progress wrote metadata: %+v", tut.Progress)
 	}
 }
 
-func TestCheckpointEndpointRejectsUnknownTutorial(t *testing.T) {
+func TestProgressEndpointRejectsUnknownTutorial(t *testing.T) {
 	dir := t.TempDir()
 	srv := serve.NewServer(dir)
-	req := httptest.NewRequest(http.MethodPost, "/-/checkpoint/missing/part-01.md", bytes.NewBufferString(`{"progress":0.5}`))
+	req := httptest.NewRequest(http.MethodPost, "/-/progress/missing/part-01.md", bytes.NewBufferString(`{"ratio":0.5}`))
 	w := httptest.NewRecorder()
 	srv.Handler().ServeHTTP(w, req)
 
 	if w.Code != http.StatusNotFound {
-		t.Errorf("unknown tutorial checkpoint = %d, want %d", w.Code, http.StatusNotFound)
+		t.Errorf("unknown tutorial progress = %d, want %d", w.Code, http.StatusNotFound)
 	}
 }
 
-func TestCheckpointEndpointRejectsUnknownPart(t *testing.T) {
+func TestProgressEndpointRejectsUnknownPart(t *testing.T) {
 	dir := t.TempDir()
 	tutDir := makeTestTutorial(t, dir, "test-series", true)
 
 	srv := serve.NewServer(dir)
-	req := httptest.NewRequest(http.MethodPost, "/-/checkpoint/test-series/part-99.md", bytes.NewBufferString(`{"progress":0.5}`))
+	req := httptest.NewRequest(http.MethodPost, "/-/progress/test-series/part-99.md", bytes.NewBufferString(`{"ratio":0.5}`))
 	w := httptest.NewRecorder()
 	srv.Handler().ServeHTTP(w, req)
 
 	if w.Code != http.StatusNotFound {
-		t.Errorf("unknown part checkpoint = %d, want %d", w.Code, http.StatusNotFound)
+		t.Errorf("unknown part progress = %d, want %d", w.Code, http.StatusNotFound)
 	}
 	tut, err := store.ReadMetadata(tutDir)
 	if err != nil {
 		t.Fatalf("ReadMetadata: %v", err)
 	}
-	if tut.Checkpoint != nil {
-		t.Errorf("unknown part checkpoint wrote metadata: %+v", tut.Checkpoint)
+	if tut.Progress != nil {
+		t.Errorf("unknown part progress wrote metadata: %+v", tut.Progress)
 	}
 }
 
-func TestCheckpointEndpointRejectsInvalidJSON(t *testing.T) {
+func TestProgressEndpointRejectsInvalidJSON(t *testing.T) {
 	dir := t.TempDir()
 	tutDir := makeTestTutorial(t, dir, "test-series", true)
 
 	srv := serve.NewServer(dir)
-	req := httptest.NewRequest(http.MethodPost, "/-/checkpoint/test-series/part-01.md", bytes.NewBufferString(`{nope`))
+	req := httptest.NewRequest(http.MethodPost, "/-/progress/test-series/part-01.md", bytes.NewBufferString(`{nope`))
 	w := httptest.NewRecorder()
 	srv.Handler().ServeHTTP(w, req)
 
 	if w.Code != http.StatusBadRequest {
-		t.Errorf("invalid JSON checkpoint = %d, want %d", w.Code, http.StatusBadRequest)
+		t.Errorf("invalid JSON progress = %d, want %d", w.Code, http.StatusBadRequest)
 	}
 	tut, err := store.ReadMetadata(tutDir)
 	if err != nil {
 		t.Fatalf("ReadMetadata: %v", err)
 	}
-	if tut.Checkpoint != nil {
-		t.Errorf("invalid JSON checkpoint wrote metadata: %+v", tut.Checkpoint)
+	if tut.Progress != nil {
+		t.Errorf("invalid JSON progress wrote metadata: %+v", tut.Progress)
 	}
 }
 
-func TestCheckpointEndpointClampsProgress(t *testing.T) {
+func TestProgressEndpointClampsProgress(t *testing.T) {
 	cases := []struct {
 		name string
 		body string
 		want float64
 	}{
-		{"below zero", `{"progress":-0.5}`, 0},
-		{"above one", `{"progress":1.5}`, 1},
+		{"below zero", `{"ratio":-0.5}`, 0},
+		{"above one", `{"ratio":1.5}`, 1},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1263,22 +1263,22 @@ func TestCheckpointEndpointClampsProgress(t *testing.T) {
 			tutDir := makeTestTutorial(t, dir, "test-series", true)
 			srv := serve.NewServer(dir)
 
-			req := httptest.NewRequest(http.MethodPost, "/-/checkpoint/test-series/part-01.md", bytes.NewBufferString(tc.body))
+			req := httptest.NewRequest(http.MethodPost, "/-/progress/test-series/part-01.md", bytes.NewBufferString(tc.body))
 			w := httptest.NewRecorder()
 			srv.Handler().ServeHTTP(w, req)
 
 			if w.Code != http.StatusOK {
-				t.Fatalf("checkpoint save = %d, want %d; body=%s", w.Code, http.StatusOK, w.Body.String())
+				t.Fatalf("progress save = %d, want %d; body=%s", w.Code, http.StatusOK, w.Body.String())
 			}
 			tut, err := store.ReadMetadata(tutDir)
 			if err != nil {
 				t.Fatalf("ReadMetadata: %v", err)
 			}
-			if tut.Checkpoint == nil {
-				t.Fatal("Checkpoint = nil, want saved checkpoint")
+			if tut.Progress == nil {
+				t.Fatal("Progress = nil, want saved progress")
 			}
-			if tut.Checkpoint.Progress != tc.want {
-				t.Errorf("Checkpoint.Progress = %v, want %v", tut.Checkpoint.Progress, tc.want)
+			if tut.Progress.Ratio != tc.want {
+				t.Errorf("Progress.Ratio = %v, want %v", tut.Progress.Ratio, tc.want)
 			}
 		})
 	}
