@@ -366,6 +366,8 @@ func (s *Server) renderPart(w http.ResponseWriter, tut *store.Tutorial, tutDir, 
 		}
 	}
 
+	currentCheckpoint := currentPartCheckpoint(tut, part)
+
 	var buf bytes.Buffer
 	if err := s.layoutTmpl.Execute(&buf, map[string]any{
 		"Title":             tut.Title,
@@ -375,6 +377,7 @@ func (s *Server) renderPart(w http.ResponseWriter, tut *store.Tutorial, tutDir, 
 		"UnverifiedCount":   unverifiedCount,
 		"VoiceSpec":         voiceSpec,
 		"CurrentPart":       part,
+		"CurrentCheckpoint": currentCheckpoint,
 		"CurrentPartNumber": currentNumber,
 		"Content":           template.HTML(content),
 		"CSS":               s.designCSS,
@@ -408,4 +411,11 @@ func pendingPartNumber(pendingPart string, fallback int) int {
 		return fallback
 	}
 	return n
+}
+
+func currentPartCheckpoint(tut *store.Tutorial, part string) *store.Checkpoint {
+	if tut.Checkpoint == nil || tut.Checkpoint.Part != part {
+		return nil
+	}
+	return tut.Checkpoint
 }
