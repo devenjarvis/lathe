@@ -1069,6 +1069,118 @@ func TestCheckpointEndpointSavesMetadata(t *testing.T) {
 	}
 }
 
+func TestCheckpointEndpointRejectsForeignOrigin(t *testing.T) {
+	dir := t.TempDir()
+	tutDir := makeTestTutorial(t, dir, "test-series", true)
+
+	srv := serve.NewServer(dir)
+	req := httptest.NewRequest(http.MethodPost, "/-/checkpoint/test-series/part-01.md", bytes.NewBufferString(`{"progress":0.5}`))
+	req.Header.Set("Origin", "http://evil.example.com")
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Errorf("foreign-origin checkpoint = %d, want %d", w.Code, http.StatusForbidden)
+	}
+	tut, err := store.ReadMetadata(tutDir)
+	if err != nil {
+		t.Fatalf("ReadMetadata: %v", err)
+	}
+	if tut.Checkpoint != nil {
+		t.Errorf("foreign-origin checkpoint wrote metadata: %+v", tut.Checkpoint)
+	}
+}
+
+func TestCheckpointEndpointRejectsUnknownTutorial(t *testing.T) {
+	dir := t.TempDir()
+	srv := serve.NewServer(dir)
+	req := httptest.NewRequest(http.MethodPost, "/-/checkpoint/missing/part-01.md", bytes.NewBufferString(`{"progress":0.5}`))
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Errorf("unknown tutorial checkpoint = %d, want %d", w.Code, http.StatusNotFound)
+	}
+}
+
+func TestCheckpointEndpointRejectsUnknownPart(t *testing.T) {
+	dir := t.TempDir()
+	tutDir := makeTestTutorial(t, dir, "test-series", true)
+
+	srv := serve.NewServer(dir)
+	req := httptest.NewRequest(http.MethodPost, "/-/checkpoint/test-series/part-99.md", bytes.NewBufferString(`{"progress":0.5}`))
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Errorf("unknown part checkpoint = %d, want %d", w.Code, http.StatusNotFound)
+	}
+	tut, err := store.ReadMetadata(tutDir)
+	if err != nil {
+		t.Fatalf("ReadMetadata: %v", err)
+	}
+	if tut.Checkpoint != nil {
+		t.Errorf("unknown part checkpoint wrote metadata: %+v", tut.Checkpoint)
+	}
+}
+
+func TestCheckpointEndpointRejectsInvalidJSON(t *testing.T) {
+	dir := t.TempDir()
+	tutDir := makeTestTutorial(t, dir, "test-series", true)
+
+	srv := serve.NewServer(dir)
+	req := httptest.NewRequest(http.MethodPost, "/-/checkpoint/test-series/part-01.md", bytes.NewBufferString(`{nope`))
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("invalid JSON checkpoint = %d, want %d", w.Code, http.StatusBadRequest)
+	}
+	tut, err := store.ReadMetadata(tutDir)
+	if err != nil {
+		t.Fatalf("ReadMetadata: %v", err)
+	}
+	if tut.Checkpoint != nil {
+		t.Errorf("invalid JSON checkpoint wrote metadata: %+v", tut.Checkpoint)
+	}
+}
+
+func TestCheckpointEndpointClampsProgress(t *testing.T) {
+	cases := []struct {
+		name string
+		body string
+		want float64
+	}{
+		{"below zero", `{"progress":-0.5}`, 0},
+		{"above one", `{"progress":1.5}`, 1},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			tutDir := makeTestTutorial(t, dir, "test-series", true)
+			srv := serve.NewServer(dir)
+
+			req := httptest.NewRequest(http.MethodPost, "/-/checkpoint/test-series/part-01.md", bytes.NewBufferString(tc.body))
+			w := httptest.NewRecorder()
+			srv.Handler().ServeHTTP(w, req)
+
+			if w.Code != http.StatusOK {
+				t.Fatalf("checkpoint save = %d, want %d; body=%s", w.Code, http.StatusOK, w.Body.String())
+			}
+			tut, err := store.ReadMetadata(tutDir)
+			if err != nil {
+				t.Fatalf("ReadMetadata: %v", err)
+			}
+			if tut.Checkpoint == nil {
+				t.Fatal("Checkpoint = nil, want saved checkpoint")
+			}
+			if tut.Checkpoint.Progress != tc.want {
+				t.Errorf("Checkpoint.Progress = %v, want %v", tut.Checkpoint.Progress, tc.want)
+			}
+		})
+	}
+}
+
 func TestPathTraversalBlocked(t *testing.T) {
 	dir := t.TempDir()
 	makeTestTutorial(t, dir, "test-tutorial", false)
