@@ -1,6 +1,8 @@
 package serve_test
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -1016,6 +1018,54 @@ func TestDeleteEndpointMissingSlug(t *testing.T) {
 
 	if w.Code != http.StatusNotFound {
 		t.Errorf("POST /-/delete/nonexistent = %d, want %d", w.Code, http.StatusNotFound)
+	}
+}
+
+func TestCheckpointEndpointSavesMetadata(t *testing.T) {
+	dir := t.TempDir()
+	tutDir := makeTestTutorial(t, dir, "test-series", true)
+
+	srv := serve.NewServer(dir)
+	req := httptest.NewRequest(http.MethodPost, "/-/checkpoint/test-series/part-02.md", bytes.NewBufferString(`{"progress":0.42,"heading_id":"next-step"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Origin", "http://localhost:4242")
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("POST /-/checkpoint/test-series/part-02.md = %d, want %d; body=%s", w.Code, http.StatusOK, w.Body.String())
+	}
+	var response struct {
+		Checkpoint *store.Checkpoint `json:"checkpoint"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatalf("decode checkpoint response: %v", err)
+	}
+	if response.Checkpoint == nil {
+		t.Fatal("response checkpoint = nil, want saved checkpoint")
+	}
+	if response.Checkpoint.Part != "part-02.md" || response.Checkpoint.Progress != 0.42 || response.Checkpoint.HeadingID != "next-step" {
+		t.Errorf("response checkpoint = %+v, want part/progress/heading to match request", response.Checkpoint)
+	}
+
+	tut, err := store.ReadMetadata(tutDir)
+	if err != nil {
+		t.Fatalf("ReadMetadata: %v", err)
+	}
+	if tut.Checkpoint == nil {
+		t.Fatal("metadata checkpoint = nil, want saved checkpoint")
+	}
+	if tut.Checkpoint.Part != "part-02.md" {
+		t.Errorf("metadata checkpoint part = %q, want part-02.md", tut.Checkpoint.Part)
+	}
+	if tut.Checkpoint.Progress != 0.42 {
+		t.Errorf("metadata checkpoint progress = %v, want 0.42", tut.Checkpoint.Progress)
+	}
+	if tut.Checkpoint.HeadingID != "next-step" {
+		t.Errorf("metadata checkpoint heading = %q, want next-step", tut.Checkpoint.HeadingID)
+	}
+	if tut.Checkpoint.UpdatedAt.IsZero() {
+		t.Error("metadata checkpoint updated_at is zero")
 	}
 }
 
