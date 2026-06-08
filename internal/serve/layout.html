@@ -18,7 +18,7 @@
   </script>
 </head>
 <body>
-<div id="progressBar" aria-hidden="true"><div></div></div>
+<div id="progressBar" aria-hidden="true" data-checkpoint-progress="{{if .CurrentCheckpoint}}{{.CurrentCheckpoint.Progress}}{{end}}"><div></div><span id="checkpointMarker" hidden></span></div>
 <header id="topBar">
   <button type="button" id="hamburger" aria-label="Toggle navigation" aria-controls="sidebar" aria-expanded="false">≡</button>
   <a href="/" class="back-link">← All tutorials</a>
@@ -248,16 +248,34 @@
 </script>
 <script>
   // Reading-progress bar — RAF-throttled, transform-based to avoid layout thrash.
+  // Exposes the current ratio for checkpoint saves and positions the saved
+  // checkpoint marker when the current part has one.
   (function(){
-    var bar = document.querySelector('#progressBar > div');
-    if (!bar) return;
+    var progress = document.getElementById('progressBar');
+    var bar = progress && progress.querySelector(':scope > div');
+    var marker = document.getElementById('checkpointMarker');
+    if (!progress || !bar) return;
     var pending = false;
-    function update(){
-      pending = false;
+    function clamp(n){ return Math.min(1, Math.max(0, n)); }
+    function currentRatio(){
       var doc = document.documentElement;
       var scroll = window.scrollY || doc.scrollTop || 0;
       var max = (doc.scrollHeight - doc.clientHeight) || 1;
-      var ratio = max > 0 ? Math.min(1, Math.max(0, scroll / max)) : 0;
+      return max > 0 ? clamp(scroll / max) : 0;
+    }
+    window.latheReadingProgress = {currentRatio: currentRatio};
+    function renderCheckpointMarker(){
+      if (!marker) return;
+      var raw = progress.getAttribute('data-checkpoint-progress');
+      if (!raw) return;
+      var ratio = clamp(parseFloat(raw));
+      if (Number.isNaN(ratio)) return;
+      marker.hidden = false;
+      marker.style.left = (ratio * 100) + '%';
+    }
+    function update(){
+      pending = false;
+      var ratio = currentRatio();
       bar.style.transform = 'scaleX(' + ratio + ')';
     }
     function onScroll(){
@@ -265,6 +283,7 @@
       pending = true;
       requestAnimationFrame(update);
     }
+    renderCheckpointMarker();
     update();
     window.addEventListener('scroll', onScroll, {passive:true});
     window.addEventListener('resize', onScroll);
