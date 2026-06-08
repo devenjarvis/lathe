@@ -278,6 +278,21 @@
       progress.setAttribute('data-checkpoint-progress', String(clamp(ratio)));
       renderCheckpointMarker();
     }
+    function checkpointRatio(){
+      var raw = progress.getAttribute('data-checkpoint-progress');
+      if (!raw) return null;
+      var ratio = clamp(parseFloat(raw));
+      return Number.isNaN(ratio) ? null : ratio;
+    }
+    function restoreCheckpoint(){
+      var ratio = checkpointRatio();
+      if (ratio === null) return;
+      var doc = document.documentElement;
+      var max = (doc.scrollHeight - doc.clientHeight) || 0;
+      if (max <= 0) return;
+      window.scrollTo({top: Math.round(max * ratio), behavior: 'auto'});
+      update();
+    }
     function update(){
       pending = false;
       var ratio = currentRatio();
@@ -293,6 +308,11 @@
     update();
     window.addEventListener('scroll', onScroll, {passive:true});
     window.addEventListener('resize', onScroll);
+    if (document.readyState === 'complete') {
+      setTimeout(restoreCheckpoint, 0);
+    } else {
+      window.addEventListener('load', function(){ setTimeout(restoreCheckpoint, 0); }, {once:true});
+    }
   })();
 </script>
 <script>
