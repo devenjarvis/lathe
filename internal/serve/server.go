@@ -169,10 +169,15 @@ func (s *Server) handleTutorial(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Any tutorial with parts (single or series) lives in part-NN.md files, not
-	// index.md, so redirect to the first part. The index.md fallback is only for
+	// index.md. Prefer a valid checkpoint part when one is saved, otherwise keep
+	// the historical first-part redirect. The index.md fallback is only for
 	// legacy tutorials that were never split into parts.
 	if len(tut.Parts) > 0 {
-		http.Redirect(w, r, fmt.Sprintf("/%s/%s", slug, tut.Parts[0]), http.StatusFound)
+		part := tut.Parts[0]
+		if tut.Checkpoint != nil && isKnownPart(tut, tut.Checkpoint.Part) {
+			part = tut.Checkpoint.Part
+		}
+		http.Redirect(w, r, fmt.Sprintf("/%s/%s", slug, part), http.StatusFound)
 		return
 	}
 	s.renderPart(w, tut, tutDir, "index.md")
