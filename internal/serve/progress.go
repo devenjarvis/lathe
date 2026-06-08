@@ -56,6 +56,10 @@ func (s *Server) handleProgress(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid JSON", http.StatusBadRequest)
 		return
 	}
+	if payload.Ratio == nil && payload.Progress == nil {
+		http.Error(w, "ratio is required", http.StatusBadRequest)
+		return
+	}
 
 	var ratio float64
 	if payload.Ratio != nil {

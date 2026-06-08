@@ -1248,6 +1248,27 @@ func TestProgressEndpointRejectsInvalidJSON(t *testing.T) {
 	}
 }
 
+func TestProgressEndpointRejectsMissingRatio(t *testing.T) {
+	dir := t.TempDir()
+	tutDir := makeTestTutorial(t, dir, "test-series", true)
+
+	srv := serve.NewServer(dir)
+	req := httptest.NewRequest(http.MethodPost, "/-/progress/test-series/part-01.md", bytes.NewBufferString(`{"heading_id":"intro"}`))
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("missing-ratio progress = %d, want %d", w.Code, http.StatusBadRequest)
+	}
+	tut, err := store.ReadMetadata(tutDir)
+	if err != nil {
+		t.Fatalf("ReadMetadata: %v", err)
+	}
+	if tut.Progress != nil {
+		t.Errorf("missing-ratio progress wrote metadata: %+v", tut.Progress)
+	}
+}
+
 func TestProgressEndpointClampsProgress(t *testing.T) {
 	cases := []struct {
 		name string
