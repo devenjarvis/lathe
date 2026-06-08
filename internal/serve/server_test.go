@@ -346,7 +346,7 @@ func TestTutorialPageRendersCurrentProgressData(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadMetadata: %v", err)
 	}
-	tut.Progress = &store.Progress{Part: "part-02.md", Ratio: 0.42, UpdatedAt: time.Now()}
+	tut.Progress = &store.Progress{Part: "part-02.md", Ratio: 0.42, HeadingID: "next-step", UpdatedAt: time.Now()}
 	if err := store.WriteMetadata(tutDir, tut); err != nil {
 		t.Fatalf("WriteMetadata: %v", err)
 	}
@@ -365,6 +365,9 @@ func TestTutorialPageRendersCurrentProgressData(t *testing.T) {
 	}
 	if !strings.Contains(body, `data-saved-progress="0.42"`) {
 		t.Error("progress bar missing current saved progress")
+	}
+	if !strings.Contains(body, `data-saved-heading-id="next-step"`) {
+		t.Error("progress bar missing current saved heading")
 	}
 	if !strings.Contains(body, `id="savedProgressMarker"`) {
 		t.Error("tutorial page missing progress marker element")
