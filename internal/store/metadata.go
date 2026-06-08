@@ -2,6 +2,7 @@ package store
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -126,6 +127,11 @@ func ReadMetadata(tutorialDir string) (*Tutorial, error) {
 			t.Progress = legacy.LegacyProgress
 		}
 	}
+	if progress, err := ReadProgress(tutorialDir); err == nil {
+		t.Progress = progress
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return nil, err
+	}
 	return &t, nil
 }
 
@@ -135,6 +141,26 @@ func WriteMetadata(tutorialDir string, t *Tutorial) error {
 		return err
 	}
 	return os.WriteFile(filepath.Join(tutorialDir, "metadata.json"), data, 0644)
+}
+
+func ReadProgress(tutorialDir string) (*Progress, error) {
+	data, err := os.ReadFile(filepath.Join(tutorialDir, "progress.json"))
+	if err != nil {
+		return nil, err
+	}
+	var progress Progress
+	if err := json.Unmarshal(data, &progress); err != nil {
+		return nil, err
+	}
+	return &progress, nil
+}
+
+func SaveProgress(tutorialDir string, progress *Progress) error {
+	data, err := json.MarshalIndent(progress, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(tutorialDir, "progress.json"), data, 0644)
 }
 
 func ReadVerifyResult(tutorialDir string) (*VerifyResult, error) {

@@ -234,6 +234,53 @@ func TestMetadataRoundTripProgress(t *testing.T) {
 	}
 }
 
+func TestSaveProgressDoesNotRewriteMetadata(t *testing.T) {
+	dir := t.TempDir()
+	updatedAt := time.Date(2026, 6, 8, 12, 34, 56, 0, time.UTC)
+	tut := &store.Tutorial{
+		Slug:    "test-tut",
+		Title:   "Test Tutorial",
+		Status:  store.StatusVerified,
+		Tags:    []string{"go"},
+		Created: updatedAt,
+	}
+	if err := store.WriteMetadata(dir, tut); err != nil {
+		t.Fatalf("WriteMetadata: %v", err)
+	}
+	before, err := os.ReadFile(filepath.Join(dir, "metadata.json"))
+	if err != nil {
+		t.Fatalf("ReadFile before: %v", err)
+	}
+
+	progress := &store.Progress{
+		Part:      "part-02.md",
+		Ratio:     0.42,
+		HeadingID: "wire-the-parser",
+		UpdatedAt: updatedAt,
+	}
+	if err := store.SaveProgress(dir, progress); err != nil {
+		t.Fatalf("SaveProgress: %v", err)
+	}
+	after, err := os.ReadFile(filepath.Join(dir, "metadata.json"))
+	if err != nil {
+		t.Fatalf("ReadFile after: %v", err)
+	}
+	if string(after) != string(before) {
+		t.Error("SaveProgress rewrote metadata.json")
+	}
+
+	got, err := store.ReadMetadata(dir)
+	if err != nil {
+		t.Fatalf("ReadMetadata: %v", err)
+	}
+	if got.Progress == nil {
+		t.Fatal("Progress = nil, want sidecar progress")
+	}
+	if got.Progress.Part != progress.Part || got.Progress.Ratio != progress.Ratio || got.Progress.HeadingID != progress.HeadingID {
+		t.Errorf("Progress = %+v, want %+v", got.Progress, progress)
+	}
+}
+
 func TestModelOmittedWhenEmpty(t *testing.T) {
 	dir := t.TempDir()
 	if err := store.WriteMetadata(dir, &store.Tutorial{Slug: "t", Status: store.StatusUnverified}); err != nil {

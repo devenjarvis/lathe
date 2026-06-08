@@ -74,19 +74,19 @@ func (s *Server) handleProgress(w http.ResponseWriter, r *http.Request) {
 		ratio = 1
 	}
 
-	tut.Progress = &store.Progress{
+	progress := &store.Progress{
 		Part:      part,
 		Ratio:     ratio,
 		HeadingID: strings.TrimSpace(payload.HeadingID),
 		UpdatedAt: time.Now().UTC(),
 	}
-	if err := store.WriteMetadata(tutDir, tut); err != nil {
-		http.Error(w, "write metadata", http.StatusInternalServerError)
+	if err := store.SaveProgress(tutDir, progress); err != nil {
+		http.Error(w, "write progress", http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(struct {
 		Progress *store.Progress `json:"progress"`
-	}{Progress: tut.Progress})
+	}{Progress: progress})
 }

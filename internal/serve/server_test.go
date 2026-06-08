@@ -1127,9 +1127,13 @@ func TestDeleteEndpointMissingSlug(t *testing.T) {
 	}
 }
 
-func TestProgressEndpointSavesMetadata(t *testing.T) {
+func TestProgressEndpointSavesProgress(t *testing.T) {
 	dir := t.TempDir()
 	tutDir := makeTestTutorial(t, dir, "test-series", true)
+	before, err := os.ReadFile(filepath.Join(tutDir, "metadata.json"))
+	if err != nil {
+		t.Fatalf("ReadFile before: %v", err)
+	}
 
 	srv := serve.NewServer(dir)
 	req := httptest.NewRequest(http.MethodPost, "/-/progress/test-series/part-02.md", bytes.NewBufferString(`{"ratio":0.42,"heading_id":"next-step"}`))
@@ -1152,6 +1156,13 @@ func TestProgressEndpointSavesMetadata(t *testing.T) {
 	}
 	if response.Progress.Part != "part-02.md" || response.Progress.Ratio != 0.42 || response.Progress.HeadingID != "next-step" {
 		t.Errorf("response progress = %+v, want part/ratio/heading to match request", response.Progress)
+	}
+	after, err := os.ReadFile(filepath.Join(tutDir, "metadata.json"))
+	if err != nil {
+		t.Fatalf("ReadFile after: %v", err)
+	}
+	if string(after) != string(before) {
+		t.Error("progress save rewrote metadata.json")
 	}
 
 	tut, err := store.ReadMetadata(tutDir)
