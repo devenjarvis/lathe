@@ -316,6 +316,49 @@ func TestTutorialPage(t *testing.T) {
 	if !strings.Contains(w.Body.String(), "Index") {
 		t.Error("GET /test-tutorial/ response does not contain page content")
 	}
+	body := w.Body.String()
+	buttonMarkup := `<button type="button" class="btn btn-ghost btn-sm checkpoint-button" data-checkpoint-save>Save checkpoint</button>`
+	if strings.Count(body, buttonMarkup) != 2 {
+		t.Errorf("tutorial page should render desktop and dock checkpoint controls; body excerpt:\n%s", body)
+	}
+	if !strings.Contains(body, `id="checkpointStatus"`) {
+		t.Error("tutorial page missing checkpoint status live region")
+	}
+	if !strings.Contains(body, `data-slug="test-tutorial"`) || !strings.Contains(body, `data-part="index.md"`) {
+		t.Error("tutorial page missing checkpoint routing data on progress bar")
+	}
+}
+
+func TestTutorialPageRendersCurrentCheckpointData(t *testing.T) {
+	dir := t.TempDir()
+	tutDir := makeTestTutorial(t, dir, "test-series", true)
+	tut, err := store.ReadMetadata(tutDir)
+	if err != nil {
+		t.Fatalf("ReadMetadata: %v", err)
+	}
+	tut.Checkpoint = &store.Checkpoint{Part: "part-02.md", Progress: 0.42, UpdatedAt: time.Now()}
+	if err := store.WriteMetadata(tutDir, tut); err != nil {
+		t.Fatalf("WriteMetadata: %v", err)
+	}
+
+	srv := serve.NewServer(dir)
+	req := httptest.NewRequest(http.MethodGet, "/test-series/part-02.md", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("GET /test-series/part-02.md = %d, want %d", w.Code, http.StatusOK)
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, `data-slug="test-series"`) || !strings.Contains(body, `data-part="part-02.md"`) {
+		t.Error("checkpoint progress bar missing current tutorial/part data")
+	}
+	if !strings.Contains(body, `data-checkpoint-progress="0.42"`) {
+		t.Error("checkpoint progress bar missing current checkpoint progress")
+	}
+	if !strings.Contains(body, `id="checkpointMarker"`) {
+		t.Error("tutorial page missing checkpoint marker element")
+	}
 }
 
 func TestBylineShowsModelAndVoiceReveal(t *testing.T) {
