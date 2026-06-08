@@ -37,6 +37,7 @@
         {{end}}
       </ul>
     </details>{{end}}</span>
+  <button type="button" class="btn btn-ghost btn-sm checkpoint-button" data-checkpoint-save>Save checkpoint</button>
   {{template "themeToggle" .}}
 </header>
 <div class="layout">
@@ -147,6 +148,7 @@
 <button type="button" id="askButton" class="btn btn-primary btn-pill" data-ask-open aria-label="Ask a question about this tutorial">Ask</button>
 <div id="bottomDock">
   {{template "themeToggle" .}}
+  <button type="button" class="btn btn-ghost btn-sm checkpoint-button" data-checkpoint-save>Save checkpoint</button>
   <button type="button" id="dockAsk" class="btn btn-primary btn-pill" data-ask-open aria-label="Ask a question about this tutorial">Ask</button>
 </div>
 <aside id="askDrawer" data-slug="{{.Tutorial.Slug}}" data-part="{{.CurrentPart}}" aria-hidden="true">

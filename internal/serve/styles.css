@@ -338,6 +338,7 @@ pre[data-overflow="true"]{box-shadow:inset -18px 0 14px -12px rgba(40,30,20,.20)
    (see the responsive block) and toggles the ToC drawer. */
 #topBar{display:flex;position:sticky;top:0;background:var(--surface);border-bottom:1px solid var(--border);padding:.55rem .85rem;z-index:50;align-items:center;gap:.7rem}
 #topBar .theme-toggle{margin-left:auto;flex-shrink:0}
+#topBar .checkpoint-button{flex-shrink:0}
 #hamburger{display:none;background:transparent;border:1px solid var(--border);color:var(--text-subtle);font:inherit;cursor:pointer;padding:.3rem .55rem;border-radius:var(--radius-sm);line-height:1;font-size:1.15rem;flex-shrink:0}
 #hamburger:hover{background:var(--surface-sunken);color:var(--text)}
 /* The crumb is a flex row (overflow:visible) so the part-picker dropdown isn't
@@ -527,7 +528,7 @@ body.list h1{font-family:var(--font-display);font-size:clamp(1.7rem,1.3rem + 1.4
   main{max-width:none;padding-bottom:5.5rem}
   #tocRail{display:none}
   #hamburger{display:inline-flex}
-  #topBar .back-link,#topBar .theme-toggle{display:none}
+  #topBar .back-link,#topBar .theme-toggle,#topBar .checkpoint-button{display:none}
   #bottomDock{display:flex}
   #askButton{display:none}
 }
