@@ -253,16 +253,20 @@ func TestListPageRendersCardsAndVersions(t *testing.T) {
 			t.Fatal(err)
 		}
 		tut := &store.Tutorial{
-			Slug:     slug,
-			Title:    slug,
-			Status:   store.StatusUnverified,
-			Created:  created,
-			Repo:     repo,
-			Tools:    tools,
-			Progress: progress,
+			Slug:    slug,
+			Title:   slug,
+			Status:  store.StatusUnverified,
+			Created: created,
+			Repo:    repo,
+			Tools:   tools,
 		}
 		if err := store.WriteMetadata(tutDir, tut); err != nil {
 			t.Fatal(err)
+		}
+		if progress != nil {
+			if err := store.SaveProgress(tutDir, progress); err != nil {
+				t.Fatal(err)
+			}
 		}
 	}
 	now := time.Now()
@@ -342,13 +346,8 @@ func TestTutorialPage(t *testing.T) {
 func TestTutorialPageRendersCurrentProgressData(t *testing.T) {
 	dir := t.TempDir()
 	tutDir := makeTestTutorial(t, dir, "test-series", true)
-	tut, err := store.ReadMetadata(tutDir)
-	if err != nil {
-		t.Fatalf("ReadMetadata: %v", err)
-	}
-	tut.Progress = &store.Progress{Part: "part-02.md", Ratio: 0.42, HeadingID: "next-step", UpdatedAt: time.Now()}
-	if err := store.WriteMetadata(tutDir, tut); err != nil {
-		t.Fatalf("WriteMetadata: %v", err)
+	if err := store.SaveProgress(tutDir, &store.Progress{Part: "part-02.md", Ratio: 0.42, HeadingID: "next-step", UpdatedAt: time.Now()}); err != nil {
+		t.Fatalf("SaveProgress: %v", err)
 	}
 
 	srv := serve.NewServer(dir)
@@ -900,13 +899,8 @@ func TestSeriesRedirect(t *testing.T) {
 func TestSeriesRedirectUsesProgressPart(t *testing.T) {
 	dir := t.TempDir()
 	tutDir := makeTestTutorial(t, dir, "test-series", true)
-	tut, err := store.ReadMetadata(tutDir)
-	if err != nil {
-		t.Fatalf("ReadMetadata: %v", err)
-	}
-	tut.Progress = &store.Progress{Part: "part-02.md", Ratio: 0.5, UpdatedAt: time.Now()}
-	if err := store.WriteMetadata(tutDir, tut); err != nil {
-		t.Fatalf("WriteMetadata: %v", err)
+	if err := store.SaveProgress(tutDir, &store.Progress{Part: "part-02.md", Ratio: 0.5, UpdatedAt: time.Now()}); err != nil {
+		t.Fatalf("SaveProgress: %v", err)
 	}
 
 	srv := serve.NewServer(dir)
@@ -925,13 +919,8 @@ func TestSeriesRedirectUsesProgressPart(t *testing.T) {
 func TestSeriesRedirectIgnoresStaleProgressPart(t *testing.T) {
 	dir := t.TempDir()
 	tutDir := makeTestTutorial(t, dir, "test-series", true)
-	tut, err := store.ReadMetadata(tutDir)
-	if err != nil {
-		t.Fatalf("ReadMetadata: %v", err)
-	}
-	tut.Progress = &store.Progress{Part: "part-99.md", Ratio: 0.5, UpdatedAt: time.Now()}
-	if err := store.WriteMetadata(tutDir, tut); err != nil {
-		t.Fatalf("WriteMetadata: %v", err)
+	if err := store.SaveProgress(tutDir, &store.Progress{Part: "part-99.md", Ratio: 0.5, UpdatedAt: time.Now()}); err != nil {
+		t.Fatalf("SaveProgress: %v", err)
 	}
 
 	srv := serve.NewServer(dir)

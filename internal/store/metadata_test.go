@@ -197,7 +197,7 @@ func TestMetadataRoundTripModel(t *testing.T) {
 	}
 }
 
-func TestMetadataRoundTripProgress(t *testing.T) {
+func TestReadMetadataIgnoresEmbeddedProgress(t *testing.T) {
 	dir := t.TempDir()
 	updatedAt := time.Date(2026, 6, 8, 12, 34, 56, 0, time.UTC)
 	tut := &store.Tutorial{
@@ -217,20 +217,8 @@ func TestMetadataRoundTripProgress(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadMetadata: %v", err)
 	}
-	if got.Progress == nil {
-		t.Fatal("Progress = nil, want saved progress")
-	}
-	if got.Progress.Part != "part-02.md" {
-		t.Errorf("Progress.Part = %q, want %q", got.Progress.Part, "part-02.md")
-	}
-	if got.Progress.Ratio != 0.42 {
-		t.Errorf("Progress.Ratio = %v, want %v", got.Progress.Ratio, 0.42)
-	}
-	if got.Progress.HeadingID != "wire-the-parser" {
-		t.Errorf("Progress.HeadingID = %q, want %q", got.Progress.HeadingID, "wire-the-parser")
-	}
-	if !got.Progress.UpdatedAt.Equal(updatedAt) {
-		t.Errorf("Progress.UpdatedAt = %v, want %v", got.Progress.UpdatedAt, updatedAt)
+	if got.Progress != nil {
+		t.Fatalf("Progress = %+v, want nil without progress.json", got.Progress)
 	}
 }
 
@@ -309,7 +297,7 @@ func TestProgressOmittedWhenUnset(t *testing.T) {
 	}
 }
 
-func TestReadMetadataAcceptsLegacyCheckpoint(t *testing.T) {
+func TestReadMetadataIgnoresLegacyCheckpoint(t *testing.T) {
 	dir := t.TempDir()
 	data := `{
   "slug": "legacy",
@@ -327,11 +315,8 @@ func TestReadMetadataAcceptsLegacyCheckpoint(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadMetadata: %v", err)
 	}
-	if got.Progress == nil {
-		t.Fatal("Progress = nil, want legacy checkpoint mapped to progress")
-	}
-	if got.Progress.Part != "part-02.md" || got.Progress.Ratio != 0.42 {
-		t.Errorf("Progress = %+v, want part-02.md at 0.42", got.Progress)
+	if got.Progress != nil {
+		t.Fatalf("Progress = %+v, want nil without progress.json", got.Progress)
 	}
 }
 

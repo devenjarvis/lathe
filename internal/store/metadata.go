@@ -119,14 +119,7 @@ func ReadMetadata(tutorialDir string) (*Tutorial, error) {
 	if err := json.Unmarshal(data, &t); err != nil {
 		return nil, err
 	}
-	if t.Progress == nil {
-		var legacy struct {
-			LegacyProgress *Progress `json:"checkpoint"`
-		}
-		if err := json.Unmarshal(data, &legacy); err == nil {
-			t.Progress = legacy.LegacyProgress
-		}
-	}
+	t.Progress = nil
 	if progress, err := ReadProgress(tutorialDir); err == nil {
 		t.Progress = progress
 	} else if !errors.Is(err, os.ErrNotExist) {
