@@ -197,6 +197,43 @@ func TestMetadataRoundTripModel(t *testing.T) {
 	}
 }
 
+func TestMetadataRoundTripCheckpoint(t *testing.T) {
+	dir := t.TempDir()
+	updatedAt := time.Date(2026, 6, 8, 12, 34, 56, 0, time.UTC)
+	tut := &store.Tutorial{
+		Slug:   "test-tut",
+		Status: store.StatusUnverified,
+		Checkpoint: &store.Checkpoint{
+			Part:      "part-02.md",
+			Progress:  0.42,
+			HeadingID: "wire-the-parser",
+			UpdatedAt: updatedAt,
+		},
+	}
+	if err := store.WriteMetadata(dir, tut); err != nil {
+		t.Fatalf("WriteMetadata: %v", err)
+	}
+	got, err := store.ReadMetadata(dir)
+	if err != nil {
+		t.Fatalf("ReadMetadata: %v", err)
+	}
+	if got.Checkpoint == nil {
+		t.Fatal("Checkpoint = nil, want saved checkpoint")
+	}
+	if got.Checkpoint.Part != "part-02.md" {
+		t.Errorf("Checkpoint.Part = %q, want %q", got.Checkpoint.Part, "part-02.md")
+	}
+	if got.Checkpoint.Progress != 0.42 {
+		t.Errorf("Checkpoint.Progress = %v, want %v", got.Checkpoint.Progress, 0.42)
+	}
+	if got.Checkpoint.HeadingID != "wire-the-parser" {
+		t.Errorf("Checkpoint.HeadingID = %q, want %q", got.Checkpoint.HeadingID, "wire-the-parser")
+	}
+	if !got.Checkpoint.UpdatedAt.Equal(updatedAt) {
+		t.Errorf("Checkpoint.UpdatedAt = %v, want %v", got.Checkpoint.UpdatedAt, updatedAt)
+	}
+}
+
 func TestModelOmittedWhenEmpty(t *testing.T) {
 	dir := t.TempDir()
 	if err := store.WriteMetadata(dir, &store.Tutorial{Slug: "t", Status: store.StatusUnverified}); err != nil {
@@ -208,6 +245,20 @@ func TestModelOmittedWhenEmpty(t *testing.T) {
 	}
 	if strings.Contains(string(data), "model") {
 		t.Error("\"model\" should be omitted from JSON when empty")
+	}
+}
+
+func TestCheckpointOmittedWhenUnset(t *testing.T) {
+	dir := t.TempDir()
+	if err := store.WriteMetadata(dir, &store.Tutorial{Slug: "t", Status: store.StatusUnverified}); err != nil {
+		t.Fatalf("WriteMetadata: %v", err)
+	}
+	data, err := os.ReadFile(filepath.Join(dir, "metadata.json"))
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	if strings.Contains(string(data), "checkpoint") {
+		t.Error("\"checkpoint\" should be omitted from JSON when unset")
 	}
 }
 
