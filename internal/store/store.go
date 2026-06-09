@@ -296,7 +296,7 @@ func NormalizeVoice(voice string) string {
 // NormalizeModel canonicalizes a model label by trimming surrounding whitespace
 // only — case is preserved because it is a human-facing display label (e.g.
 // "Claude Opus 4.8"), not a selection key. Returns "" for empty input so Model
-// stays omitempty in metadata.json (an empty model falls back to "Claude" in the
+// stays omitempty in metadata.json (an empty model falls back to "an LLM" in the
 // reading-page byline).
 func NormalizeModel(model string) string {
 	return strings.TrimSpace(model)

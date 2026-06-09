@@ -10,12 +10,13 @@ import (
 )
 
 // verifyCmd no longer runs verification itself. Verification now happens inside
-// the user's interactive Claude Code session via the /lathe-verify skill, so it
-// stays on their subscription instead of metering a headless `claude -p`. This
-// command just hands off the exact skill invocation to paste.
+// the user's interactive coding-agent session via the /lathe-verify skill — the
+// binary never drives a model itself (which also keeps work on the user's
+// subscription rather than metering a headless run). This command just hands
+// off the exact skill invocation to paste.
 var verifyCmd = &cobra.Command{
 	Use:   "verify <slug>",
-	Short: "Print the command to verify a stored tutorial in Claude Code",
+	Short: "Print the command to verify a stored tutorial in your coding agent",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		slug := args[0]
@@ -32,7 +33,7 @@ var verifyCmd = &cobra.Command{
 		}
 
 		_, _ = fmt.Fprintf(cmd.OutOrStdout(),
-			"To verify %q, run this in your Claude Code session:\n\n  /lathe-verify %s\n", slug, slug)
+			"To verify %q, run this in your coding agent:\n\n  /lathe-verify %s\n", slug, slug)
 		return nil
 	},
 }

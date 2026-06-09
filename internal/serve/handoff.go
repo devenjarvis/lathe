@@ -6,8 +6,8 @@ import (
 )
 
 // writeHandoff replies with the slash-command the user should paste into their
-// interactive Claude Code session. All of Lathe's AI work (verify, extend, ask)
-// runs there now instead of via a metered headless `claude -p`, so the web UI's
+// interactive coding-agent session. All of Lathe's model work (verify, extend,
+// ask) runs there — the binary never drives a model itself — so the web UI's
 // job is to hand off the exact command rather than to spawn anything.
 func writeHandoff(w http.ResponseWriter, command string) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")

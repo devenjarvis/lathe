@@ -20,10 +20,9 @@ var (
 )
 
 // verifyResultCmd is how the /lathe-verify skill records the outcome of a
-// verification run. The skill runs in the user's interactive Claude Code
-// session (so it is never metered) and calls this command to mutate durable
-// state — keeping the Go binary the sole writer of metadata.json and
-// verify-result.json.
+// verification run. The skill runs in the user's interactive coding-agent
+// session and calls this command to mutate durable state — keeping the Go
+// binary the sole writer of metadata.json and verify-result.json.
 var verifyResultCmd = &cobra.Command{
 	Use:   "verify-result <slug>",
 	Short: "Record the result of verifying a tutorial (used by the /lathe-verify skill)",

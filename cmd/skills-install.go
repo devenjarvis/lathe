@@ -14,21 +14,24 @@ var (
 
 var skillsInstallCmd = &cobra.Command{
 	Use:   "install",
-	Short: "Write the bundled skills into Claude Code, Cursor, and/or Codex",
+	Short: "Write the bundled skills into Claude Code, Cursor, Codex, Gemini, opencode, Cline, and/or Windsurf",
 	Long: `Write the bundled Lathe skills into an agent's skills/commands directory.
 
 Targets (--agent):
-  claude-code   ./.claude/skills/<name>/SKILL.md   (--user: ~/.claude/skills/...)
-  cursor        ./.cursor/commands/<slug>.md       (slash-invoked as /<slug>)
-  codex         ./.agents/skills/<name>/SKILL.md   (--user: ~/.agents/skills/...)
+  claude-code   ./.claude/skills/<name>/SKILL.md     (--user: ~/.claude/skills/...)
+  cursor        ./.cursor/commands/<slug>.md         (slash-invoked as /<slug>)
+  codex         ./.agents/skills/<name>/SKILL.md     (--user: ~/.agents/skills/...)
+  gemini        ./.gemini/skills/<name>/SKILL.md     (--user: ~/.gemini/skills/...)
+  opencode      ./.opencode/skills/<name>/SKILL.md   (--user: ~/.config/opencode/skills/...)
+  cline         ./.cline/skills/<name>/SKILL.md      (--user: ~/.cline/skills/...)
+  windsurf      ./.windsurf/skills/<name>/SKILL.md   (project-only; --user falls back)
   all           all of the above
 
 By default skills install into the current project (cwd). Pass --user to install
-Claude Code or Codex skills into your home directory instead (--user is fully
-supported for both). Cursor has no standard user-level command directory, so
---user with cursor warns and falls back to the project ./.cursor/commands
-directory. Codex consumes the same SKILL.md format as Claude Code, so its skills
-ship verbatim.
+into your home directory instead — supported for every target except Cursor and
+Windsurf, which have no standard user-level dir and warn + fall back to the
+project. The SKILL.md format is a cross-tool standard, so every target except
+Cursor ships the raw bytes verbatim; Cursor gets a translated /<slug> command.
 
 Existing files are overwritten (install is idempotent).`,
 	Args: cobra.NoArgs,
@@ -40,12 +43,12 @@ Existing files are overwritten (install is idempotent).`,
 
 		var agents []string
 		switch skillsAgent {
-		case "claude-code", "cursor", "codex":
+		case "claude-code", "cursor", "codex", "gemini", "opencode", "cline", "windsurf":
 			agents = []string{skillsAgent}
 		case "all":
-			agents = []string{"claude-code", "cursor", "codex"}
+			agents = []string{"claude-code", "cursor", "codex", "gemini", "opencode", "cline", "windsurf"}
 		default:
-			return fmt.Errorf("invalid --agent %q (want claude-code, cursor, codex, or all)", skillsAgent)
+			return fmt.Errorf("invalid --agent %q (want claude-code, cursor, codex, gemini, opencode, cline, windsurf, or all)", skillsAgent)
 		}
 
 		out := cmd.OutOrStdout()
@@ -63,7 +66,7 @@ Existing files are overwritten (install is idempotent).`,
 }
 
 func init() {
-	skillsInstallCmd.Flags().StringVar(&skillsAgent, "agent", "claude-code", "target agent: claude-code, cursor, codex, or all")
-	skillsInstallCmd.Flags().BoolVar(&skillsUser, "user", false, "install into the user home dir (Claude Code and Codex) instead of the project")
+	skillsInstallCmd.Flags().StringVar(&skillsAgent, "agent", "claude-code", "target agent: claude-code, cursor, codex, gemini, opencode, cline, windsurf, or all")
+	skillsInstallCmd.Flags().BoolVar(&skillsUser, "user", false, "install into the user home dir instead of the project (cursor/windsurf are project-only: warn and fall back to the project)")
 	skillsCmd.AddCommand(skillsInstallCmd)
 }

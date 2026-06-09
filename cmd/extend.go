@@ -12,12 +12,13 @@ import (
 var extendGuidance string
 
 // extendCmd no longer runs generation itself. Adding a part now happens inside
-// the user's interactive Claude Code session via the /lathe-extend skill (so it
-// stays on their subscription rather than metering a headless `claude -p`).
-// This command just hands off the exact skill invocation to paste.
+// the user's interactive coding-agent session via the /lathe-extend skill — the
+// binary never drives a model itself (which also keeps work on the user's
+// subscription rather than metering a headless run). This command just hands
+// off the exact skill invocation to paste.
 var extendCmd = &cobra.Command{
 	Use:   "extend <slug>",
-	Short: "Print the command to add a new part to a tutorial in Claude Code",
+	Short: "Print the command to add a new part to a tutorial in your coding agent",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		slug := args[0]
@@ -38,7 +39,7 @@ var extendCmd = &cobra.Command{
 			handoff += " " + extendGuidance
 		}
 		_, _ = fmt.Fprintf(cmd.OutOrStdout(),
-			"To add a new part to %q, run this in your Claude Code session:\n\n  %s\n", slug, handoff)
+			"To add a new part to %q, run this in your coding agent:\n\n  %s\n", slug, handoff)
 		return nil
 	},
 }

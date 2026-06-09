@@ -12,11 +12,10 @@ import (
 const maxGuidanceBytes = 2 * 1024
 
 // handleExtend no longer spawns a generator. Adding a part runs in the user's
-// interactive Claude Code session via the /lathe-extend skill (so it stays on
-// their subscription instead of metering a headless `claude -p`). The button
-// hands back the exact skill command, folding in any guidance the reader typed;
-// the skill reserves the part (`lathe extend-start`), writes it, and records it
-// (`lathe extend-commit`).
+// interactive coding-agent session via the /lathe-extend skill — the binary
+// never drives a model itself. The button hands back the exact skill command,
+// folding in any guidance the reader typed; the skill reserves the part
+// (`lathe extend-start`), writes it, and records it (`lathe extend-commit`).
 func (s *Server) handleExtend(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
 	tutDir, ok := s.safeTutorialPath(slug)

@@ -15,13 +15,13 @@ Lathe generates hands-on, multi-part technical tutorials on demand, with skills 
 
 ## Quick start
 
-Lathe is a combination of LLM skills and a Golang CLI used to store, manage, and view generated tutorials. After install (below), you can generate a tutorial inside any LLM session (Claude Code, Cursor, and Codex supported) by prompting something like:
+Lathe is a combination of LLM skills and a Golang CLI used to store, manage, and view generated tutorials. After install (below), you can generate a tutorial inside any coding agent (Claude Code, Cursor, Codex, Gemini CLI, opencode, Cline, and Windsurf supported) by prompting something like:
 
 ```
 /lathe build a 3D Slicer in Erlang
 ```
 
-<img src="docs/img/lathe-prompt-cc.png" alt="Prompting Claude Code with `/lathe build a 3D Slicer in Erlang`" width="800">
+<img src="docs/img/lathe-prompt-cc.png" alt="Prompting a coding agent with `/lathe build a 3D Slicer in Erlang`" width="800">
 
 Then open lathe from any terminal:
 
@@ -42,7 +42,8 @@ The CLI has a bunch of other commands, but honestly those were built to give the
 ## Install
 
 Lathe is a single self-contained binary. All you need is `lathe` on your `$PATH`; the
-skills run in an interactive Claude Code, Cursor, or Codex session.
+skills run in an interactive coding-agent session (Claude Code, Cursor, Codex, Gemini
+CLI, opencode, Cline, or Windsurf).
 
 **Homebrew** (macOS, recommended):
 
@@ -76,21 +77,36 @@ go build -o lathe
 ### Install the skills
 
 The skills are bundled into the binary. After installing `lathe`, drop them into a
-project so Claude Code (or Cursor / Codex) can discover them:
+project so your coding agent can discover them:
 
 ```bash
-lathe skills install                 # ./.claude/skills/<name>/SKILL.md (this project)
-lathe skills install --user          # ~/.claude/skills/<name>/SKILL.md (all projects)
-lathe skills install --agent cursor  # ./.cursor/commands/<slug>.md (Cursor slash commands)
-lathe skills install --agent codex   # ./.agents/skills/<name>/SKILL.md (Codex Agent Skills)
-lathe skills install --agent all     # Claude Code, Cursor, and Codex
-lathe skills list                    # show the bundled skills
+lathe skills install                   # ./.claude/skills/<name>/SKILL.md (this project)
+lathe skills install --user            # ~/.claude/skills/<name>/SKILL.md (all projects)
+lathe skills install --agent cursor    # ./.cursor/commands/<slug>.md (Cursor slash commands)
+lathe skills install --agent codex     # ./.agents/skills/<name>/SKILL.md (Codex Agent Skills)
+lathe skills install --agent gemini    # ./.gemini/skills/<name>/SKILL.md (Gemini CLI)
+lathe skills install --agent opencode  # ./.opencode/skills/<name>/SKILL.md (opencode)
+lathe skills install --agent cline     # ./.cline/skills/<name>/SKILL.md (Cline)
+lathe skills install --agent windsurf  # ./.windsurf/skills/<name>/SKILL.md (Windsurf)
+lathe skills install --agent all       # every target above
+lathe skills list                      # show the bundled skills
 ```
 
-Codex uses the same `SKILL.md` format as Claude Code, so its skills ship verbatim
-(and `--user` installs to `~/.agents/skills/...`). Cursor commands are slash-invoked
-as `/<slug>` (e.g. `/lathe`); the interactive handoff model is documented for Claude
-Code, so a few runtime details differ on Cursor and Codex.
+`SKILL.md` (name + description frontmatter) is now a cross-tool standard, so every
+target except Cursor ships the raw skill verbatim — Claude Code, Codex, Gemini CLI,
+opencode, Cline, and Windsurf all read it as-is, and `--user` installs to that agent's
+home dir (Cursor and Windsurf are project-only and warn + fall back). Cursor is the
+lone translation case: its commands are slash-invoked as `/<slug>` (e.g. `/lathe`).
+The interactive handoff model is documented against Claude Code, so a few runtime
+details differ on the other agents.
+
+### Local / self-hosted models
+
+Lathe doesn't talk to any model itself, so a local LLM needs no Lathe-specific setup:
+point your coding agent at a local OpenAI-compatible endpoint (e.g. [Ollama](https://ollama.com/)'s
+`http://localhost:11434/v1`) and run the `/lathe` skills exactly as above. The bigger
+the local "thinking" model you can run, the better the tutorials — these are research-
+and explanation-heavy tasks, not mechanical edits.
 
 
 ## Why does this exist?
@@ -115,12 +131,12 @@ All of that said, if you can find a tutorial written by a human, I'd always reac
 
 Yep, lathe is "vibecoded". In this case, the scope and risk of lathe is low. It's a living thesis, for personal learning. That said, I've been using it daily lately and it's proven to be a useful and stable tool in my toolbox. I'm learning a lot by using it, and at this point I think it's good enough that others might benefit from it too. I expect the next few point releases to be some intentional code/architecture clean up to ensure it remains stable for others, and of course incorporate any feedback I get. 
 
-That said, for the sake of transparency, today I test lathe for my own usecases - Using Claude Code on MacOS. If you are outside of that setup, lathe _should_ work, but I've not verified it. If you're willing to try it on a different setup and it does work, or you end up hitting a bump in the road, I'd love an issue letting me know either way!
+That said, for the sake of transparency, today I test lathe for my own usecases - using Claude Code on macOS. Lathe is built to be agent-agnostic (the skills are a cross-tool standard and the CLI never calls a model itself), so other agents and platforms _should_ work, but I've only verified my own setup. If you're willing to try it on a different agent or OS and it does work, or you end up hitting a bump in the road, I'd love an issue letting me know either way!
 
 ## Alright then, how does it work?
 
-- **LLM skills** — generate and work with tutorials, all run in your interactive LLM session: `/lathe` writes `part-01.md`, `/lathe-extend` adds the next part, `/lathe-verify` works through a tutorial to confirm it compiles and runs, `/lathe-ask` answers questions about a part you're reading, and `/lathe-tag` adds search tags to existing tutorials. 
-  - I moved to running all of these interactively, because I am a Claude Code user and headless `claude -p` is planned to be metered as of 2026-06-15. Maybe after that change I'll find that the cost is minimal (generating tutorials does not consume a lot of tokens compared to vibecoding) and we can move some of these interactions back into the UI. We'll see!
+- **LLM skills** — generate and work with tutorials, all run in your interactive coding-agent session: `/lathe` writes `part-01.md`, `/lathe-extend` adds the next part, `/lathe-verify` works through a tutorial to confirm it compiles and runs, `/lathe-ask` answers questions about a part you're reading, and `/lathe-tag` adds search tags to existing tutorials. 
+  - The Go binary never drives a model — all model work runs in your interactive agent session, so it stays on whatever subscription or endpoint that agent uses. (Concretely, this also keeps Lathe off metered headless runs like Claude Code's `claude -p`, which is planned to be metered as of 2026-06-15.) Maybe down the line the cost proves minimal — generating tutorials doesn't consume a lot of tokens compared to vibecoding — and we move some of these interactions back into the UI. We'll see!
 - **`lathe` CLI** (Go) — copies tutorials into `~/.lathe/tutorials/`, serves the rendered output at `http://localhost:4242`, and owns all durable state. It never calls an LLM itself: the web buttons and the `lathe verify`/`lathe extend` commands just hand you the skill command to paste into your session, and the skills call back into the CLI (`lathe store`, `lathe verify-result`, `lathe extend-start`/`extend-commit`, `lathe voice add`) to record results.
 
 ## What's up with the fancy UI?

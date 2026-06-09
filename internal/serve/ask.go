@@ -14,13 +14,13 @@ import (
 // expected to be short prose; anything bigger is almost certainly abuse.
 const maxQuestionBytes = 8 << 10 // 8 KiB
 
-// handleAsk hands the reader the command to paste into their interactive Claude
-// Code session, where the /lathe-ask skill answers questions about the part
-// they're reading. Answering used to spawn a headless `claude -p` (which is
-// being metered); routing through the interactive session keeps it on the
-// user's subscription and preserves the skill's read-only access to sibling
-// parts. The handler still validates the slug/part/question so the drawer can
-// surface a clean error before the user copies anything.
+// handleAsk hands the reader the command to paste into their interactive
+// coding-agent session, where the /lathe-ask skill answers questions about the
+// part they're reading. The binary never drives a model itself; routing
+// through the interactive session keeps the work on the user's subscription and
+// preserves the skill's read-only access to sibling parts. The handler still
+// validates the slug/part/question so the drawer can surface a clean error
+// before the user copies anything.
 func (s *Server) handleAsk(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)

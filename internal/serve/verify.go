@@ -7,10 +7,10 @@ import (
 )
 
 // handleVerify no longer spawns a verifier. Verification runs in the user's
-// interactive Claude Code session (so it stays on their subscription instead of
-// metering a headless `claude -p`). The button hands back the exact skill
-// command for the user to paste; the /lathe-verify skill sets status=verifying
-// and reports the result via `lathe verify-result`.
+// interactive coding-agent session — the binary never drives a model itself.
+// The button hands back the exact skill command for the user to paste; the
+// /lathe-verify skill sets status=verifying and reports the result via
+// `lathe verify-result`.
 func (s *Server) handleVerify(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
 	tutDir, ok := s.safeTutorialPath(slug)
