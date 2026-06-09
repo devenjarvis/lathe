@@ -18,7 +18,7 @@
   </script>
 </head>
 <body>
-<div id="progressBar" aria-hidden="true"><div></div></div>
+<div id="progressBar" aria-hidden="true" data-slug="{{.Tutorial.Slug}}" data-part="{{.CurrentPart}}" data-saved-progress="{{if .CurrentProgress}}{{.CurrentProgress.Ratio}}{{end}}" data-saved-heading-id="{{if .CurrentProgress}}{{.CurrentProgress.HeadingID}}{{end}}"><div></div><span id="savedProgressMarker" hidden></span></div>
 <header id="topBar">
   <button type="button" id="hamburger" aria-label="Toggle navigation" aria-controls="sidebar" aria-expanded="false">≡</button>
   <a href="/" class="back-link">← All tutorials</a>
@@ -144,9 +144,14 @@
   {{end}}
 </div>
 <div id="sidebarBackdrop"></div>
-<button type="button" id="askButton" class="btn btn-primary btn-pill" data-ask-open aria-label="Ask a question about this tutorial">Ask</button>
+<div id="floatingActions">
+  <button type="button" id="saveProgressButton" class="btn btn-ghost btn-pill progress-button" data-progress-save>Save progress</button>
+  <button type="button" id="askButton" class="btn btn-primary btn-pill" data-ask-open aria-label="Ask a question about this tutorial">Ask</button>
+</div>
+<p id="progressStatus" class="progress-status" aria-live="polite"></p>
 <div id="bottomDock">
   {{template "themeToggle" .}}
+  <button type="button" class="btn btn-ghost btn-sm progress-button" data-progress-save>Save progress</button>
   <button type="button" id="dockAsk" class="btn btn-primary btn-pill" data-ask-open aria-label="Ask a question about this tutorial">Ask</button>
 </div>
 <aside id="askDrawer" data-slug="{{.Tutorial.Slug}}" data-part="{{.CurrentPart}}" aria-hidden="true">
@@ -246,16 +251,84 @@
 </script>
 <script>
   // Reading-progress bar — RAF-throttled, transform-based to avoid layout thrash.
+  // Exposes the current ratio for progress saves and positions the saved
+  // progress marker when the current part has one.
   (function(){
-    var bar = document.querySelector('#progressBar > div');
-    if (!bar) return;
+    var progress = document.getElementById('progressBar');
+    var bar = progress && progress.querySelector(':scope > div');
+    var marker = document.getElementById('savedProgressMarker');
+    if (!progress || !bar) return;
     var pending = false;
-    function update(){
-      pending = false;
+    function clamp(n){ return Math.min(1, Math.max(0, n)); }
+    function currentRatio(){
       var doc = document.documentElement;
       var scroll = window.scrollY || doc.scrollTop || 0;
       var max = (doc.scrollHeight - doc.clientHeight) || 1;
-      var ratio = max > 0 ? Math.min(1, Math.max(0, scroll / max)) : 0;
+      return max > 0 ? clamp(scroll / max) : 0;
+    }
+    window.latheReadingProgress = {currentRatio: currentRatio};
+    function renderSavedProgressMarker(){
+      if (!marker) return;
+      var raw = progress.getAttribute('data-saved-progress');
+      if (!raw) return;
+      var ratio = clamp(parseFloat(raw));
+      if (Number.isNaN(ratio)) return;
+      marker.hidden = false;
+      marker.style.left = (ratio * 100) + '%';
+    }
+    function setSavedProgress(ratio){
+      progress.setAttribute('data-saved-progress', String(clamp(ratio)));
+      renderSavedProgressMarker();
+    }
+    function setSavedHeadingID(headingID){
+      progress.setAttribute('data-saved-heading-id', headingID || '');
+    }
+    function savedProgressRatio(){
+      var raw = progress.getAttribute('data-saved-progress');
+      if (!raw) return null;
+      var ratio = clamp(parseFloat(raw));
+      return Number.isNaN(ratio) ? null : ratio;
+    }
+    function savedProgressHeadingID(){
+      return progress.getAttribute('data-saved-heading-id') || '';
+    }
+    function scrollToRatio(ratio){
+      var doc = document.documentElement;
+      var max = (doc.scrollHeight - doc.clientHeight) || 0;
+      if (max <= 0) return false;
+      window.scrollTo({top: Math.round(max * ratio), behavior: 'auto'});
+      return true;
+    }
+    function currentHeadingID(){
+      var headings = document.querySelectorAll('main h1[id], main h2[id], main h3[id], main h4[id], main h5[id], main h6[id]');
+      var current = '';
+      var scrollTop = window.scrollY || document.documentElement.scrollTop || 0;
+      headings.forEach(function(heading){
+        if (!heading.id) return;
+        var headingTop = heading.getBoundingClientRect().top + scrollTop;
+        if (headingTop <= scrollTop + 4) current = heading.id;
+      });
+      return current;
+    }
+    function restoreProgress(){
+      var ratio = savedProgressRatio();
+      if (ratio !== null && scrollToRatio(ratio)) {
+        update();
+        return;
+      }
+      var headingID = savedProgressHeadingID();
+      if (headingID) {
+        var heading = document.getElementById(headingID);
+        if (heading) {
+          heading.scrollIntoView({block: 'start', behavior: 'auto'});
+          update();
+          return;
+        }
+      }
+    }
+    function update(){
+      pending = false;
+      var ratio = currentRatio();
       bar.style.transform = 'scaleX(' + ratio + ')';
     }
     function onScroll(){
@@ -263,9 +336,79 @@
       pending = true;
       requestAnimationFrame(update);
     }
+    window.latheReadingProgress.currentHeadingID = currentHeadingID;
+    window.latheReadingProgress.setSavedProgress = function(ratio, headingID){
+      setSavedProgress(ratio);
+      setSavedHeadingID(headingID);
+    };
+    renderSavedProgressMarker();
     update();
     window.addEventListener('scroll', onScroll, {passive:true});
     window.addEventListener('resize', onScroll);
+    if (document.readyState === 'complete') {
+      setTimeout(restoreProgress, 0);
+    } else {
+      window.addEventListener('load', function(){ setTimeout(restoreProgress, 0); }, {once:true});
+    }
+  })();
+</script>
+<script>
+  // Save progress — explicit user action that persists the current progress
+  // ratio + nearest heading through the local server and updates the marker
+  // from the response.
+  (function(){
+    var progress = document.getElementById('progressBar');
+    var buttons = document.querySelectorAll('[data-progress-save]');
+    var status = document.getElementById('progressStatus');
+    if (!progress || !buttons.length) return;
+
+    function setStatus(message, error){
+      if (!status) return;
+      status.textContent = message || '';
+      status.dataset.state = error ? 'error' : 'ok';
+      if (message && !error) {
+        setTimeout(function(){
+          if (status.textContent === message) status.textContent = '';
+        }, 1800);
+      }
+    }
+    function setBusy(busy){
+      buttons.forEach(function(button){ button.disabled = busy; });
+    }
+    buttons.forEach(function(button){
+      button.addEventListener('click', function(){
+        var slug = progress.getAttribute('data-slug') || '';
+        var part = progress.getAttribute('data-part') || '';
+        var reader = window.latheReadingProgress;
+        if (!slug || !part || !reader || !reader.currentRatio) return;
+
+        setBusy(true);
+        setStatus('', false);
+        var ratio = reader.currentRatio();
+        var headingID = reader.currentHeadingID ? reader.currentHeadingID() : '';
+        fetch('/-/progress/' + encodeURIComponent(slug) + '/' + encodeURIComponent(part), {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ratio: ratio, heading_id: headingID})
+        }).then(function(response){
+          if (!response.ok) {
+            return response.text().then(function(text){
+              throw new Error(text || ('HTTP ' + response.status));
+            });
+          }
+          return response.json();
+        }).then(function(data){
+          var saved = data && data.progress ? data.progress.ratio : ratio;
+          var savedHeading = data && data.progress ? data.progress.heading_id : headingID;
+          if (reader.setSavedProgress) reader.setSavedProgress(saved, savedHeading);
+          setStatus('Progress saved', false);
+        }).catch(function(err){
+          setStatus('Progress save failed: ' + (err && err.message ? err.message : 'request failed'), true);
+        }).then(function(){
+          setBusy(false);
+        });
+      });
+    });
   })();
 </script>
 <script>

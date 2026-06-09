@@ -197,6 +197,78 @@ func TestMetadataRoundTripModel(t *testing.T) {
 	}
 }
 
+func TestReadMetadataIgnoresEmbeddedProgress(t *testing.T) {
+	dir := t.TempDir()
+	updatedAt := time.Date(2026, 6, 8, 12, 34, 56, 0, time.UTC)
+	tut := &store.Tutorial{
+		Slug:   "test-tut",
+		Status: store.StatusUnverified,
+		Progress: &store.Progress{
+			Part:      "part-02.md",
+			Ratio:     0.42,
+			HeadingID: "wire-the-parser",
+			UpdatedAt: updatedAt,
+		},
+	}
+	if err := store.WriteMetadata(dir, tut); err != nil {
+		t.Fatalf("WriteMetadata: %v", err)
+	}
+	got, err := store.ReadMetadata(dir)
+	if err != nil {
+		t.Fatalf("ReadMetadata: %v", err)
+	}
+	if got.Progress != nil {
+		t.Fatalf("Progress = %+v, want nil without progress.json", got.Progress)
+	}
+}
+
+func TestSaveProgressDoesNotRewriteMetadata(t *testing.T) {
+	dir := t.TempDir()
+	updatedAt := time.Date(2026, 6, 8, 12, 34, 56, 0, time.UTC)
+	tut := &store.Tutorial{
+		Slug:    "test-tut",
+		Title:   "Test Tutorial",
+		Status:  store.StatusVerified,
+		Tags:    []string{"go"},
+		Created: updatedAt,
+	}
+	if err := store.WriteMetadata(dir, tut); err != nil {
+		t.Fatalf("WriteMetadata: %v", err)
+	}
+	before, err := os.ReadFile(filepath.Join(dir, "metadata.json"))
+	if err != nil {
+		t.Fatalf("ReadFile before: %v", err)
+	}
+
+	progress := &store.Progress{
+		Part:      "part-02.md",
+		Ratio:     0.42,
+		HeadingID: "wire-the-parser",
+		UpdatedAt: updatedAt,
+	}
+	if err := store.SaveProgress(dir, progress); err != nil {
+		t.Fatalf("SaveProgress: %v", err)
+	}
+	after, err := os.ReadFile(filepath.Join(dir, "metadata.json"))
+	if err != nil {
+		t.Fatalf("ReadFile after: %v", err)
+	}
+	if string(after) != string(before) {
+		t.Error("SaveProgress rewrote metadata.json")
+	}
+
+	got, err := store.ReadMetadata(dir)
+	if err != nil {
+		t.Fatalf("ReadMetadata: %v", err)
+	}
+	if got.Progress == nil {
+		t.Fatal("Progress = nil, want sidecar progress")
+	}
+	if got.Progress.Part != progress.Part || got.Progress.Ratio != progress.Ratio || got.Progress.HeadingID != progress.HeadingID {
+		t.Errorf("Progress = %+v, want %+v", got.Progress, progress)
+	}
+}
+
 func TestModelOmittedWhenEmpty(t *testing.T) {
 	dir := t.TempDir()
 	if err := store.WriteMetadata(dir, &store.Tutorial{Slug: "t", Status: store.StatusUnverified}); err != nil {
@@ -208,6 +280,43 @@ func TestModelOmittedWhenEmpty(t *testing.T) {
 	}
 	if strings.Contains(string(data), "model") {
 		t.Error("\"model\" should be omitted from JSON when empty")
+	}
+}
+
+func TestProgressOmittedWhenUnset(t *testing.T) {
+	dir := t.TempDir()
+	if err := store.WriteMetadata(dir, &store.Tutorial{Slug: "t", Status: store.StatusUnverified}); err != nil {
+		t.Fatalf("WriteMetadata: %v", err)
+	}
+	data, err := os.ReadFile(filepath.Join(dir, "metadata.json"))
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	if strings.Contains(string(data), "progress") {
+		t.Error("\"progress\" should be omitted from JSON when unset")
+	}
+}
+
+func TestReadMetadataIgnoresLegacyCheckpoint(t *testing.T) {
+	dir := t.TempDir()
+	data := `{
+  "slug": "legacy",
+  "status": "unverified",
+  "checkpoint": {
+    "part": "part-02.md",
+    "ratio": 0.42,
+    "updated_at": "2026-06-08T12:34:56Z"
+  }
+}`
+	if err := os.WriteFile(filepath.Join(dir, "metadata.json"), []byte(data), 0644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	got, err := store.ReadMetadata(dir)
+	if err != nil {
+		t.Fatalf("ReadMetadata: %v", err)
+	}
+	if got.Progress != nil {
+		t.Fatalf("Progress = %+v, want nil without progress.json", got.Progress)
 	}
 }
 

@@ -50,6 +50,21 @@
     <div class="tutorial-body">
       <a class="tutorial-link" href="/{{.Slug}}/">{{.Title}}</a>
       <div class="meta">{{if .IsSeries}}{{len .Parts}} parts{{else}}single tutorial{{end}} · {{.Created.Format "Jan 2, 2006"}}{{if .Sources}} · {{len .Sources}} source{{if ne (len .Sources) 1}}s{{end}}{{end}}</div>
+      {{with cardProgress .}}
+      {{if .IsSeries}}
+      <div class="tutorial-progress" aria-label="Saved at part {{.PartNumber}} of {{.TotalParts}}">
+        <div class="tutorial-progress-track tutorial-progress-segments">
+          {{range .Segments}}<span class="segment{{if .Current}} current{{end}}" aria-hidden="true"><span class="fill" style="width:{{.Percent}}%"></span></span>{{end}}
+        </div>
+        <span class="tutorial-progress-label">Part {{.PartNumber}} of {{.TotalParts}} ({{.Percent}}%)</span>
+      </div>
+      {{else}}
+      <div class="tutorial-progress" aria-label="Progress at {{.Percent}}%">
+        <div class="tutorial-progress-track"><span class="fill" style="width:{{.Percent}}%"></span></div>
+        <span class="tutorial-progress-label">Progress {{.Percent}}%</span>
+      </div>
+      {{end}}
+      {{end}}
       {{if .Tools}}<div class="versions">{{range .Tools}}<span class="version">{{.Name}}{{if .Version}} {{.Version}}{{end}}</span>{{end}}</div>{{end}}
       {{if .Tags}}<div class="tags">{{range .Tags}}<span class="tag">{{.}}</span>{{end}}</div>{{end}}
     </div>

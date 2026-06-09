@@ -45,7 +45,8 @@ type Server struct {
 
 func NewServer(tutorialsDir string) *Server {
 	funcMap := template.FuncMap{
-		"add": func(a, b int) int { return a + b },
+		"add":          func(a, b int) int { return a + b },
+		"cardProgress": cardProgress,
 	}
 	// components.html is parsed into both template sets so its shared partials
 	// ({{define "head"}}, "badge", "themeToggle") are available to each page.
@@ -72,6 +73,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /{slug}/{part}", s.handlePart)
 	mux.HandleFunc("POST /-/delete/{slug}", s.handleDelete)
 	mux.HandleFunc("POST /-/ask/{slug}/{part}", s.handleAsk)
+	mux.HandleFunc("POST /-/progress/{slug}/{part}", s.handleProgress)
 	mux.HandleFunc("POST /-/extend/{slug}", s.handleExtend)
 	mux.HandleFunc("POST /-/verify/{slug}", s.handleVerify)
 	return mux
@@ -192,10 +194,15 @@ func (s *Server) handleTutorial(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Any tutorial with parts (single or series) lives in part-NN.md files, not
-	// index.md, so redirect to the first part. The index.md fallback is only for
+	// index.md. Prefer a valid saved-progress part when one is saved, otherwise keep
+	// the historical first-part redirect. The index.md fallback is only for
 	// legacy tutorials that were never split into parts.
 	if len(tut.Parts) > 0 {
-		http.Redirect(w, r, fmt.Sprintf("/%s/%s", slug, tut.Parts[0]), http.StatusFound)
+		part := tut.Parts[0]
+		if tut.Progress != nil && isKnownPart(tut, tut.Progress.Part) {
+			part = tut.Progress.Part
+		}
+		http.Redirect(w, r, fmt.Sprintf("/%s/%s", slug, part), http.StatusFound)
 		return
 	}
 	s.renderPart(w, tut, tutDir, "index.md")
@@ -384,6 +391,8 @@ func (s *Server) renderPart(w http.ResponseWriter, tut *store.Tutorial, tutDir, 
 		}
 	}
 
+	currentProgress := currentPartProgress(tut, part)
+
 	var buf bytes.Buffer
 	if err := s.layoutTmpl.Execute(&buf, map[string]any{
 		"Title":             tut.Title,
@@ -393,6 +402,7 @@ func (s *Server) renderPart(w http.ResponseWriter, tut *store.Tutorial, tutDir, 
 		"UnverifiedCount":   unverifiedCount,
 		"VoiceSpec":         voiceSpec,
 		"CurrentPart":       part,
+		"CurrentProgress":   currentProgress,
 		"CurrentPartNumber": currentNumber,
 		"Content":           template.HTML(content),
 		"CSS":               s.designCSS,
@@ -426,4 +436,11 @@ func pendingPartNumber(pendingPart string, fallback int) int {
 		return fallback
 	}
 	return n
+}
+
+func currentPartProgress(tut *store.Tutorial, part string) *store.Progress {
+	if tut.Progress == nil || tut.Progress.Part != part {
+		return nil
+	}
+	return tut.Progress
 }

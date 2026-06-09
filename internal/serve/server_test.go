@@ -1,6 +1,8 @@
 package serve_test
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -58,6 +60,37 @@ func articleHeader(t *testing.T, body string) string {
 		t.Fatalf("article-header block not closed; body excerpt:\n%s", body)
 	}
 	return body[idx : idx+end]
+}
+
+func listPageBody(t *testing.T, dir string) string {
+	t.Helper()
+	srv := serve.NewServer(dir)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("GET / = %d, want %d; body=%s", w.Code, http.StatusOK, w.Body.String())
+	}
+	return w.Body.String()
+}
+
+func tutorialCard(t *testing.T, body, slug string) string {
+	t.Helper()
+	slugAttr := `data-slug="` + slug + `"`
+	slugIdx := strings.Index(body, slugAttr)
+	if slugIdx < 0 {
+		t.Fatalf("missing tutorial card for %q; body excerpt:\n%s", slug, body)
+	}
+	start := strings.LastIndex(body[:slugIdx], `<div class="tutorial"`)
+	if start < 0 {
+		t.Fatalf("missing tutorial card wrapper for %q; body excerpt:\n%s", slug, body)
+	}
+	endMarker := "</form>\n    </div>\n  </div>"
+	end := strings.Index(body[slugIdx:], endMarker)
+	if end < 0 {
+		t.Fatalf("tutorial card for %q not closed; body excerpt:\n%s", slug, body[slugIdx:])
+	}
+	return body[start : slugIdx+end+len(endMarker)]
 }
 
 func TestDeleteRejectsForeignOrigin(t *testing.T) {
@@ -242,7 +275,7 @@ func TestListPageRendersCardsAndVersions(t *testing.T) {
 	// Three tutorials with distinct created times — exercises the flat
 	// newest-first list, repo as searchable metadata (data-repo), and version
 	// chips + the Versions filter row.
-	mk := func(slug string, repo string, tools []store.Tool, created time.Time) {
+	mk := func(slug string, repo string, tools []store.Tool, created time.Time, progress *store.Progress) {
 		tutDir := filepath.Join(dir, slug)
 		if err := os.MkdirAll(tutDir, 0755); err != nil {
 			t.Fatal(err)
@@ -261,11 +294,16 @@ func TestListPageRendersCardsAndVersions(t *testing.T) {
 		if err := store.WriteMetadata(tutDir, tut); err != nil {
 			t.Fatal(err)
 		}
+		if progress != nil {
+			if err := store.SaveProgress(tutDir, progress); err != nil {
+				t.Fatal(err)
+			}
+		}
 	}
 	now := time.Now()
-	mk("synth-zig", "github.com/devenjarvis/lathe", []store.Tool{{Name: "zig", Version: "0.13.0"}}, now)
-	mk("compiler-go", "github.com/devenjarvis/lathe", []store.Tool{{Name: "go", Version: "1.22"}}, now.Add(-time.Hour))
-	mk("standalone", "", nil, now.Add(-2*time.Hour))
+	mk("synth-zig", "github.com/devenjarvis/lathe", []store.Tool{{Name: "zig", Version: "0.13.0"}}, now, &store.Progress{Part: "index.md", Ratio: 0.42, UpdatedAt: now})
+	mk("compiler-go", "github.com/devenjarvis/lathe", []store.Tool{{Name: "go", Version: "1.22"}}, now.Add(-time.Hour), nil)
+	mk("standalone", "", nil, now.Add(-2*time.Hour), nil)
 
 	srv := serve.NewServer(dir)
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -286,6 +324,12 @@ func TestListPageRendersCardsAndVersions(t *testing.T) {
 	if !strings.Contains(body, `id="versionFilters"`) {
 		t.Error("list page missing the Versions filter row")
 	}
+	if !strings.Contains(body, `aria-label="Progress at 42%"`) {
+		t.Error("list page missing progress label")
+	}
+	if !strings.Contains(body, `<span class="fill" style="width:42%"></span>`) {
+		t.Error("list page missing progress bar width")
+	}
 
 	// All three cards render in one flat list, newest-first.
 	posSynth := strings.Index(body, `data-slug="synth-zig"`)
@@ -296,6 +340,59 @@ func TestListPageRendersCardsAndVersions(t *testing.T) {
 	}
 	if posSynth >= posCompiler || posCompiler >= posStandalone {
 		t.Errorf("cards should render newest-first: synth(%d) < compiler(%d) < standalone(%d)", posSynth, posCompiler, posStandalone)
+	}
+}
+
+func TestListPageRendersSeriesCardProgress(t *testing.T) {
+	dir := t.TempDir()
+	tutDir := filepath.Join(dir, "test-series")
+	makeSeriesTutorialWithParts(t, dir, "test-series", 4)
+	if err := store.SaveProgress(tutDir, &store.Progress{Part: "part-02.md", Ratio: 0.42, UpdatedAt: time.Now()}); err != nil {
+		t.Fatalf("SaveProgress: %v", err)
+	}
+
+	body := listPageBody(t, dir)
+	card := tutorialCard(t, body, "test-series")
+
+	if !strings.Contains(card, `aria-label="Saved at part 2 of 4"`) {
+		t.Error("series card missing part-position aria label")
+	}
+	if !strings.Contains(card, `<span class="tutorial-progress-label">Part 2 of 4 (42%)</span>`) {
+		t.Error("series card missing Part 2 of 4 current-part progress label")
+	}
+	if got := strings.Count(card, `class="segment`); got != 4 {
+		t.Errorf("series card segment count = %d, want 4", got)
+	}
+	if got := strings.Count(card, `class="fill"`); got != 4 {
+		t.Errorf("series card fill count = %d, want 4", got)
+	}
+	if !strings.Contains(card, `class="segment current"`) {
+		t.Error("series card missing current segment")
+	}
+	if !strings.Contains(card, `<span class="segment" aria-hidden="true"><span class="fill" style="width:100%"></span></span>`) {
+		t.Error("series card should fill completed parts")
+	}
+	if !strings.Contains(card, `<span class="segment current" aria-hidden="true"><span class="fill" style="width:42%"></span></span>`) {
+		t.Error("series card should partially fill the saved part")
+	}
+	if strings.Contains(card, `Progress 42%`) || strings.Contains(card, `aria-label="Progress at 42%"`) {
+		t.Error("series card should not render saved part scroll ratio as whole-series percentage")
+	}
+}
+
+func TestListPageOmitsStaleSeriesCardProgress(t *testing.T) {
+	dir := t.TempDir()
+	tutDir := filepath.Join(dir, "test-series")
+	makeSeriesTutorialWithParts(t, dir, "test-series", 4)
+	if err := store.SaveProgress(tutDir, &store.Progress{Part: "part-99.md", Ratio: 0.42, UpdatedAt: time.Now()}); err != nil {
+		t.Fatalf("SaveProgress: %v", err)
+	}
+
+	body := listPageBody(t, dir)
+	card := tutorialCard(t, body, "test-series")
+
+	if strings.Contains(card, `tutorial-progress`) {
+		t.Error("list page should omit card progress for stale series progress part")
 	}
 }
 
@@ -313,6 +410,58 @@ func TestTutorialPage(t *testing.T) {
 	}
 	if !strings.Contains(w.Body.String(), "Index") {
 		t.Error("GET /test-tutorial/ response does not contain page content")
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, `id="saveProgressButton"`) {
+		t.Error("tutorial page missing floating desktop progress control")
+	}
+	dockButtonMarkup := `<button type="button" class="btn btn-ghost btn-sm progress-button" data-progress-save>Save progress</button>`
+	if strings.Count(body, dockButtonMarkup) != 1 {
+		t.Errorf("tutorial page should render one dock progress control; body excerpt:\n%s", body)
+	}
+	if !strings.Contains(body, `id="progressStatus"`) {
+		t.Error("tutorial page missing progress status live region")
+	}
+	if !strings.Contains(body, `data-slug="test-tutorial"`) || !strings.Contains(body, `data-part="index.md"`) {
+		t.Error("tutorial page missing progress routing data on progress bar")
+	}
+}
+
+func TestTutorialPageRendersCurrentProgressData(t *testing.T) {
+	dir := t.TempDir()
+	tutDir := makeTestTutorial(t, dir, "test-series", true)
+	if err := store.SaveProgress(tutDir, &store.Progress{Part: "part-02.md", Ratio: 0.42, HeadingID: "next-step", UpdatedAt: time.Now()}); err != nil {
+		t.Fatalf("SaveProgress: %v", err)
+	}
+
+	srv := serve.NewServer(dir)
+	req := httptest.NewRequest(http.MethodGet, "/test-series/part-02.md", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("GET /test-series/part-02.md = %d, want %d", w.Code, http.StatusOK)
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, `data-slug="test-series"`) || !strings.Contains(body, `data-part="part-02.md"`) {
+		t.Error("progress bar missing current tutorial/part data")
+	}
+	if !strings.Contains(body, `data-saved-progress="0.42"`) {
+		t.Error("progress bar missing current saved progress")
+	}
+	if !strings.Contains(body, `data-saved-heading-id="next-step"`) {
+		t.Error("progress bar missing current saved heading")
+	}
+	if !strings.Contains(body, `id="savedProgressMarker"`) {
+		t.Error("tutorial page missing progress marker element")
+	}
+	ratioRestore := strings.Index(body, "var ratio = savedProgressRatio();")
+	headingRestore := strings.Index(body, "var headingID = savedProgressHeadingID();")
+	if ratioRestore < 0 || headingRestore < 0 {
+		t.Fatal("tutorial page missing saved progress restore script")
+	}
+	if ratioRestore > headingRestore {
+		t.Error("restore should prefer exact saved ratio before falling back to saved heading")
 	}
 }
 
@@ -839,6 +988,46 @@ func TestSeriesRedirect(t *testing.T) {
 	}
 }
 
+func TestSeriesRedirectUsesProgressPart(t *testing.T) {
+	dir := t.TempDir()
+	tutDir := makeTestTutorial(t, dir, "test-series", true)
+	if err := store.SaveProgress(tutDir, &store.Progress{Part: "part-02.md", Ratio: 0.5, UpdatedAt: time.Now()}); err != nil {
+		t.Fatalf("SaveProgress: %v", err)
+	}
+
+	srv := serve.NewServer(dir)
+	req := httptest.NewRequest(http.MethodGet, "/test-series/", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusFound {
+		t.Errorf("GET /test-series/ = %d, want %d (redirect)", w.Code, http.StatusFound)
+	}
+	if loc := w.Header().Get("Location"); loc != "/test-series/part-02.md" {
+		t.Errorf("redirect Location = %q, want %q", loc, "/test-series/part-02.md")
+	}
+}
+
+func TestSeriesRedirectIgnoresStaleProgressPart(t *testing.T) {
+	dir := t.TempDir()
+	tutDir := makeTestTutorial(t, dir, "test-series", true)
+	if err := store.SaveProgress(tutDir, &store.Progress{Part: "part-99.md", Ratio: 0.5, UpdatedAt: time.Now()}); err != nil {
+		t.Fatalf("SaveProgress: %v", err)
+	}
+
+	srv := serve.NewServer(dir)
+	req := httptest.NewRequest(http.MethodGet, "/test-series/", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusFound {
+		t.Errorf("GET /test-series/ = %d, want %d (redirect)", w.Code, http.StatusFound)
+	}
+	if loc := w.Header().Get("Location"); loc != "/test-series/part-01.md" {
+		t.Errorf("redirect Location = %q, want %q", loc, "/test-series/part-01.md")
+	}
+}
+
 func TestSinglePartRedirect(t *testing.T) {
 	dir := t.TempDir()
 	tutDir := filepath.Join(dir, "single-part")
@@ -1016,6 +1205,198 @@ func TestDeleteEndpointMissingSlug(t *testing.T) {
 
 	if w.Code != http.StatusNotFound {
 		t.Errorf("POST /-/delete/nonexistent = %d, want %d", w.Code, http.StatusNotFound)
+	}
+}
+
+func TestProgressEndpointSavesProgress(t *testing.T) {
+	dir := t.TempDir()
+	tutDir := makeTestTutorial(t, dir, "test-series", true)
+	before, err := os.ReadFile(filepath.Join(tutDir, "metadata.json"))
+	if err != nil {
+		t.Fatalf("ReadFile before: %v", err)
+	}
+
+	srv := serve.NewServer(dir)
+	req := httptest.NewRequest(http.MethodPost, "/-/progress/test-series/part-02.md", bytes.NewBufferString(`{"ratio":0.42,"heading_id":"next-step"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Origin", "http://localhost:4242")
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("POST /-/progress/test-series/part-02.md = %d, want %d; body=%s", w.Code, http.StatusOK, w.Body.String())
+	}
+	var response struct {
+		Progress *store.Progress `json:"progress"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatalf("decode progress response: %v", err)
+	}
+	if response.Progress == nil {
+		t.Fatal("response progress = nil, want saved progress")
+	}
+	if response.Progress.Part != "part-02.md" || response.Progress.Ratio != 0.42 || response.Progress.HeadingID != "next-step" {
+		t.Errorf("response progress = %+v, want part/ratio/heading to match request", response.Progress)
+	}
+	after, err := os.ReadFile(filepath.Join(tutDir, "metadata.json"))
+	if err != nil {
+		t.Fatalf("ReadFile after: %v", err)
+	}
+	if string(after) != string(before) {
+		t.Error("progress save rewrote metadata.json")
+	}
+
+	tut, err := store.ReadMetadata(tutDir)
+	if err != nil {
+		t.Fatalf("ReadMetadata: %v", err)
+	}
+	if tut.Progress == nil {
+		t.Fatal("metadata progress = nil, want saved progress")
+	}
+	if tut.Progress.Part != "part-02.md" {
+		t.Errorf("metadata progress part = %q, want part-02.md", tut.Progress.Part)
+	}
+	if tut.Progress.Ratio != 0.42 {
+		t.Errorf("metadata progress ratio = %v, want 0.42", tut.Progress.Ratio)
+	}
+	if tut.Progress.HeadingID != "next-step" {
+		t.Errorf("metadata progress heading = %q, want next-step", tut.Progress.HeadingID)
+	}
+	if tut.Progress.UpdatedAt.IsZero() {
+		t.Error("metadata progress updated_at is zero")
+	}
+}
+
+func TestProgressEndpointRejectsForeignOrigin(t *testing.T) {
+	dir := t.TempDir()
+	tutDir := makeTestTutorial(t, dir, "test-series", true)
+
+	srv := serve.NewServer(dir)
+	req := httptest.NewRequest(http.MethodPost, "/-/progress/test-series/part-01.md", bytes.NewBufferString(`{"ratio":0.5}`))
+	req.Header.Set("Origin", "http://evil.example.com")
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Errorf("foreign-origin progress = %d, want %d", w.Code, http.StatusForbidden)
+	}
+	tut, err := store.ReadMetadata(tutDir)
+	if err != nil {
+		t.Fatalf("ReadMetadata: %v", err)
+	}
+	if tut.Progress != nil {
+		t.Errorf("foreign-origin progress wrote metadata: %+v", tut.Progress)
+	}
+}
+
+func TestProgressEndpointRejectsUnknownTutorial(t *testing.T) {
+	dir := t.TempDir()
+	srv := serve.NewServer(dir)
+	req := httptest.NewRequest(http.MethodPost, "/-/progress/missing/part-01.md", bytes.NewBufferString(`{"ratio":0.5}`))
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Errorf("unknown tutorial progress = %d, want %d", w.Code, http.StatusNotFound)
+	}
+}
+
+func TestProgressEndpointRejectsUnknownPart(t *testing.T) {
+	dir := t.TempDir()
+	tutDir := makeTestTutorial(t, dir, "test-series", true)
+
+	srv := serve.NewServer(dir)
+	req := httptest.NewRequest(http.MethodPost, "/-/progress/test-series/part-99.md", bytes.NewBufferString(`{"ratio":0.5}`))
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Errorf("unknown part progress = %d, want %d", w.Code, http.StatusNotFound)
+	}
+	tut, err := store.ReadMetadata(tutDir)
+	if err != nil {
+		t.Fatalf("ReadMetadata: %v", err)
+	}
+	if tut.Progress != nil {
+		t.Errorf("unknown part progress wrote metadata: %+v", tut.Progress)
+	}
+}
+
+func TestProgressEndpointRejectsInvalidJSON(t *testing.T) {
+	dir := t.TempDir()
+	tutDir := makeTestTutorial(t, dir, "test-series", true)
+
+	srv := serve.NewServer(dir)
+	req := httptest.NewRequest(http.MethodPost, "/-/progress/test-series/part-01.md", bytes.NewBufferString(`{nope`))
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("invalid JSON progress = %d, want %d", w.Code, http.StatusBadRequest)
+	}
+	tut, err := store.ReadMetadata(tutDir)
+	if err != nil {
+		t.Fatalf("ReadMetadata: %v", err)
+	}
+	if tut.Progress != nil {
+		t.Errorf("invalid JSON progress wrote metadata: %+v", tut.Progress)
+	}
+}
+
+func TestProgressEndpointRejectsMissingRatio(t *testing.T) {
+	dir := t.TempDir()
+	tutDir := makeTestTutorial(t, dir, "test-series", true)
+
+	srv := serve.NewServer(dir)
+	req := httptest.NewRequest(http.MethodPost, "/-/progress/test-series/part-01.md", bytes.NewBufferString(`{"heading_id":"intro"}`))
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("missing-ratio progress = %d, want %d", w.Code, http.StatusBadRequest)
+	}
+	tut, err := store.ReadMetadata(tutDir)
+	if err != nil {
+		t.Fatalf("ReadMetadata: %v", err)
+	}
+	if tut.Progress != nil {
+		t.Errorf("missing-ratio progress wrote metadata: %+v", tut.Progress)
+	}
+}
+
+func TestProgressEndpointClampsProgress(t *testing.T) {
+	cases := []struct {
+		name string
+		body string
+		want float64
+	}{
+		{"below zero", `{"ratio":-0.5}`, 0},
+		{"above one", `{"ratio":1.5}`, 1},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			tutDir := makeTestTutorial(t, dir, "test-series", true)
+			srv := serve.NewServer(dir)
+
+			req := httptest.NewRequest(http.MethodPost, "/-/progress/test-series/part-01.md", bytes.NewBufferString(tc.body))
+			w := httptest.NewRecorder()
+			srv.Handler().ServeHTTP(w, req)
+
+			if w.Code != http.StatusOK {
+				t.Fatalf("progress save = %d, want %d; body=%s", w.Code, http.StatusOK, w.Body.String())
+			}
+			tut, err := store.ReadMetadata(tutDir)
+			if err != nil {
+				t.Fatalf("ReadMetadata: %v", err)
+			}
+			if tut.Progress == nil {
+				t.Fatal("Progress = nil, want saved progress")
+			}
+			if tut.Progress.Ratio != tc.want {
+				t.Errorf("Progress.Ratio = %v, want %v", tut.Progress.Ratio, tc.want)
+			}
+		})
 	}
 }
 

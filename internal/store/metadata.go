@@ -2,6 +2,7 @@ package store
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -28,6 +29,7 @@ type Tutorial struct {
 	Tags        []string  `json:"tags,omitempty"`
 	Parts       []string  `json:"parts,omitempty"`
 	PendingPart string    `json:"pending_part,omitempty"`
+	Progress    *Progress `json:"progress,omitempty"`
 	// Repo is the canonical identifier (host/org/repo) of the git repository the
 	// tutorial was written for, derived from the repo's origin remote by the
 	// generation skill and normalized by NormalizeRepo. Tutorials with no repo
@@ -71,6 +73,17 @@ type Tool struct {
 	Version string `json:"version,omitempty"`
 }
 
+// Progress is a reader-saved position within a tutorial. Part is the rendered
+// markdown file (part-NN.md or legacy index.md), Ratio is a 0..1 scroll ratio,
+// HeadingID is an optional best-effort hint, and UpdatedAt records when progress
+// was last saved.
+type Progress struct {
+	Part      string    `json:"part"`
+	Ratio     float64   `json:"ratio"`
+	HeadingID string    `json:"heading_id,omitempty"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
 func (t *Tutorial) IsSeries() bool {
 	return len(t.Parts) > 1
 }
@@ -103,7 +116,16 @@ func ReadMetadata(tutorialDir string) (*Tutorial, error) {
 		return nil, err
 	}
 	var t Tutorial
-	return &t, json.Unmarshal(data, &t)
+	if err := json.Unmarshal(data, &t); err != nil {
+		return nil, err
+	}
+	t.Progress = nil
+	if progress, err := ReadProgress(tutorialDir); err == nil {
+		t.Progress = progress
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return nil, err
+	}
+	return &t, nil
 }
 
 func WriteMetadata(tutorialDir string, t *Tutorial) error {
@@ -112,6 +134,26 @@ func WriteMetadata(tutorialDir string, t *Tutorial) error {
 		return err
 	}
 	return os.WriteFile(filepath.Join(tutorialDir, "metadata.json"), data, 0644)
+}
+
+func ReadProgress(tutorialDir string) (*Progress, error) {
+	data, err := os.ReadFile(filepath.Join(tutorialDir, "progress.json"))
+	if err != nil {
+		return nil, err
+	}
+	var progress Progress
+	if err := json.Unmarshal(data, &progress); err != nil {
+		return nil, err
+	}
+	return &progress, nil
+}
+
+func SaveProgress(tutorialDir string, progress *Progress) error {
+	data, err := json.MarshalIndent(progress, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(tutorialDir, "progress.json"), data, 0644)
 }
 
 func ReadVerifyResult(tutorialDir string) (*VerifyResult, error) {

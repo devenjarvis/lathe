@@ -116,6 +116,8 @@ body{
 /* Reading-progress bar (fixed, above sticky header, below ask drawer) */
 #progressBar{position:fixed;top:0;left:0;right:0;height:3px;background:transparent;z-index:70;pointer-events:none}
 #progressBar > div{height:100%;background:var(--accent);transform:scaleX(0);transform-origin:left center;will-change:transform}
+#savedProgressMarker{position:absolute;top:50%;width:9px;height:9px;border:2px solid var(--surface);border-radius:9999px;background:var(--accent);box-shadow:0 0 0 1px var(--accent),var(--shadow-sm);transform:translate(-50%,-50%)}
+#savedProgressMarker[hidden]{display:none}
 
 /* Layout shell (reading page) */
 .layout{display:flex;min-height:100vh}
@@ -338,6 +340,8 @@ pre[data-overflow="true"]{box-shadow:inset -18px 0 14px -12px rgba(40,30,20,.20)
    (see the responsive block) and toggles the ToC drawer. */
 #topBar{display:flex;position:sticky;top:0;background:var(--surface);border-bottom:1px solid var(--border);padding:.55rem .85rem;z-index:50;align-items:center;gap:.7rem}
 #topBar .theme-toggle{margin-left:auto;flex-shrink:0}
+.progress-button{color:var(--accent);border-color:var(--border-strong)}
+.progress-button:hover:not(:disabled){background:var(--accent-soft);color:var(--accent);border-color:var(--accent)}
 #hamburger{display:none;background:transparent;border:1px solid var(--border);color:var(--text-subtle);font:inherit;cursor:pointer;padding:.3rem .55rem;border-radius:var(--radius-sm);line-height:1;font-size:1.15rem;flex-shrink:0}
 #hamburger:hover{background:var(--surface-sunken);color:var(--text)}
 /* The crumb is a flex row (overflow:visible) so the part-picker dropdown isn't
@@ -410,10 +414,14 @@ pre[data-overflow="true"]{box-shadow:inset -18px 0 14px -12px rgba(40,30,20,.20)
    style comes from .btn .btn-primary in the markup.) */
 #extendForm .btn{align-self:flex-start}
 
-/* Floating Ask button (wide screens) — .btn .btn-primary .btn-pill in markup;
-   this only adds the fixed positioning, shadow, and lift-on-hover. */
-#askButton{position:fixed;bottom:1.5rem;right:1.5rem;z-index:40;box-shadow:var(--shadow-md)}
-#askButton:hover{transform:translateY(-2px)}
+/* Floating reader actions (wide screens) — progress + Ask stay available while
+   reading, matching the fixed affordance the Ask button already used. */
+#floatingActions{position:fixed;bottom:1.5rem;right:1.5rem;z-index:40;display:flex;align-items:center;gap:.55rem}
+#floatingActions .btn{box-shadow:var(--shadow-md)}
+#floatingActions .btn:hover{transform:translateY(-2px)}
+.progress-status{position:fixed;right:1.5rem;bottom:4.5rem;z-index:40;max-width:min(18rem,calc(100vw - 2rem));padding:.45rem .7rem;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface);box-shadow:var(--shadow-sm);color:var(--text-subtle);font-size:.82rem;line-height:1.35;opacity:0;pointer-events:none;transform:translateY(.35rem);transition:opacity var(--transition),transform var(--transition),color var(--transition),border-color var(--transition)}
+.progress-status:not(:empty){opacity:1;transform:translateY(0)}
+.progress-status[data-state="error"]{color:var(--badge-failed-text);border-color:var(--badge-failed-text);background:var(--badge-failed-bg)}
 
 /* Bottom action dock (narrow only) */
 #bottomDock{display:none;position:fixed;left:0;right:0;bottom:0;background:var(--surface);border-top:1px solid var(--border);padding:.55rem .85rem;z-index:50;justify-content:space-between;align-items:center;gap:.7rem}
@@ -466,6 +474,12 @@ body.list h1{font-family:var(--font-display);font-size:clamp(1.7rem,1.3rem + 1.4
 .tutorial-link::after{content:'';position:absolute;inset:0;z-index:0}
 .tutorial:hover .tutorial-link{color:var(--accent-hover);text-decoration:underline;text-underline-offset:2px}
 .meta{font-size:.8rem;color:var(--text-faint);margin-top:.25rem}
+.tutorial-progress{display:flex;align-items:center;gap:.55rem;margin-top:.45rem;max-width:min(16rem,100%)}
+.tutorial-progress-track{position:relative;flex:1;height:.35rem;border-radius:9999px;background:var(--surface-sunken);overflow:hidden;border:1px solid var(--border)}
+.tutorial-progress-track .fill{display:block;height:100%;background:var(--accent);border-radius:inherit}
+.tutorial-progress-segments{display:flex;gap:2px}
+.tutorial-progress-segments .segment{display:block;flex:1;min-width:.35rem;height:100%;border-radius:9999px;background:var(--surface-sunken);overflow:hidden}
+.tutorial-progress-label{font-family:var(--font-display);font-size:.72rem;font-weight:600;color:var(--text-faint);white-space:nowrap}
 /* Sits above the stretched-link overlay so the badge reads and the × deletes. */
 .tutorial-actions{position:relative;z-index:1;display:flex;align-items:center;gap:.6rem;flex-shrink:0;flex-wrap:wrap}
 .delete-form{margin:0}
@@ -529,7 +543,9 @@ body.list h1{font-family:var(--font-display);font-size:clamp(1.7rem,1.3rem + 1.4
   #hamburger{display:inline-flex}
   #topBar .back-link,#topBar .theme-toggle{display:none}
   #bottomDock{display:flex}
-  #askButton{display:none}
+  #bottomDock .progress-button{flex:1;min-width:0}
+  #floatingActions{display:none}
+  .progress-status{left:.85rem;right:.85rem;bottom:4.25rem;max-width:none;text-align:center}
 }
 
 /* Bottom-sheet Ask drawer (≤700px) */
