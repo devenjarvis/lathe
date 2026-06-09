@@ -62,6 +62,37 @@ func articleHeader(t *testing.T, body string) string {
 	return body[idx : idx+end]
 }
 
+func listPageBody(t *testing.T, dir string) string {
+	t.Helper()
+	srv := serve.NewServer(dir)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("GET / = %d, want %d; body=%s", w.Code, http.StatusOK, w.Body.String())
+	}
+	return w.Body.String()
+}
+
+func tutorialCard(t *testing.T, body, slug string) string {
+	t.Helper()
+	slugAttr := `data-slug="` + slug + `"`
+	slugIdx := strings.Index(body, slugAttr)
+	if slugIdx < 0 {
+		t.Fatalf("missing tutorial card for %q; body excerpt:\n%s", slug, body)
+	}
+	start := strings.LastIndex(body[:slugIdx], `<div class="tutorial"`)
+	if start < 0 {
+		t.Fatalf("missing tutorial card wrapper for %q; body excerpt:\n%s", slug, body)
+	}
+	endMarker := "</form>\n    </div>\n  </div>"
+	end := strings.Index(body[slugIdx:], endMarker)
+	if end < 0 {
+		t.Fatalf("tutorial card for %q not closed; body excerpt:\n%s", slug, body[slugIdx:])
+	}
+	return body[start : slugIdx+end+len(endMarker)]
+}
+
 func TestDeleteRejectsForeignOrigin(t *testing.T) {
 	dir := t.TempDir()
 	tutDir := makeTestTutorial(t, dir, "victim", false)
@@ -296,7 +327,7 @@ func TestListPageRendersCardsAndVersions(t *testing.T) {
 	if !strings.Contains(body, `aria-label="Progress at 42%"`) {
 		t.Error("list page missing progress label")
 	}
-	if !strings.Contains(body, `style="width:42%"`) {
+	if !strings.Contains(body, `<span class="fill" style="width:42%"></span>`) {
 		t.Error("list page missing progress bar width")
 	}
 
@@ -309,6 +340,53 @@ func TestListPageRendersCardsAndVersions(t *testing.T) {
 	}
 	if posSynth >= posCompiler || posCompiler >= posStandalone {
 		t.Errorf("cards should render newest-first: synth(%d) < compiler(%d) < standalone(%d)", posSynth, posCompiler, posStandalone)
+	}
+}
+
+func TestListPageRendersSeriesCardProgress(t *testing.T) {
+	dir := t.TempDir()
+	tutDir := filepath.Join(dir, "test-series")
+	makeSeriesTutorialWithParts(t, dir, "test-series", 4)
+	if err := store.SaveProgress(tutDir, &store.Progress{Part: "part-02.md", Ratio: 0.42, UpdatedAt: time.Now()}); err != nil {
+		t.Fatalf("SaveProgress: %v", err)
+	}
+
+	body := listPageBody(t, dir)
+	card := tutorialCard(t, body, "test-series")
+
+	if !strings.Contains(card, `aria-label="Saved at part 2 of 4"`) {
+		t.Error("series card missing part-position aria label")
+	}
+	if !strings.Contains(card, `<span class="tutorial-progress-label">Part 2 of 4</span>`) {
+		t.Error("series card missing Part 2 of 4 progress label")
+	}
+	if got := strings.Count(card, `class="segment`); got != 4 {
+		t.Errorf("series card segment count = %d, want 4", got)
+	}
+	if !strings.Contains(card, `class="segment complete"`) {
+		t.Error("series card missing completed segment")
+	}
+	if !strings.Contains(card, `class="segment current"`) {
+		t.Error("series card missing current segment")
+	}
+	if strings.Contains(card, `Progress 42%`) || strings.Contains(card, `style="width:42%"`) {
+		t.Error("series card should not render saved part scroll ratio as whole-series percentage")
+	}
+}
+
+func TestListPageOmitsStaleSeriesCardProgress(t *testing.T) {
+	dir := t.TempDir()
+	tutDir := filepath.Join(dir, "test-series")
+	makeSeriesTutorialWithParts(t, dir, "test-series", 4)
+	if err := store.SaveProgress(tutDir, &store.Progress{Part: "part-99.md", Ratio: 0.42, UpdatedAt: time.Now()}); err != nil {
+		t.Fatalf("SaveProgress: %v", err)
+	}
+
+	body := listPageBody(t, dir)
+	card := tutorialCard(t, body, "test-series")
+
+	if strings.Contains(card, `tutorial-progress`) {
+		t.Error("list page should omit card progress for stale series progress part")
 	}
 }
 
