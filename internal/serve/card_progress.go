@@ -15,7 +15,6 @@ type CardProgress struct {
 }
 
 type CardProgressSegment struct {
-	Number   int
 	Complete bool
 	Current  bool
 }
@@ -36,7 +35,6 @@ func cardProgress(tut *store.Tutorial) *CardProgress {
 		for j := range tut.Parts {
 			number := j + 1
 			segments[j] = CardProgressSegment{
-				Number:   number,
 				Complete: number < partNumber,
 				Current:  number == partNumber,
 			}
