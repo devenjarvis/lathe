@@ -98,8 +98,9 @@ Each component is a class in `styles.css`. Markup it expects:
 | Verify / extend | `.verify-section`, `.extend-section`, `#verifyForm`, `#extendForm` | layout.html |
 | Author byline | `.article-byline`, `.voice-reveal`, `.voice-reveal-body` (+ `code`) | layout.html (under the `.article-header` `<h2>`) |
 | Ask drawer | `#askDrawer`, `.ask-bubble`, `.ask-question`, `.ask-answer` | layout.html |
-| Progress bar | `#progressBar` | layout.html |
+| Reading progress bar | `#progressBar` | layout.html |
 | List cards | `body.list`, `.tutorial`, `.meta`, `.delete-btn`, `.empty` | list.html |
+| List card progress | `.tutorial-progress`, `.tutorial-progress-track`, `.tutorial-progress-segments`, `.tutorial-progress-label` | list.html |
 | Callouts | `.callout.callout-<type>`, `.callout-label` | emitted by `renderer.go` |
 | Code blocks | `pre`, `pre.chroma`, `code` | goldmark + chroma |
 
