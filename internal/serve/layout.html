@@ -292,6 +292,13 @@
     function savedProgressHeadingID(){
       return progress.getAttribute('data-saved-heading-id') || '';
     }
+    function scrollToRatio(ratio){
+      var doc = document.documentElement;
+      var max = (doc.scrollHeight - doc.clientHeight) || 0;
+      if (max <= 0) return false;
+      window.scrollTo({top: Math.round(max * ratio), behavior: 'auto'});
+      return true;
+    }
     function currentHeadingID(){
       var headings = document.querySelectorAll('main h1[id], main h2[id], main h3[id], main h4[id], main h5[id], main h6[id]');
       var current = '';
@@ -304,6 +311,11 @@
       return current;
     }
     function restoreProgress(){
+      var ratio = savedProgressRatio();
+      if (ratio !== null && scrollToRatio(ratio)) {
+        update();
+        return;
+      }
       var headingID = savedProgressHeadingID();
       if (headingID) {
         var heading = document.getElementById(headingID);
@@ -313,13 +325,6 @@
           return;
         }
       }
-      var ratio = savedProgressRatio();
-      if (ratio === null) return;
-      var doc = document.documentElement;
-      var max = (doc.scrollHeight - doc.clientHeight) || 0;
-      if (max <= 0) return;
-      window.scrollTo({top: Math.round(max * ratio), behavior: 'auto'});
-      update();
     }
     function update(){
       pending = false;

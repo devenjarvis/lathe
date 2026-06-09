@@ -455,6 +455,14 @@ func TestTutorialPageRendersCurrentProgressData(t *testing.T) {
 	if !strings.Contains(body, `id="savedProgressMarker"`) {
 		t.Error("tutorial page missing progress marker element")
 	}
+	ratioRestore := strings.Index(body, "var ratio = savedProgressRatio();")
+	headingRestore := strings.Index(body, "var headingID = savedProgressHeadingID();")
+	if ratioRestore < 0 || headingRestore < 0 {
+		t.Fatal("tutorial page missing saved progress restore script")
+	}
+	if ratioRestore > headingRestore {
+		t.Error("restore should prefer exact saved ratio before falling back to saved heading")
+	}
 }
 
 func TestBylineShowsModelAndVoiceReveal(t *testing.T) {
