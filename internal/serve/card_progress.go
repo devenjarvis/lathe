@@ -15,8 +15,8 @@ type CardProgress struct {
 }
 
 type CardProgressSegment struct {
-	Complete bool
-	Current  bool
+	Percent int
+	Current bool
 }
 
 func cardProgress(tut *store.Tutorial) *CardProgress {
@@ -31,16 +31,24 @@ func cardProgress(tut *store.Tutorial) *CardProgress {
 			continue
 		}
 		partNumber := i + 1
+		currentPercent := percent(tut.Progress.Ratio)
 		segments := make([]CardProgressSegment, len(tut.Parts))
 		for j := range tut.Parts {
 			number := j + 1
+			segmentPercent := 0
+			if number < partNumber {
+				segmentPercent = 100
+			} else if number == partNumber {
+				segmentPercent = currentPercent
+			}
 			segments[j] = CardProgressSegment{
-				Complete: number < partNumber,
-				Current:  number == partNumber,
+				Percent: segmentPercent,
+				Current: number == partNumber,
 			}
 		}
 		return &CardProgress{
 			IsSeries:   true,
+			Percent:    currentPercent,
 			PartNumber: partNumber,
 			TotalParts: len(tut.Parts),
 			Segments:   segments,

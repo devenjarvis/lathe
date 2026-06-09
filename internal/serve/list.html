@@ -54,9 +54,9 @@
       {{if .IsSeries}}
       <div class="tutorial-progress" aria-label="Saved at part {{.PartNumber}} of {{.TotalParts}}">
         <div class="tutorial-progress-track tutorial-progress-segments">
-          {{range .Segments}}<span class="segment{{if .Complete}} complete{{end}}{{if .Current}} current{{end}}" aria-hidden="true"></span>{{end}}
+          {{range .Segments}}<span class="segment{{if .Current}} current{{end}}" aria-hidden="true"><span class="fill" style="width:{{.Percent}}%"></span></span>{{end}}
         </div>
-        <span class="tutorial-progress-label">Part {{.PartNumber}} of {{.TotalParts}}</span>
+        <span class="tutorial-progress-label">Part {{.PartNumber}} of {{.TotalParts}} ({{.Percent}}%)</span>
       </div>
       {{else}}
       <div class="tutorial-progress" aria-label="Progress at {{.Percent}}%">

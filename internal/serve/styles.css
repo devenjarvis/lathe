@@ -477,10 +477,8 @@ body.list h1{font-family:var(--font-display);font-size:clamp(1.7rem,1.3rem + 1.4
 .tutorial-progress{display:flex;align-items:center;gap:.55rem;margin-top:.45rem;max-width:min(16rem,100%)}
 .tutorial-progress-track{position:relative;flex:1;height:.35rem;border-radius:9999px;background:var(--surface-sunken);overflow:hidden;border:1px solid var(--border)}
 .tutorial-progress-track .fill{display:block;height:100%;background:var(--accent);border-radius:inherit}
-.tutorial-progress-segments{display:flex;gap:2px;padding:1px}
-.tutorial-progress-segments .segment{display:block;flex:1;min-width:.35rem;height:100%;border-radius:9999px;background:var(--surface-sunken)}
-.tutorial-progress-segments .segment.complete{background:var(--accent-soft)}
-.tutorial-progress-segments .segment.current{background:var(--accent)}
+.tutorial-progress-segments{display:flex;gap:2px}
+.tutorial-progress-segments .segment{display:block;flex:1;min-width:.35rem;height:100%;border-radius:9999px;background:var(--surface-sunken);overflow:hidden}
 .tutorial-progress-label{font-family:var(--font-display);font-size:.72rem;font-weight:600;color:var(--text-faint);white-space:nowrap}
 /* Sits above the stretched-link overlay so the badge reads and the × deletes. */
 .tutorial-actions{position:relative;z-index:1;display:flex;align-items:center;gap:.6rem;flex-shrink:0;flex-wrap:wrap}

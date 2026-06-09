@@ -357,19 +357,25 @@ func TestListPageRendersSeriesCardProgress(t *testing.T) {
 	if !strings.Contains(card, `aria-label="Saved at part 2 of 4"`) {
 		t.Error("series card missing part-position aria label")
 	}
-	if !strings.Contains(card, `<span class="tutorial-progress-label">Part 2 of 4</span>`) {
-		t.Error("series card missing Part 2 of 4 progress label")
+	if !strings.Contains(card, `<span class="tutorial-progress-label">Part 2 of 4 (42%)</span>`) {
+		t.Error("series card missing Part 2 of 4 current-part progress label")
 	}
 	if got := strings.Count(card, `class="segment`); got != 4 {
 		t.Errorf("series card segment count = %d, want 4", got)
 	}
-	if !strings.Contains(card, `class="segment complete"`) {
-		t.Error("series card missing completed segment")
+	if got := strings.Count(card, `class="fill"`); got != 4 {
+		t.Errorf("series card fill count = %d, want 4", got)
 	}
 	if !strings.Contains(card, `class="segment current"`) {
 		t.Error("series card missing current segment")
 	}
-	if strings.Contains(card, `Progress 42%`) || strings.Contains(card, `style="width:42%"`) {
+	if !strings.Contains(card, `<span class="segment" aria-hidden="true"><span class="fill" style="width:100%"></span></span>`) {
+		t.Error("series card should fill completed parts")
+	}
+	if !strings.Contains(card, `<span class="segment current" aria-hidden="true"><span class="fill" style="width:42%"></span></span>`) {
+		t.Error("series card should partially fill the saved part")
+	}
+	if strings.Contains(card, `Progress 42%`) || strings.Contains(card, `aria-label="Progress at 42%"`) {
 		t.Error("series card should not render saved part scroll ratio as whole-series percentage")
 	}
 }
