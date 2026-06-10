@@ -198,20 +198,22 @@ func TestMetadataRoundTripModel(t *testing.T) {
 }
 
 func TestReadMetadataIgnoresEmbeddedProgress(t *testing.T) {
+	// WriteMetadata can no longer emit an embedded "progress" block (the field is
+	// tagged json:"-"), so inject one via raw JSON to prove ReadMetadata ignores a
+	// progress key smuggled into metadata.json — it only ever reads progress.json.
 	dir := t.TempDir()
-	updatedAt := time.Date(2026, 6, 8, 12, 34, 56, 0, time.UTC)
-	tut := &store.Tutorial{
-		Slug:   "test-tut",
-		Status: store.StatusUnverified,
-		Progress: &store.Progress{
-			Part:      "part-02.md",
-			Ratio:     0.42,
-			HeadingID: "wire-the-parser",
-			UpdatedAt: updatedAt,
-		},
-	}
-	if err := store.WriteMetadata(dir, tut); err != nil {
-		t.Fatalf("WriteMetadata: %v", err)
+	data := `{
+  "slug": "test-tut",
+  "status": "unverified",
+  "progress": {
+    "part": "part-02.md",
+    "ratio": 0.42,
+    "heading_id": "wire-the-parser",
+    "updated_at": "2026-06-08T12:34:56Z"
+  }
+}`
+	if err := os.WriteFile(filepath.Join(dir, "metadata.json"), []byte(data), 0644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
 	}
 	got, err := store.ReadMetadata(dir)
 	if err != nil {
@@ -222,7 +224,63 @@ func TestReadMetadataIgnoresEmbeddedProgress(t *testing.T) {
 	}
 }
 
-func TestSaveProgressDoesNotRewriteMetadata(t *testing.T) {
+func TestReadMetadataSucceedsWithCorruptProgress(t *testing.T) {
+	// A corrupt progress.json must never brick the tutorial: ReadMetadata reads
+	// progress best-effort, so it succeeds with nil Progress rather than erroring.
+	dir := t.TempDir()
+	if err := store.WriteMetadata(dir, &store.Tutorial{Slug: "test-tut", Status: store.StatusUnverified}); err != nil {
+		t.Fatalf("WriteMetadata: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "progress.json"), []byte("not json"), 0644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	got, err := store.ReadMetadata(dir)
+	if err != nil {
+		t.Fatalf("ReadMetadata with corrupt progress.json: %v", err)
+	}
+	if got.Progress != nil {
+		t.Fatalf("Progress = %+v, want nil for corrupt progress.json", got.Progress)
+	}
+}
+
+func TestWriteMetadataAfterReadDoesNotEmbedProgress(t *testing.T) {
+	// A ReadMetadata→mutate→WriteMetadata round-trip must never snapshot the
+	// progress.json sidecar into metadata.json (the json:"-" tag guarantees it).
+	dir := t.TempDir()
+	if err := store.WriteMetadata(dir, &store.Tutorial{Slug: "test-tut", Status: store.StatusUnverified}); err != nil {
+		t.Fatalf("WriteMetadata: %v", err)
+	}
+	if err := store.WriteProgress(dir, &store.Progress{
+		Part:      "part-02.md",
+		Ratio:     0.42,
+		HeadingID: "wire-the-parser",
+		UpdatedAt: time.Date(2026, 6, 8, 12, 34, 56, 0, time.UTC),
+	}); err != nil {
+		t.Fatalf("WriteProgress: %v", err)
+	}
+
+	tut, err := store.ReadMetadata(dir)
+	if err != nil {
+		t.Fatalf("ReadMetadata: %v", err)
+	}
+	if tut.Progress == nil {
+		t.Fatal("Progress = nil, want sidecar progress loaded for the round-trip")
+	}
+	tut.Status = store.StatusVerified
+	if err := store.WriteMetadata(dir, tut); err != nil {
+		t.Fatalf("WriteMetadata after mutate: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(dir, "metadata.json"))
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	if strings.Contains(string(data), "progress") {
+		t.Errorf("metadata.json embedded a progress key after RMW:\n%s", data)
+	}
+}
+
+func TestWriteProgressDoesNotRewriteMetadata(t *testing.T) {
 	dir := t.TempDir()
 	updatedAt := time.Date(2026, 6, 8, 12, 34, 56, 0, time.UTC)
 	tut := &store.Tutorial{
@@ -246,15 +304,15 @@ func TestSaveProgressDoesNotRewriteMetadata(t *testing.T) {
 		HeadingID: "wire-the-parser",
 		UpdatedAt: updatedAt,
 	}
-	if err := store.SaveProgress(dir, progress); err != nil {
-		t.Fatalf("SaveProgress: %v", err)
+	if err := store.WriteProgress(dir, progress); err != nil {
+		t.Fatalf("WriteProgress: %v", err)
 	}
 	after, err := os.ReadFile(filepath.Join(dir, "metadata.json"))
 	if err != nil {
 		t.Fatalf("ReadFile after: %v", err)
 	}
 	if string(after) != string(before) {
-		t.Error("SaveProgress rewrote metadata.json")
+		t.Error("WriteProgress rewrote metadata.json")
 	}
 
 	got, err := store.ReadMetadata(dir)
