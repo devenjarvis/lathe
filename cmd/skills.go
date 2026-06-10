@@ -24,22 +24,27 @@ var skillsCmd = &cobra.Command{
 // shared by Claude Code, Codex, Gemini CLI, opencode, Cline, and Windsurf, so
 // these all ship the bytes unchanged. Cursor is the lone exception: it needs a
 // markdown translation, so it keeps its own branch in installForAgent.
+//
+// The path-segment data drives a single generic resolver (rawShipDir): project
+// holds the segments under the project root, user holds the segments under $HOME
+// for --user. A nil/empty user means the target has no user-level dir
+// (project-only; --user warns + falls back to the project).
 type rawShipTarget struct {
-	display     string                          // human-facing name in output
-	dir         func(user bool) (string, error) // resolves the skills dir
-	projectOnly bool                            // no user-level dir; --user warns + falls back
+	display string   // human-facing name in output
+	project []string // path segments under the project root for the skills dir
+	user    []string // path segments under $HOME for --user; nil/empty ⇒ project-only
 }
 
-// rawShipTargets keys each verbatim-ship agent to its display name + dir
-// resolver. Adding a new SKILL.md-consuming harness is a one-line entry here
-// plus a dir resolver, no new install branch.
+// rawShipTargets keys each verbatim-ship agent to its display name + path
+// segments. Adding a new SKILL.md-consuming harness is a one-line entry here,
+// no new resolver or install branch.
 var rawShipTargets = map[string]rawShipTarget{
-	"claude-code": {display: "Claude Code", dir: claudeSkillsDir},
-	"codex":       {display: "Codex", dir: codexSkillsDir},
-	"gemini":      {display: "Gemini", dir: geminiSkillsDir},
-	"opencode":    {display: "opencode", dir: opencodeSkillsDir},
-	"cline":       {display: "Cline", dir: clineSkillsDir},
-	"windsurf":    {display: "Windsurf", dir: windsurfSkillsDir, projectOnly: true},
+	"claude-code": {display: "Claude Code", project: []string{".claude", "skills"}, user: []string{".claude", "skills"}},
+	"codex":       {display: "Codex", project: []string{".agents", "skills"}, user: []string{".agents", "skills"}},
+	"gemini":      {display: "Gemini", project: []string{".gemini", "skills"}, user: []string{".gemini", "skills"}},
+	"opencode":    {display: "opencode", project: []string{".opencode", "skills"}, user: []string{".config", "opencode", "skills"}},
+	"cline":       {display: "Cline", project: []string{".cline", "skills"}, user: []string{".cline", "skills"}},
+	"windsurf":    {display: "Windsurf", project: []string{".windsurf", "skills"}},
 }
 
 // installForAgent writes every skill for one agent and returns the file count.
@@ -52,13 +57,13 @@ func installForAgent(out io.Writer, agent string, user bool, all []skills.Skill)
 	if !ok {
 		return 0, fmt.Errorf("unknown agent %q", agent)
 	}
-	// projectOnly agents have no documented user-level skills dir, so --user
-	// warns and falls back to the project (mirroring Cursor).
-	if user && t.projectOnly {
+	// Targets with no user-level skills dir fall back to the project under --user
+	// (mirroring Cursor), warning so the user knows where it landed.
+	if user && len(t.user) == 0 {
 		_, _ = fmt.Fprintf(out, "note: %s has no standard user-level skills dir; installing into the project instead.\n", t.display)
 		user = false
 	}
-	dir, err := t.dir(user)
+	dir, err := rawShipDir(t, user)
 	if err != nil {
 		return 0, err
 	}
@@ -95,77 +100,18 @@ func installCursor(out io.Writer, user bool, all []skills.Skill) (int, error) {
 	return count, nil
 }
 
-// claudeSkillsDir returns the project (./.claude/skills) or user
-// (~/.claude/skills) skills directory.
-func claudeSkillsDir(user bool) (string, error) {
+// rawShipDir resolves a raw-ship target's skills dir: the project-relative
+// segments by default, or the segments under the user home dir when user is
+// true. A target with no user segments is project-only.
+func rawShipDir(t rawShipTarget, user bool) (string, error) {
 	if !user {
-		return filepath.Join(".claude", "skills"), nil
+		return filepath.Join(t.project...), nil
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(home, ".claude", "skills"), nil
-}
-
-// codexSkillsDir returns the project (./.agents/skills) or user
-// (~/.agents/skills) skills directory used by Codex's Agent Skills.
-func codexSkillsDir(user bool) (string, error) {
-	if !user {
-		return filepath.Join(".agents", "skills"), nil
-	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(home, ".agents", "skills"), nil
-}
-
-// geminiSkillsDir returns the project (./.gemini/skills) or user
-// (~/.gemini/skills) skills directory used by Gemini CLI.
-func geminiSkillsDir(user bool) (string, error) {
-	if !user {
-		return filepath.Join(".gemini", "skills"), nil
-	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(home, ".gemini", "skills"), nil
-}
-
-// opencodeSkillsDir returns the project (./.opencode/skills) or user
-// (~/.config/opencode/skills, the XDG config dir) skills directory used by
-// opencode.
-func opencodeSkillsDir(user bool) (string, error) {
-	if !user {
-		return filepath.Join(".opencode", "skills"), nil
-	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(home, ".config", "opencode", "skills"), nil
-}
-
-// clineSkillsDir returns the project (./.cline/skills) or user
-// (~/.cline/skills) skills directory used by Cline.
-func clineSkillsDir(user bool) (string, error) {
-	if !user {
-		return filepath.Join(".cline", "skills"), nil
-	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(home, ".cline", "skills"), nil
-}
-
-// windsurfSkillsDir returns the project (./.windsurf/skills) skills directory
-// used by Windsurf. Windsurf has no documented user-level skills dir, so this
-// is project-only (installForAgent forces user=false before calling it).
-func windsurfSkillsDir(_ bool) (string, error) {
-	return filepath.Join(".windsurf", "skills"), nil
+	return filepath.Join(append([]string{home}, t.user...)...), nil
 }
 
 // writeSkillFile creates parent dirs and writes the file, reporting whether it
