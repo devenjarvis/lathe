@@ -292,13 +292,6 @@
     function savedProgressHeadingID(){
       return progress.getAttribute('data-saved-heading-id') || '';
     }
-    function scrollToRatio(ratio){
-      var doc = document.documentElement;
-      var max = (doc.scrollHeight - doc.clientHeight) || 0;
-      if (max <= 0) return false;
-      window.scrollTo({top: Math.round(max * ratio), behavior: 'auto'});
-      return true;
-    }
     function currentHeadingID(){
       var headings = document.querySelectorAll('main h1[id], main h2[id], main h3[id], main h4[id], main h5[id], main h6[id]');
       var current = '';
@@ -310,21 +303,60 @@
       });
       return current;
     }
+    // nextHeadingTop returns the absolute document top of the first heading
+    // after `heading` in document order (i.e. the end of its section), or
+    // `fallback` when there is none.
+    function nextHeadingTop(heading, scrollTop, fallback){
+      var headings = document.querySelectorAll('main h1[id], main h2[id], main h3[id], main h4[id], main h5[id], main h6[id]');
+      var seen = false;
+      for (var i = 0; i < headings.length; i++) {
+        if (seen) return headings[i].getBoundingClientRect().top + scrollTop;
+        if (headings[i] === heading) seen = true;
+      }
+      return fallback;
+    }
     function restoreProgress(){
+      // Let an explicit fragment target (ToC link, #heading) win.
+      if (location.hash) return;
+      // On a reload or back/forward the browser already restored scroll.
+      var nav = (window.performance && performance.getEntriesByType) ? performance.getEntriesByType('navigation')[0] : null;
+      if (nav && (nav.type === 'reload' || nav.type === 'back_forward')) return;
+
       var ratio = savedProgressRatio();
-      if (ratio !== null && scrollToRatio(ratio)) {
-        update();
+      var headingID = savedProgressHeadingID();
+      var doc = document.documentElement;
+      var max = (doc.scrollHeight - doc.clientHeight) || 0;
+
+      // No usable ratio: anchor on the saved heading alone.
+      if (ratio === null) {
+        if (headingID) {
+          var anchor = document.getElementById(headingID);
+          if (anchor) { anchor.scrollIntoView({block: 'start', behavior: 'auto'}); update(); }
+        }
         return;
       }
-      var headingID = savedProgressHeadingID();
+      if (max <= 0) return;
+
+      // The page-level ratio reconstructs the intended absolute scroll position
+      // (exact when the page geometry is unchanged). The saved heading is a
+      // stability anchor: clamp the target into the heading's own section so a
+      // post-load height shift (e.g. async mermaid render) can't land the reader
+      // past where they actually were.
+      var target = ratio * max;
       if (headingID) {
         var heading = document.getElementById(headingID);
         if (heading) {
-          heading.scrollIntoView({block: 'start', behavior: 'auto'});
-          update();
-          return;
+          var scrollTop = window.scrollY || doc.scrollTop || 0;
+          var headingTop = heading.getBoundingClientRect().top + scrollTop;
+          var sectionEnd = nextHeadingTop(heading, scrollTop, doc.scrollHeight);
+          if (target < headingTop) target = headingTop;
+          if (target > sectionEnd) target = sectionEnd;
         }
       }
+      if (target > max) target = max;
+      if (target < 0) target = 0;
+      window.scrollTo({top: Math.round(target), behavior: 'auto'});
+      update();
     }
     function update(){
       pending = false;

@@ -2,7 +2,6 @@ package store
 
 import (
 	"encoding/json"
-	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -29,7 +28,12 @@ type Tutorial struct {
 	Tags        []string  `json:"tags,omitempty"`
 	Parts       []string  `json:"parts,omitempty"`
 	PendingPart string    `json:"pending_part,omitempty"`
-	Progress    *Progress `json:"progress,omitempty"`
+	// Progress is the reader-saved position, read from the progress.json sidecar
+	// at ReadMetadata time. It is tagged json:"-" so a ReadMetadata→mutate→
+	// WriteMetadata round-trip can never snapshot the sidecar into metadata.json
+	// (the binary stays the sole writer of each durable file). nil when there is
+	// no progress.json or it could not be read.
+	Progress *Progress `json:"-"`
 	// Repo is the canonical identifier (host/org/repo) of the git repository the
 	// tutorial was written for, derived from the repo's origin remote by the
 	// generation skill and normalized by NormalizeRepo. Tutorials with no repo
@@ -111,64 +115,91 @@ type VerifyResult struct {
 }
 
 func ReadMetadata(tutorialDir string) (*Tutorial, error) {
-	data, err := os.ReadFile(filepath.Join(tutorialDir, "metadata.json"))
-	if err != nil {
-		return nil, err
-	}
 	var t Tutorial
-	if err := json.Unmarshal(data, &t); err != nil {
+	if err := readJSONFile(filepath.Join(tutorialDir, "metadata.json"), &t); err != nil {
 		return nil, err
 	}
-	t.Progress = nil
+	// Read progress best-effort: a corrupt, locked, or missing progress.json
+	// must never block reading the tutorial. Any error leaves Progress nil and
+	// is swallowed here — mirroring how verify-result.json is read at point of
+	// use with errors ignored.
 	if progress, err := ReadProgress(tutorialDir); err == nil {
 		t.Progress = progress
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return nil, err
 	}
 	return &t, nil
 }
 
 func WriteMetadata(tutorialDir string, t *Tutorial) error {
-	data, err := json.MarshalIndent(t, "", "  ")
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(filepath.Join(tutorialDir, "metadata.json"), data, 0644)
+	return writeJSONFile(filepath.Join(tutorialDir, "metadata.json"), t)
 }
 
 func ReadProgress(tutorialDir string) (*Progress, error) {
-	data, err := os.ReadFile(filepath.Join(tutorialDir, "progress.json"))
-	if err != nil {
-		return nil, err
-	}
 	var progress Progress
-	if err := json.Unmarshal(data, &progress); err != nil {
+	if err := readJSONFile(filepath.Join(tutorialDir, "progress.json"), &progress); err != nil {
 		return nil, err
 	}
 	return &progress, nil
 }
 
-func SaveProgress(tutorialDir string, progress *Progress) error {
-	data, err := json.MarshalIndent(progress, "", "  ")
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(filepath.Join(tutorialDir, "progress.json"), data, 0644)
+func WriteProgress(tutorialDir string, progress *Progress) error {
+	return writeJSONFile(filepath.Join(tutorialDir, "progress.json"), progress)
 }
 
 func ReadVerifyResult(tutorialDir string) (*VerifyResult, error) {
-	data, err := os.ReadFile(filepath.Join(tutorialDir, "verify-result.json"))
-	if err != nil {
+	var v VerifyResult
+	if err := readJSONFile(filepath.Join(tutorialDir, "verify-result.json"), &v); err != nil {
 		return nil, err
 	}
-	var v VerifyResult
-	return &v, json.Unmarshal(data, &v)
+	return &v, nil
 }
 
 func WriteVerifyResult(tutorialDir string, v *VerifyResult) error {
+	return writeJSONFile(filepath.Join(tutorialDir, "verify-result.json"), v)
+}
+
+// readJSONFile reads path and unmarshals its JSON into v. It returns the raw
+// os/json error to the caller (callers like ReadMetadata decide whether to
+// swallow it).
+func readJSONFile(path string, v any) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(data, v)
+}
+
+// writeJSONFile marshals v as indented JSON and writes it to path atomically:
+// it writes a temp file in the same directory (so the rename stays on one
+// filesystem) and os.Rename's it into place, so a torn write can never leave a
+// half-written or corrupt file behind.
+func writeJSONFile(path string, v any) error {
 	data, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(tutorialDir, "verify-result.json"), data, 0644)
+	dir := filepath.Dir(path)
+	tmp, err := os.CreateTemp(dir, ".tmp-"+filepath.Base(path)+"-*")
+	if err != nil {
+		return err
+	}
+	tmpName := tmp.Name()
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		_ = os.Remove(tmpName)
+		return err
+	}
+	if err := tmp.Chmod(0644); err != nil {
+		_ = tmp.Close()
+		_ = os.Remove(tmpName)
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		_ = os.Remove(tmpName)
+		return err
+	}
+	if err := os.Rename(tmpName, path); err != nil {
+		_ = os.Remove(tmpName)
+		return err
+	}
+	return nil
 }

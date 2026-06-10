@@ -1,8 +1,6 @@
 package serve
 
 import (
-	"encoding/json"
-	"io"
 	"net/http"
 	"os"
 	"strings"
@@ -56,23 +54,10 @@ func (s *Server) handleAsk(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Cap the request body. http.MaxBytesReader returns an error from Read once
-	// the limit is exceeded; ReadAll surfaces that as an error.
-	r.Body = http.MaxBytesReader(w, r.Body, maxQuestionBytes)
-	raw, err := io.ReadAll(r.Body)
-	if err != nil {
-		http.Error(w, "request body too large", http.StatusBadRequest)
-		return
-	}
-	if len(raw) == 0 {
-		http.Error(w, "empty request body", http.StatusBadRequest)
-		return
-	}
 	var payload struct {
 		Question string `json:"question"`
 	}
-	if err := json.Unmarshal(raw, &payload); err != nil {
-		http.Error(w, "invalid JSON", http.StatusBadRequest)
+	if !readJSONBody(w, r, maxQuestionBytes, &payload) {
 		return
 	}
 	question := strings.TrimSpace(payload.Question)

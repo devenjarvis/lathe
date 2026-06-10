@@ -300,6 +300,40 @@ func TestStoreDefaultsToUnverified(t *testing.T) {
 	}
 }
 
+func TestReStoreDropsStaleProgress(t *testing.T) {
+	src := t.TempDir()
+	if err := os.WriteFile(filepath.Join(src, "index.md"), []byte("# Hello"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+
+	tut, err := store.Store(src, store.StoreOptions{})
+	if err != nil {
+		t.Fatalf("Store() error = %v", err)
+	}
+	tutDir := filepath.Join(homeDir, ".lathe", "tutorials", tut.Slug)
+
+	// Reader saves progress, then the tutorial is regenerated and re-stored.
+	if err := store.WriteProgress(tutDir, &store.Progress{Part: "index.md", Ratio: 0.42}); err != nil {
+		t.Fatalf("WriteProgress: %v", err)
+	}
+	if _, err := store.Store(src, store.StoreOptions{}); err != nil {
+		t.Fatalf("re-Store() error = %v", err)
+	}
+
+	got, err := store.ReadMetadata(tutDir)
+	if err != nil {
+		t.Fatalf("ReadMetadata: %v", err)
+	}
+	if got.Progress != nil {
+		t.Errorf("re-store kept stale progress = %+v, want nil", got.Progress)
+	}
+	if _, err := os.Stat(filepath.Join(tutDir, "progress.json")); !os.IsNotExist(err) {
+		t.Errorf("progress.json should be removed on re-store; stat err = %v", err)
+	}
+}
+
 func TestStoreDoesNotSpawnVerifier(t *testing.T) {
 	src := t.TempDir()
 	if err := os.WriteFile(filepath.Join(src, "index.md"), []byte("# Hello"), 0644); err != nil {
