@@ -295,7 +295,7 @@ func TestListPageRendersCardsAndVersions(t *testing.T) {
 			t.Fatal(err)
 		}
 		if progress != nil {
-			if err := store.SaveProgress(tutDir, progress); err != nil {
+			if err := store.WriteProgress(tutDir, progress); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -347,8 +347,8 @@ func TestListPageRendersSeriesCardProgress(t *testing.T) {
 	dir := t.TempDir()
 	tutDir := filepath.Join(dir, "test-series")
 	makeSeriesTutorialWithParts(t, dir, "test-series", 4)
-	if err := store.SaveProgress(tutDir, &store.Progress{Part: "part-02.md", Ratio: 0.42, UpdatedAt: time.Now()}); err != nil {
-		t.Fatalf("SaveProgress: %v", err)
+	if err := store.WriteProgress(tutDir, &store.Progress{Part: "part-02.md", Ratio: 0.42, UpdatedAt: time.Now()}); err != nil {
+		t.Fatalf("WriteProgress: %v", err)
 	}
 
 	body := listPageBody(t, dir)
@@ -384,8 +384,8 @@ func TestListPageOmitsStaleSeriesCardProgress(t *testing.T) {
 	dir := t.TempDir()
 	tutDir := filepath.Join(dir, "test-series")
 	makeSeriesTutorialWithParts(t, dir, "test-series", 4)
-	if err := store.SaveProgress(tutDir, &store.Progress{Part: "part-99.md", Ratio: 0.42, UpdatedAt: time.Now()}); err != nil {
-		t.Fatalf("SaveProgress: %v", err)
+	if err := store.WriteProgress(tutDir, &store.Progress{Part: "part-99.md", Ratio: 0.42, UpdatedAt: time.Now()}); err != nil {
+		t.Fatalf("WriteProgress: %v", err)
 	}
 
 	body := listPageBody(t, dir)
@@ -393,6 +393,24 @@ func TestListPageOmitsStaleSeriesCardProgress(t *testing.T) {
 
 	if strings.Contains(card, `tutorial-progress`) {
 		t.Error("list page should omit card progress for stale series progress part")
+	}
+}
+
+func TestListPageOmitsStaleNonSeriesCardProgress(t *testing.T) {
+	// A 1-part/legacy tutorial whose saved part no longer exists (e.g. index.md
+	// promoted to part-01.md) must render no card progress bar — mirroring the
+	// series branch's validity check.
+	dir := t.TempDir()
+	tutDir := makeTestTutorial(t, dir, "legacy-tut", false)
+	if err := store.WriteProgress(tutDir, &store.Progress{Part: "part-99.md", Ratio: 0.42, UpdatedAt: time.Now()}); err != nil {
+		t.Fatalf("WriteProgress: %v", err)
+	}
+
+	body := listPageBody(t, dir)
+	card := tutorialCard(t, body, "legacy-tut")
+
+	if strings.Contains(card, `tutorial-progress`) {
+		t.Error("list page should omit card progress for stale non-series progress part")
 	}
 }
 
@@ -430,8 +448,8 @@ func TestTutorialPage(t *testing.T) {
 func TestTutorialPageRendersCurrentProgressData(t *testing.T) {
 	dir := t.TempDir()
 	tutDir := makeTestTutorial(t, dir, "test-series", true)
-	if err := store.SaveProgress(tutDir, &store.Progress{Part: "part-02.md", Ratio: 0.42, HeadingID: "next-step", UpdatedAt: time.Now()}); err != nil {
-		t.Fatalf("SaveProgress: %v", err)
+	if err := store.WriteProgress(tutDir, &store.Progress{Part: "part-02.md", Ratio: 0.42, HeadingID: "next-step", UpdatedAt: time.Now()}); err != nil {
+		t.Fatalf("WriteProgress: %v", err)
 	}
 
 	srv := serve.NewServer(dir)
@@ -991,8 +1009,8 @@ func TestSeriesRedirect(t *testing.T) {
 func TestSeriesRedirectUsesProgressPart(t *testing.T) {
 	dir := t.TempDir()
 	tutDir := makeTestTutorial(t, dir, "test-series", true)
-	if err := store.SaveProgress(tutDir, &store.Progress{Part: "part-02.md", Ratio: 0.5, UpdatedAt: time.Now()}); err != nil {
-		t.Fatalf("SaveProgress: %v", err)
+	if err := store.WriteProgress(tutDir, &store.Progress{Part: "part-02.md", Ratio: 0.5, UpdatedAt: time.Now()}); err != nil {
+		t.Fatalf("WriteProgress: %v", err)
 	}
 
 	srv := serve.NewServer(dir)
@@ -1011,8 +1029,8 @@ func TestSeriesRedirectUsesProgressPart(t *testing.T) {
 func TestSeriesRedirectIgnoresStaleProgressPart(t *testing.T) {
 	dir := t.TempDir()
 	tutDir := makeTestTutorial(t, dir, "test-series", true)
-	if err := store.SaveProgress(tutDir, &store.Progress{Part: "part-99.md", Ratio: 0.5, UpdatedAt: time.Now()}); err != nil {
-		t.Fatalf("SaveProgress: %v", err)
+	if err := store.WriteProgress(tutDir, &store.Progress{Part: "part-99.md", Ratio: 0.5, UpdatedAt: time.Now()}); err != nil {
+		t.Fatalf("WriteProgress: %v", err)
 	}
 
 	srv := serve.NewServer(dir)
@@ -1397,6 +1415,30 @@ func TestProgressEndpointClampsProgress(t *testing.T) {
 				t.Errorf("Progress.Ratio = %v, want %v", tut.Progress.Ratio, tc.want)
 			}
 		})
+	}
+}
+
+func TestProgressEndpointRejectsOversizeBody(t *testing.T) {
+	dir := t.TempDir()
+	tutDir := makeTestTutorial(t, dir, "test-series", true)
+
+	// A body well past maxProgressBytes (1 KiB) should be a 413, not a 400.
+	big := `{"ratio":0.5,"heading_id":"` + strings.Repeat("a", 4096) + `"}`
+	srv := serve.NewServer(dir)
+	req := httptest.NewRequest(http.MethodPost, "/-/progress/test-series/part-01.md", bytes.NewBufferString(big))
+	req.Header.Set("Origin", "http://localhost:4242")
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusRequestEntityTooLarge {
+		t.Errorf("oversize progress body = %d, want %d", w.Code, http.StatusRequestEntityTooLarge)
+	}
+	tut, err := store.ReadMetadata(tutDir)
+	if err != nil {
+		t.Fatalf("ReadMetadata: %v", err)
+	}
+	if tut.Progress != nil {
+		t.Errorf("oversize progress wrote metadata: %+v", tut.Progress)
 	}
 }
 

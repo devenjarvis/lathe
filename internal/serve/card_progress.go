@@ -24,6 +24,13 @@ func cardProgress(tut *store.Tutorial) *CardProgress {
 		return nil
 	}
 	if !tut.IsSeries() {
+		// Mirror the series branch: don't render progress for a part that no
+		// longer exists (e.g. a legacy index.md promoted to part-01.md, or a
+		// re-store that changed the part set), which would otherwise show a bar
+		// for content the reader can't reach.
+		if !isKnownPart(tut, tut.Progress.Part) {
+			return nil
+		}
 		return &CardProgress{Percent: percent(tut.Progress.Ratio)}
 	}
 	for i, part := range tut.Parts {
@@ -58,11 +65,5 @@ func cardProgress(tut *store.Tutorial) *CardProgress {
 }
 
 func percent(progress float64) int {
-	if progress < 0 {
-		progress = 0
-	}
-	if progress > 1 {
-		progress = 1
-	}
-	return int(math.Round(progress * 100))
+	return int(math.Round(clampRatio(progress) * 100))
 }

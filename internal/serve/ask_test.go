@@ -113,13 +113,14 @@ func TestAskHandlerValidation(t *testing.T) {
 		}
 	})
 
-	t.Run("oversize body returns 400", func(t *testing.T) {
-		// 10KB question -> oversize since the cap is 8KB.
+	t.Run("oversize body returns 413", func(t *testing.T) {
+		// 10KB question -> oversize since the cap is 8KB. A genuine size overflow
+		// is a 413 (shared readJSONBody helper), not a generic 400.
 		big := strings.Repeat("a", 10*1024)
 		body := []byte(`{"question":"` + big + `"}`)
 		w := postAsk(t, srv, "tut", "index.md", body)
-		if w.Code != http.StatusBadRequest {
-			t.Errorf("oversize body = %d, want 400", w.Code)
+		if w.Code != http.StatusRequestEntityTooLarge {
+			t.Errorf("oversize body = %d, want 413", w.Code)
 		}
 	})
 
