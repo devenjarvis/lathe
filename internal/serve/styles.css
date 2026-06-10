@@ -443,7 +443,7 @@ pre[data-overflow="true"]{box-shadow:inset -18px 0 14px -12px rgba(40,30,20,.20)
 .ask-question{align-self:flex-end;background:var(--accent-soft);color:var(--accent);white-space:pre-wrap}
 .ask-answer{align-self:flex-start;background:var(--surface-sunken);white-space:pre-wrap}
 /* Handoff panels: answering, verifying, and extending now run in the user's
-   interactive Claude Code session, so these surfaces hand back a slash-command
+   interactive coding-agent session, so these surfaces hand back a slash-command
    to paste rather than streaming a result. Shared styling for the Ask-drawer
    bubble variant (.ask-handoff*) and the verify/extend form variant
    (.handoff-*). */

@@ -134,8 +134,8 @@ func TestAskHandlerValidation(t *testing.T) {
 }
 
 // A valid question is answered by handing the reader the /lathe-ask command to
-// paste into their interactive Claude Code session — carrying their question
-// verbatim — rather than spawning a metered headless `claude -p`.
+// paste into their interactive coding-agent session — carrying their question
+// verbatim — rather than spawning a model from the binary.
 func TestAskReturnsHandoffCommand(t *testing.T) {
 	dir := t.TempDir()
 	makeTutFixture(t, dir, "tut", false)

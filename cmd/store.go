@@ -45,11 +45,11 @@ var storeCmd = &cobra.Command{
 			}
 			fmt.Println()
 		}
-		// Verification runs in the user's interactive Claude Code session via
-		// the /lathe-verify skill (no metered headless run), so --verify just
-		// surfaces the command to run rather than spawning anything.
+		// Verification runs in the user's interactive coding-agent session via
+		// the /lathe-verify skill (the binary never drives a model), so --verify
+		// just surfaces the command to run rather than spawning anything.
 		if withVerify {
-			fmt.Printf("\nTo verify it, run this in your Claude Code session:\n\n  /lathe-verify %s\n", tut.Slug)
+			fmt.Printf("\nTo verify it, run this in your coding agent:\n\n  /lathe-verify %s\n", tut.Slug)
 		}
 		return nil
 	},

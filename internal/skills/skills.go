@@ -1,5 +1,8 @@
-// Package skills bundles the Lathe Claude Code skills into the binary so
-// `lathe skills install` can write them out with no repo clone.
+// Package skills bundles the Lathe skills into the binary so
+// `lathe skills install` can write them out with no repo clone. The SKILL.md
+// format is a cross-tool standard, so the same embedded bytes ship to every
+// supported agent (Claude Code, Codex, Gemini CLI, opencode, Cline, Windsurf);
+// only Cursor needs a translation (see cursor.go).
 //
 // The embedded copies under data/ are generated from the human-edited source at
 // .claude/skills by `mage skills`; a `mage skillsCheck` parity gate (wired into
@@ -21,8 +24,8 @@ import (
 var dataFS embed.FS
 
 // Skill is one bundled skill: its slug (directory name), the raw SKILL.md bytes
-// (Claude Code frontmatter included), and the name/description parsed from the
-// YAML frontmatter.
+// (YAML frontmatter included), and the name/description parsed from the
+// frontmatter.
 type Skill struct {
 	Slug        string
 	Name        string

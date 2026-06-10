@@ -25,7 +25,7 @@ var listCmd = &cobra.Command{
 			return err
 		}
 		if len(entries) == 0 {
-			fmt.Println("No tutorials yet. Run /lathe in Claude Code to generate one.")
+			fmt.Println("No tutorials yet. Run /lathe in your coding agent to generate one.")
 			return nil
 		}
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
