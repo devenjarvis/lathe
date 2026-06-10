@@ -1,6 +1,7 @@
 package store
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -45,6 +46,14 @@ func Store(srcPath string, opts StoreOptions) (*Tutorial, error) {
 	destDir := filepath.Join(tutorialsDir, slug)
 	if err := copyDir(srcPath, destDir); err != nil {
 		return nil, fmt.Errorf("copy tutorial: %w", err)
+	}
+
+	// copyDir merges into an existing dest dir, but the skill's temp source never
+	// contains a progress.json — so a sidecar from a prior store of this slug
+	// would survive and resurrect a stale reader position against regenerated
+	// content. Drop it on (re-)store.
+	if err := os.Remove(filepath.Join(destDir, "progress.json")); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return nil, fmt.Errorf("clear stale progress: %w", err)
 	}
 
 	parts := detectParts(destDir)
