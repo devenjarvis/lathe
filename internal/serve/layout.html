@@ -385,14 +385,25 @@
   })();
 </script>
 <script>
-  // Save progress — explicit user action that persists the current progress
-  // ratio + nearest heading through the local server and updates the marker
-  // from the response.
+  // Save progress — persists the reading progress ratio + nearest heading.
+  // Performs automatic background saves when the user dwells on a section
+  // for at least 3 seconds, ensuring progress is saved monotonically (only forward).
+  // Clicking the manual "Save progress" button triggers an immediate save.
   (function(){
     var progress = document.getElementById('progressBar');
     var buttons = document.querySelectorAll('[data-progress-save]');
     var status = document.getElementById('progressStatus');
     if (!progress || !buttons.length) return;
+
+    var lastSavedRatio = null;
+    function initSavedRatio() {
+      var raw = progress.getAttribute('data-saved-progress');
+      if (raw) {
+        var val = parseFloat(raw);
+        if (!isNaN(val)) lastSavedRatio = val;
+      }
+    }
+    initSavedRatio();
 
     function setStatus(message, error){
       if (!status) return;
@@ -407,40 +418,120 @@
     function setBusy(busy){
       buttons.forEach(function(button){ button.disabled = busy; });
     }
-    buttons.forEach(function(button){
-      button.addEventListener('click', function(){
-        var slug = progress.getAttribute('data-slug') || '';
-        var part = progress.getAttribute('data-part') || '';
-        var reader = window.latheReadingProgress;
-        if (!slug || !part || !reader || !reader.currentRatio) return;
 
+    function triggerSave(ratio, headingID, isAuto) {
+      var slug = progress.getAttribute('data-slug') || '';
+      var part = progress.getAttribute('data-part') || '';
+      if (!slug || !part) return;
+
+      // Monotonic guard: auto-save only moves progress forward
+      if (isAuto && lastSavedRatio !== null && ratio <= lastSavedRatio + 0.02) {
+        return;
+      }
+
+      if (!isAuto) {
         setBusy(true);
         setStatus('', false);
+      } else {
+        setStatus('Auto-saving...', false);
+      }
+
+      fetch('/-/progress/' + encodeURIComponent(slug) + '/' + encodeURIComponent(part), {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ratio: ratio, heading_id: headingID})
+      }).then(function(response){
+        if (!response.ok) {
+          return response.text().then(function(text){
+            throw new Error(text || ('HTTP ' + response.status));
+          });
+        }
+        return response.json();
+      }).then(function(data){
+        var saved = data && data.progress ? data.progress.ratio : ratio;
+        var savedHeading = data && data.progress ? data.progress.heading_id : headingID;
+        lastSavedRatio = saved;
+        
+        var reader = window.latheReadingProgress;
+        if (reader && reader.setSavedProgress) {
+          reader.setSavedProgress(saved, savedHeading);
+        }
+        setStatus(isAuto ? 'Progress auto-saved' : 'Progress saved', false);
+      }).catch(function(err){
+        if (!isAuto) {
+          setStatus('Progress save failed: ' + (err && err.message ? err.message : 'request failed'), true);
+        } else {
+          console.warn('Lathe auto-save failed:', err);
+          setStatus('', false);
+        }
+      }).then(function(){
+        if (!isAuto) {
+          setBusy(false);
+        }
+      });
+    }
+
+    // Manual save button trigger
+    buttons.forEach(function(button){
+      button.addEventListener('click', function(){
+        var reader = window.latheReadingProgress;
+        if (!reader || !reader.currentRatio) return;
         var ratio = reader.currentRatio();
         var headingID = reader.currentHeadingID ? reader.currentHeadingID() : '';
-        fetch('/-/progress/' + encodeURIComponent(slug) + '/' + encodeURIComponent(part), {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({ratio: ratio, heading_id: headingID})
-        }).then(function(response){
-          if (!response.ok) {
-            return response.text().then(function(text){
-              throw new Error(text || ('HTTP ' + response.status));
-            });
-          }
-          return response.json();
-        }).then(function(data){
-          var saved = data && data.progress ? data.progress.ratio : ratio;
-          var savedHeading = data && data.progress ? data.progress.heading_id : headingID;
-          if (reader.setSavedProgress) reader.setSavedProgress(saved, savedHeading);
-          setStatus('Progress saved', false);
-        }).catch(function(err){
-          setStatus('Progress save failed: ' + (err && err.message ? err.message : 'request failed'), true);
-        }).then(function(){
-          setBusy(false);
-        });
+        triggerSave(ratio, headingID, false);
       });
     });
+
+    // Dwell-time active viewport tracker for auto-saving
+    var currentHeading = '';
+    var dwellTimer = null;
+    var lastCheckedRatio = 0;
+
+    function handleHeadingChange(newHeading) {
+      if (dwellTimer) {
+        clearTimeout(dwellTimer);
+        dwellTimer = null;
+      }
+
+      currentHeading = newHeading;
+      
+      var reader = window.latheReadingProgress;
+      if (!reader || !reader.currentRatio) return;
+      var ratio = reader.currentRatio();
+
+      // Start a 3-second dwell timer for the active section
+      dwellTimer = setTimeout(function() {
+        var currentReader = window.latheReadingProgress;
+        if (!currentReader || !currentReader.currentRatio) return;
+        
+        var freshRatio = currentReader.currentRatio();
+        var freshHeading = currentReader.currentHeadingID ? currentReader.currentHeadingID() : '';
+        
+        // Confirm the user is still on the same heading/section
+        if (freshHeading === currentHeading) {
+          triggerSave(freshRatio, freshHeading, true);
+        }
+      }, 3000);
+    }
+
+    // Monitor active section changes on scroll
+    window.addEventListener('scroll', function() {
+      var reader = window.latheReadingProgress;
+      if (!reader || !reader.currentHeadingID) return;
+      
+      var newHeading = reader.currentHeadingID();
+      if (newHeading !== currentHeading) {
+        handleHeadingChange(newHeading);
+      }
+    }, {passive: true});
+
+    // Initial check on load
+    setTimeout(function() {
+      var reader = window.latheReadingProgress;
+      if (reader && reader.currentHeadingID) {
+        handleHeadingChange(reader.currentHeadingID());
+      }
+    }, 500);
   })();
 </script>
 <script>
