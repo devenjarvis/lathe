@@ -3,6 +3,7 @@ package serve
 import (
 	"bytes"
 	"embed"
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"net/http"
@@ -160,6 +161,22 @@ func (s *Server) handleList(w http.ResponseWriter, r *http.Request) {
 	sort.SliceStable(tutorials, func(a, b int) bool {
 		return tutorials[a].Created.After(tutorials[b].Created)
 	})
+	if strings.Contains(r.Header.Get("Accept"), "application/json") {
+		type ProgressJSON struct {
+			Slug     string        `json:"slug"`
+			Progress *CardProgress `json:"progress"`
+		}
+		var list []ProgressJSON
+		for _, tut := range tutorials {
+			list = append(list, ProgressJSON{
+				Slug:     tut.Slug,
+				Progress: cardProgress(tut),
+			})
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(list)
+		return
+	}
 	var buf bytes.Buffer
 	if err := s.listTmpl.Execute(&buf, map[string]any{
 		"Tutorials":    tutorials,

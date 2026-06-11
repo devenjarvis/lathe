@@ -235,6 +235,71 @@
     sort();   // default ordering (newest) for the flat list
     apply();
   })();
+  
+  // Refresh progress cards in place if navigating back via browser back button (bfcache).
+  window.addEventListener('pageshow', function(event) {
+    if (event.persisted) {
+      fetch('/', {
+        headers: { 'Accept': 'application/json' }
+      })
+      .then(function(res) { return res.json(); })
+      .then(function(data) {
+        if (!Array.isArray(data)) return;
+        data.forEach(function(item) {
+          var card = document.querySelector('.tutorial[data-slug="' + item.slug + '"]');
+          if (!card) return;
+          var body = card.querySelector('.tutorial-body');
+          if (!body) return;
+          
+          var progEl = body.querySelector('.tutorial-progress');
+          var p = item.progress;
+          
+          if (!p) {
+            if (progEl) progEl.remove();
+            return;
+          }
+          
+          var html = '';
+          if (p.IsSeries) {
+            var segmentsHtml = '';
+            if (p.Segments) {
+              p.Segments.forEach(function(seg) {
+                var currentClass = seg.Current ? ' current' : '';
+                segmentsHtml += '<span class="segment' + currentClass + '" aria-hidden="true">' +
+                  '<span class="fill" style="width:' + seg.Percent + '%"></span></span>';
+              });
+            }
+            html = '<div class="tutorial-progress-track tutorial-progress-segments">' + segmentsHtml + '</div>' +
+              '<span class="tutorial-progress-label">Part ' + p.PartNumber + ' of ' + p.TotalParts + ' (' + p.Percent + '%)</span>';
+          } else {
+            html = '<div class="tutorial-progress-track"><span class="fill" style="width:' + p.Percent + '%"></span></div>' +
+              '<span class="tutorial-progress-label">Progress ' + p.Percent + '%</span>';
+          }
+          
+          if (!progEl) {
+            progEl = document.createElement('div');
+            progEl.className = 'tutorial-progress';
+            var meta = body.querySelector('.meta');
+            if (meta && meta.nextSibling) {
+              body.insertBefore(progEl, meta.nextSibling);
+            } else {
+              body.appendChild(progEl);
+            }
+          }
+          
+          if (p.IsSeries) {
+            progEl.setAttribute('aria-label', 'Saved at part ' + p.PartNumber + ' of ' + p.TotalParts);
+          } else {
+            progEl.setAttribute('aria-label', 'Progress at ' + p.Percent + '%');
+          }
+          progEl.innerHTML = html;
+        });
+      })
+      .catch(function(err) {
+        console.error('Failed to update progress cards:', err);
+      });
+    }
+  });
 </script>
 </body>
 </html>
