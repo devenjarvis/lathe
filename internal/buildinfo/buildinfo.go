@@ -7,7 +7,7 @@
 // installed binaries still show something useful (like v0.1.0) instead of "dev".
 //
 // This package deliberately has no cobra import so internal/ stays cobra-free
-// (see CLAUDE.md conventions).
+// (see AGENTS.md conventions).
 package buildinfo
 
 import "runtime/debug"

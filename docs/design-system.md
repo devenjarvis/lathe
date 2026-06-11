@@ -165,7 +165,7 @@ and the syntax CSS both react (the dark Chroma rules are scoped under
 
 ## How to add a new status or callout
 
-These map 1:1 to the files CLAUDE.md already lists — add a token, then reference
+These map 1:1 to the files AGENTS.md already lists — add a token, then reference
 it from a component class:
 
 **New status badge:**
