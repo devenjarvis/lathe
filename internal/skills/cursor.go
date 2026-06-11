@@ -14,7 +14,7 @@ import (
 // and prepend a plain Markdown title + description header. The body (the bash
 // `lathe ...` calls and prose guidance) is preserved verbatim -- it reads fine
 // as Cursor instructions. We deliberately do not port the interactive-handoff
-// runtime model here; trigger + body only (see CLAUDE.md / the install caveats).
+// runtime model here; trigger + body only (see AGENTS.md / the install caveats).
 func CursorCommand(s Skill) string {
 	body := frontmatter.Strip(string(s.Raw))
 
