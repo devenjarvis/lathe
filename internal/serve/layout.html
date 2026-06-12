@@ -18,7 +18,7 @@
   </script>
 </head>
 <body>
-<div id="progressBar" aria-hidden="true" data-slug="{{.Tutorial.Slug}}" data-part="{{.CurrentPart}}" data-saved-progress="{{if .CurrentProgress}}{{.CurrentProgress.Ratio}}{{end}}" data-saved-heading-id="{{if .CurrentProgress}}{{.CurrentProgress.HeadingID}}{{end}}"><div></div><span id="savedProgressMarker" hidden></span></div>
+<div id="progressBar" aria-hidden="true" data-slug="{{.Tutorial.Slug}}" data-part="{{.CurrentPart}}" data-saved-progress="{{if .CurrentProgress}}{{.CurrentProgress.Ratio}}{{end}}" data-saved-heading-id="{{if .CurrentProgress}}{{.CurrentProgress.HeadingID}}{{end}}" data-current-part-number="{{.CurrentPartNumber}}" data-saved-part-number="{{.SavedPartNumber}}" data-total-parts="{{.TotalParts}}"><div></div><span id="savedProgressMarker" hidden></span></div>
 <header id="topBar">
   <button type="button" id="hamburger" aria-label="Toggle navigation" aria-controls="sidebar" aria-expanded="false">≡</button>
   <a href="/" class="back-link">← All tutorials</a>
@@ -424,7 +424,16 @@
       var part = progress.getAttribute('data-part') || '';
       if (!slug || !part) return;
 
-      // Monotonic guard: auto-save only moves progress forward
+      // Cross-part monotonic guard: auto-save never regresses to an earlier part.
+      if (isAuto) {
+        var currentPartNum = parseInt(progress.getAttribute('data-current-part-number'), 10) || 0;
+        var savedPartNum = parseInt(progress.getAttribute('data-saved-part-number'), 10) || 0;
+        if (currentPartNum > 0 && savedPartNum > 0 && currentPartNum < savedPartNum) {
+          return;
+        }
+      }
+
+      // Within-part monotonic guard: auto-save only moves progress forward
       if (isAuto && lastSavedRatio !== null && ratio <= lastSavedRatio + 0.02) {
         return;
       }
@@ -439,7 +448,7 @@
       fetch('/-/progress/' + encodeURIComponent(slug) + '/' + encodeURIComponent(part), {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ratio: ratio, heading_id: headingID})
+        body: JSON.stringify({ratio: ratio, heading_id: headingID, auto: isAuto})
       }).then(function(response){
         if (!response.ok) {
           return response.text().then(function(text){
@@ -450,7 +459,20 @@
       }).then(function(data){
         var saved = data && data.progress ? data.progress.ratio : ratio;
         var savedHeading = data && data.progress ? data.progress.heading_id : headingID;
+        var savedPart = data && data.progress ? data.progress.part : part;
         lastSavedRatio = saved;
+
+        // Keep the saved-part-number data attribute in sync so the
+        // client-side cross-part guard stays accurate after a manual save
+        // that moves to a different part.
+        var totalParts = parseInt(progress.getAttribute('data-total-parts'), 10) || 0;
+        if (totalParts > 0 && savedPart) {
+          // part-NN.md → NN
+          var match = savedPart.match(/part-(\d+)\.md/);
+          if (match) {
+            progress.setAttribute('data-saved-part-number', match[1].replace(/^0+/, ''));
+          }
+        }
         
         var reader = window.latheReadingProgress;
         if (reader && reader.setSavedProgress) {

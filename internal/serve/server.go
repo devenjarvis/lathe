@@ -264,6 +264,18 @@ func isKnownPart(tut *store.Tutorial, part string) bool {
 	return false
 }
 
+// partIndex returns the 0-based position of part in tut.Parts, or -1 when the
+// part is not found. Used by the cross-part monotonic guard to compare part
+// ordering (lower index = earlier in the series).
+func partIndex(tut *store.Tutorial, part string) int {
+	for i, p := range tut.Parts {
+		if p == part {
+			return i
+		}
+	}
+	return -1
+}
+
 // sameOrigin reports whether a state-changing request originated from a page
 // served by this server. It rejects a *present* Origin or Referer that points
 // elsewhere — the defense against CSRF, where another site (or a LAN device)
@@ -410,6 +422,17 @@ func (s *Server) renderPart(w http.ResponseWriter, tut *store.Tutorial, tutDir, 
 
 	currentProgress := currentPartProgress(tut, part)
 
+	// Compute the 1-based part number of the globally saved progress so the
+	// client can perform a cheap cross-part monotonic check and avoid
+	// unnecessary API calls when re-visiting an earlier part.
+	savedPartNumber := 0
+	if tut.Progress != nil {
+		idx := partIndex(tut, tut.Progress.Part)
+		if idx >= 0 {
+			savedPartNumber = idx + 1
+		}
+	}
+
 	var buf bytes.Buffer
 	if err := s.layoutTmpl.Execute(&buf, map[string]any{
 		"Title":             tut.Title,
@@ -421,6 +444,8 @@ func (s *Server) renderPart(w http.ResponseWriter, tut *store.Tutorial, tutDir, 
 		"CurrentPart":       part,
 		"CurrentProgress":   currentProgress,
 		"CurrentPartNumber": currentNumber,
+		"SavedPartNumber":   savedPartNumber,
+		"TotalParts":        len(tut.Parts),
 		"Content":           template.HTML(content),
 		"CSS":               s.designCSS,
 		"HighlightCSS":      s.highlightCSS,
