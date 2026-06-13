@@ -1,0 +1,48 @@
+name: Feature proposal
+description: Propose a new feature or a change to how lathe works
+labels: ["proposal"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Lathe's v1 scope is deliberately narrow, so substantial features are
+        worth discussing *before* you build them — that's what this template is
+        for. Please skim the **"Things to avoid"** section of
+        [AGENTS.md](https://github.com/devenjarvis/lathe/blob/main/AGENTS.md)
+        first; it explains the boundaries (e.g. the model never runs inside the
+        Go binary) and why they exist. That said, we're pretty open-minded here,
+        and happy to discuss any ideas!
+
+        Small fixes don't need a proposal, just open a PR.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Describe the use case or pain point, not just the solution. What can't you do today?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+      description: What would you add or change? Sketch the CLI command, flag, UI, or skill behavior if you can.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other approaches you weighed, or existing workarounds. "None" is a fine answer.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Contribution
+      options:
+        - label: I'd be willing to help implement this (optional, but it helps us prioritize).
+          required: false
