@@ -38,6 +38,7 @@ func (s *Server) handleProgress(w http.ResponseWriter, r *http.Request) {
 	var payload struct {
 		Ratio     *float64 `json:"ratio"`
 		HeadingID string   `json:"heading_id"`
+		Auto      bool     `json:"auto"`
 	}
 	if !readJSONBody(w, r, maxProgressBytes, &payload) {
 		return
@@ -47,13 +48,42 @@ func (s *Server) handleProgress(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	progress := &store.Progress{
+	incoming := &store.Progress{
 		Part:      part,
 		Ratio:     clampRatio(*payload.Ratio),
 		HeadingID: strings.TrimSpace(payload.HeadingID),
 		UpdatedAt: time.Now().UTC(),
 	}
-	if err := store.WriteProgress(tutDir, progress); err != nil {
+
+	// Cross-part monotonic guard: only auto-saves are prevented from
+	// regressing progress. Manual saves (payload.Auto == false) are an
+	// explicit user action and always write through.
+	if payload.Auto {
+		if existing, err := store.ReadProgress(tutDir); err == nil && existing != nil {
+			existingIdx := partIndex(tut, existing.Part)
+			incomingIdx := partIndex(tut, incoming.Part)
+			if existingIdx >= 0 && incomingIdx >= 0 {
+				if incomingIdx < existingIdx {
+					// Viewing an earlier part — don't regress.
+					w.Header().Set("Content-Type", "application/json")
+					_ = json.NewEncoder(w).Encode(struct {
+						Progress *store.Progress `json:"progress"`
+					}{Progress: existing})
+					return
+				}
+				if incomingIdx == existingIdx && incoming.Ratio <= existing.Ratio {
+					// Same part but not advancing — don't regress.
+					w.Header().Set("Content-Type", "application/json")
+					_ = json.NewEncoder(w).Encode(struct {
+						Progress *store.Progress `json:"progress"`
+					}{Progress: existing})
+					return
+				}
+			}
+		}
+	}
+
+	if err := store.WriteProgress(tutDir, incoming); err != nil {
 		http.Error(w, "write progress", http.StatusInternalServerError)
 		return
 	}
@@ -61,5 +91,5 @@ func (s *Server) handleProgress(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(struct {
 		Progress *store.Progress `json:"progress"`
-	}{Progress: progress})
+	}{Progress: incoming})
 }

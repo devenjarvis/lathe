@@ -1442,6 +1442,198 @@ func TestProgressEndpointRejectsOversizeBody(t *testing.T) {
 	}
 }
 
+func TestProgressEndpointAutoSaveRejectsCrossPartRegression(t *testing.T) {
+	dir := t.TempDir()
+	tutDir := makeTestTutorial(t, dir, "test-series", true)
+
+	// Pre-set progress at part-02 with ratio 0.6
+	err := store.WriteProgress(tutDir, &store.Progress{
+		Part:      "part-02.md",
+		Ratio:     0.6,
+		HeadingID: "later-section",
+		UpdatedAt: time.Now(),
+	})
+	if err != nil {
+		t.Fatalf("WriteProgress: %v", err)
+	}
+
+	srv := serve.NewServer(dir)
+	// Auto-save to part-01 (an earlier part) — should be rejected
+	req := httptest.NewRequest(http.MethodPost, "/-/progress/test-series/part-01.md", bytes.NewBufferString(`{"ratio":0.9,"heading_id":"intro","auto":true}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Origin", "http://localhost:4242")
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("cross-part regression = %d, want %d", w.Code, http.StatusOK)
+	}
+	var response struct {
+		Progress *store.Progress `json:"progress"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	// The response should return the existing (later) progress, not the
+	// incoming request
+	if response.Progress.Part != "part-02.md" {
+		t.Errorf("response part = %q, want part-02.md (existing)", response.Progress.Part)
+	}
+	if response.Progress.Ratio != 0.6 {
+		t.Errorf("response ratio = %v, want 0.6 (existing)", response.Progress.Ratio)
+	}
+
+	// Verify the file on disk was not changed
+	tut, err := store.ReadMetadata(tutDir)
+	if err != nil {
+		t.Fatalf("ReadMetadata: %v", err)
+	}
+	if tut.Progress.Part != "part-02.md" {
+		t.Errorf("on-disk part = %q, want part-02.md", tut.Progress.Part)
+	}
+}
+
+func TestProgressEndpointAutoSaveRejectsSamePartRatioRegression(t *testing.T) {
+	dir := t.TempDir()
+	tutDir := makeTestTutorial(t, dir, "test-series", true)
+
+	// Pre-set progress at part-01 with ratio 0.7
+	err := store.WriteProgress(tutDir, &store.Progress{
+		Part:      "part-01.md",
+		Ratio:     0.7,
+		HeadingID: "deep-section",
+		UpdatedAt: time.Now(),
+	})
+	if err != nil {
+		t.Fatalf("WriteProgress: %v", err)
+	}
+
+	srv := serve.NewServer(dir)
+	// Auto-save same part with lower ratio — should be rejected
+	req := httptest.NewRequest(http.MethodPost, "/-/progress/test-series/part-01.md", bytes.NewBufferString(`{"ratio":0.3,"heading_id":"intro","auto":true}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Origin", "http://localhost:4242")
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("same-part ratio regression = %d, want %d", w.Code, http.StatusOK)
+	}
+	var response struct {
+		Progress *store.Progress `json:"progress"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if response.Progress.Ratio != 0.7 {
+		t.Errorf("response ratio = %v, want 0.7 (existing)", response.Progress.Ratio)
+	}
+}
+
+func TestProgressEndpointAutoSaveAllowsForwardProgress(t *testing.T) {
+	dir := t.TempDir()
+	tutDir := makeTestTutorial(t, dir, "test-series", true)
+
+	// Pre-set progress at part-01 with ratio 0.5
+	err := store.WriteProgress(tutDir, &store.Progress{
+		Part:      "part-01.md",
+		Ratio:     0.5,
+		HeadingID: "intro",
+		UpdatedAt: time.Now(),
+	})
+	if err != nil {
+		t.Fatalf("WriteProgress: %v", err)
+	}
+
+	srv := serve.NewServer(dir)
+	// Auto-save to part-02 (a later part) — should succeed
+	req := httptest.NewRequest(http.MethodPost, "/-/progress/test-series/part-02.md", bytes.NewBufferString(`{"ratio":0.3,"heading_id":"new-section","auto":true}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Origin", "http://localhost:4242")
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("forward progress = %d, want %d; body=%s", w.Code, http.StatusOK, w.Body.String())
+	}
+	var response struct {
+		Progress *store.Progress `json:"progress"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if response.Progress.Part != "part-02.md" {
+		t.Errorf("response part = %q, want part-02.md", response.Progress.Part)
+	}
+	if response.Progress.Ratio != 0.3 {
+		t.Errorf("response ratio = %v, want 0.3", response.Progress.Ratio)
+	}
+
+	// Verify the file on disk was updated
+	tut, err := store.ReadMetadata(tutDir)
+	if err != nil {
+		t.Fatalf("ReadMetadata: %v", err)
+	}
+	if tut.Progress.Part != "part-02.md" {
+		t.Errorf("on-disk part = %q, want part-02.md", tut.Progress.Part)
+	}
+}
+
+func TestProgressEndpointManualSaveAlwaysWritesThrough(t *testing.T) {
+	dir := t.TempDir()
+	tutDir := makeTestTutorial(t, dir, "test-series", true)
+
+	// Pre-set progress at part-02 with ratio 0.8
+	err := store.WriteProgress(tutDir, &store.Progress{
+		Part:      "part-02.md",
+		Ratio:     0.8,
+		HeadingID: "late-section",
+		UpdatedAt: time.Now(),
+	})
+	if err != nil {
+		t.Fatalf("WriteProgress: %v", err)
+	}
+
+	srv := serve.NewServer(dir)
+	// Manual save (auto omitted, defaults false) to an earlier part with
+	// lower ratio — the user explicitly chose to resume here, so it must
+	// write through.
+	req := httptest.NewRequest(http.MethodPost, "/-/progress/test-series/part-01.md", bytes.NewBufferString(`{"ratio":0.2,"heading_id":"intro"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Origin", "http://localhost:4242")
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("manual save = %d, want %d; body=%s", w.Code, http.StatusOK, w.Body.String())
+	}
+	var response struct {
+		Progress *store.Progress `json:"progress"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	// Manual save must write to the requested part, not the existing one
+	if response.Progress.Part != "part-01.md" {
+		t.Errorf("response part = %q, want part-01.md", response.Progress.Part)
+	}
+	if response.Progress.Ratio != 0.2 {
+		t.Errorf("response ratio = %v, want 0.2", response.Progress.Ratio)
+	}
+
+	// Verify the file on disk was overwritten
+	tut, err := store.ReadMetadata(tutDir)
+	if err != nil {
+		t.Fatalf("ReadMetadata: %v", err)
+	}
+	if tut.Progress.Part != "part-01.md" {
+		t.Errorf("on-disk part = %q, want part-01.md", tut.Progress.Part)
+	}
+	if tut.Progress.Ratio != 0.2 {
+		t.Errorf("on-disk ratio = %v, want 0.2", tut.Progress.Ratio)
+	}
+}
+
 func TestPathTraversalBlocked(t *testing.T) {
 	dir := t.TempDir()
 	makeTestTutorial(t, dir, "test-tutorial", false)
