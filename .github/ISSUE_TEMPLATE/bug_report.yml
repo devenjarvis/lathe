@@ -1,0 +1,49 @@
+name: Bug report
+description: Something in lathe isn't working as expected
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug! A small, specific report is
+        far easier to fix than a vague one. If you can reproduce it, the exact
+        steps and `lathe version` output below are the most useful things you
+        can give us.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+      placeholder: |
+        I ran `lathe serve` and ...
+        I expected ...
+        Instead ...
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: lathe version
+      description: Output of `lathe version`.
+      placeholder: "e.g. v0.4.0"
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: OS and architecture
+      placeholder: "e.g. macOS 15.2 arm64, Ubuntu 24.04 amd64"
+    validations:
+      required: true
+
+  - type: input
+    id: agent
+    attributes:
+      label: Coding-agent harness (if relevant)
+      description: Only if the bug involves a skill (`/lathe`, `/lathe-verify`, etc.).
+      placeholder: "e.g. Claude Code, Cursor, Codex, Gemini CLI"
+    validations:
+      required: false
