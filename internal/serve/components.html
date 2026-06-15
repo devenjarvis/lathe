@@ -50,3 +50,68 @@
     <span class="label"></span>
   </button>
 {{end}}
+
+{{/* The three partials below are the status-dependent regions of the reading
+     page (layout.html only — list.html never calls them). Each is wrapped in a
+     stable-id container on the page (#badgeRegion / #verifyRegion / #extendRegion)
+     and re-rendered by the /-/status endpoint, so the client poller can swap a
+     finished verify/extend into place without a full-page reload. Keeping the
+     markup here means the page and the endpoint share one source of truth. */}}
+
+{{/* statusHeader — the article-header status badge plus the "Verified <date>"
+     provenance line. */}}
+{{define "statusHeader"}}
+{{- template "badge" .Tutorial.Status}}
+{{- if .VerifiedDate}}<p class="provenance verified-date">Verified {{.VerifiedDate}}</p>{{end}}
+{{end}}
+
+{{/* verifySection — the failure callout plus the verifying-panel / verify-form. */}}
+{{define "verifySection"}}
+{{- if and (eq .Tutorial.Status "failed") .VerifyResult}}
+<div class="callout callout-warning verify-failure">
+  <p class="callout-label">Verification failed</p>
+  {{if .VerifyResult.Part}}<p>Part: <code>{{.VerifyResult.Part}}</code></p>{{end}}
+  {{if .VerifyResult.FailedStep}}<p>Failed at step {{.VerifyResult.FailedStep}}.</p>{{end}}
+  {{if .VerifyResult.Error}}<p>{{.VerifyResult.Error}}</p>{{end}}
+</div>
+{{- end}}
+{{- if eq .Tutorial.Status "verifying"}}
+<section class="verify-section verifying-panel">
+  <p>⏳ Verifying this tutorial…</p>
+  <p class="muted">This panel updates automatically.</p>
+</section>
+{{- else if or (eq .Tutorial.Status "unverified") (eq .Tutorial.Status "failed") (eq .Tutorial.Status "skipped")}}
+<section class="verify-section">
+  <form id="verifyForm" method="POST" action="/-/verify/{{.Tutorial.Slug}}">
+    <button type="submit" class="btn btn-primary">{{if eq .Tutorial.Status "unverified"}}Verify this tutorial{{else}}Re-verify this tutorial{{end}}</button>
+    <p class="verify-error" aria-live="polite"></p>
+  </form>
+</section>
+{{- end}}
+{{end}}
+
+{{/* extendSection — a "Part N is ready" link when an extend just appended a part
+     (handleStatus sets .JustAddedPart), else the extending-panel while
+     generating, else the "add a part" form. */}}
+{{define "extendSection"}}
+{{- if .JustAddedPart}}
+<section class="extend-section">
+  <h3>Part {{.JustAddedPart.Number}} is ready</h3>
+  <a class="btn btn-primary" href="/{{.Tutorial.Slug}}/{{.JustAddedPart.Slug}}">Read Part {{.JustAddedPart.Number}} →</a>
+</section>
+{{- else if eq .Tutorial.Status "extending"}}
+<section class="extend-section extending-panel">
+  <p>⏳ Generating part {{.PendingPartNumber}}…</p>
+  <p class="muted">This panel updates automatically.</p>
+</section>
+{{- else}}
+<section class="extend-section">
+  <form id="extendForm" method="POST" action="/-/extend/{{.Tutorial.Slug}}" data-pending-number="{{.NextPartNumber}}">
+    <h3>Continue this series</h3>
+    <textarea name="guidance" placeholder="What should the next part cover? (optional)" rows="3"></textarea>
+    <button type="submit" class="btn btn-primary">Add Part {{.NextPartNumber}}</button>
+    <p class="extend-error" aria-live="polite"></p>
+  </form>
+</section>
+{{- end}}
+{{end}}

@@ -1764,8 +1764,13 @@ func TestExtendingPanelRendersAndAutoRefreshes(t *testing.T) {
 	if !strings.Contains(body, "Generating part 4") {
 		t.Error("extending panel should show 'Generating part 4'")
 	}
-	if !strings.Contains(body, `http-equiv="refresh"`) {
-		t.Error("extending page should have meta refresh tag")
+	// With JS the status poller updates the extend region in place; the full-page
+	// meta-refresh now only fires as a <noscript> fallback.
+	if !strings.Contains(body, `<noscript><meta http-equiv="refresh" content="5"></noscript>`) {
+		t.Error("extending page should carry the noscript meta-refresh fallback")
+	}
+	if !strings.Contains(body, `id="extendRegion"`) {
+		t.Error("extending page should render the #extendRegion swap container")
 	}
 	if strings.Contains(body, `id="extendForm"`) {
 		t.Error("extend form should NOT appear while status is extending")
