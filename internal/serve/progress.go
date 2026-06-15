@@ -38,6 +38,7 @@ func (s *Server) handleProgress(w http.ResponseWriter, r *http.Request) {
 	var payload struct {
 		Ratio     *float64 `json:"ratio"`
 		HeadingID string   `json:"heading_id"`
+		Exercises []int    `json:"exercises"`
 		Auto      bool     `json:"auto"`
 	}
 	if !readJSONBody(w, r, maxProgressBytes, &payload) {
@@ -46,6 +47,20 @@ func (s *Server) handleProgress(w http.ResponseWriter, r *http.Request) {
 	if payload.Ratio == nil {
 		http.Error(w, "ratio is required", http.StatusBadRequest)
 		return
+	}
+
+	// Persist exercise checkbox state independently of the monotonic reading-
+	// progress guard below: exercises.json is keyed by part, so a save while
+	// reviewing an earlier part still records that part's boxes without colliding
+	// with the high-water position. A nil slice means the field was absent (the
+	// page had no exercises) and is skipped, so exercise-less parts never create a
+	// sidecar; a present-but-empty slice means every box was unchecked and writes
+	// through to clear the part's entry.
+	if payload.Exercises != nil {
+		if err := store.WriteExercisePart(tutDir, part, payload.Exercises); err != nil {
+			http.Error(w, "write exercises", http.StatusInternalServerError)
+			return
+		}
 	}
 
 	incoming := &store.Progress{

@@ -116,9 +116,9 @@ One paragraph naming the unanswered question a future part will answer. Include 
 
 ## Exercises
 
-1. <specific>
-2. <specific>
-3. <specific>
+- [ ] 1. <specific>
+- [ ] 2. <specific>
+- [ ] 3. <specific>
 
 ## Sources
 

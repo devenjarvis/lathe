@@ -22,7 +22,7 @@
 </head>
 <body>
 <div id="statusPoll" data-slug="{{.Tutorial.Slug}}" data-part="{{.CurrentPart}}" data-status="{{.Tutorial.Status}}" hidden></div>
-<div id="progressBar" aria-hidden="true" data-slug="{{.Tutorial.Slug}}" data-part="{{.CurrentPart}}" data-saved-progress="{{if .CurrentProgress}}{{.CurrentProgress.Ratio}}{{end}}" data-saved-heading-id="{{if .CurrentProgress}}{{.CurrentProgress.HeadingID}}{{end}}" data-current-part-number="{{.CurrentPartNumber}}" data-saved-part-number="{{.SavedPartNumber}}" data-total-parts="{{.TotalParts}}"><div></div><span id="savedProgressMarker" hidden></span></div>
+<div id="progressBar" aria-hidden="true" data-slug="{{.Tutorial.Slug}}" data-part="{{.CurrentPart}}" data-saved-progress="{{if .CurrentProgress}}{{.CurrentProgress.Ratio}}{{end}}" data-saved-heading-id="{{if .CurrentProgress}}{{.CurrentProgress.HeadingID}}{{end}}" data-current-part-number="{{.CurrentPartNumber}}" data-saved-part-number="{{.SavedPartNumber}}" data-total-parts="{{.TotalParts}}" data-saved-exercises="{{range $i, $e := .CheckedExercises}}{{if $i}},{{end}}{{$e}}{{end}}"><div></div><span id="savedProgressMarker" hidden></span></div>
 <header id="topBar">
   <button type="button" id="hamburger" aria-label="Toggle navigation" aria-controls="sidebar" aria-expanded="false">≡</button>
   <a href="/" class="back-link">← All tutorials</a>
@@ -386,6 +386,22 @@
       buttons.forEach(function(button){ button.disabled = busy; });
     }
 
+    // Exercises are persisted separately from the monotonic progress ratio.
+    // Returns null when the page has no exercise checkboxes at all, so the save
+    // omits the field and exercise-less parts never create a sidecar; otherwise
+    // returns the (possibly empty) checked set, so unchecking the last box still
+    // persists.
+    function collectExercises() {
+      var boxes = document.querySelectorAll('.exercise-check');
+      if (!boxes.length) return null;
+      var checked = [];
+      boxes.forEach(function (cb) {
+        var i = parseInt(cb.getAttribute('data-exercise-index'), 10);
+        if (cb.checked && !isNaN(i)) checked.push(i);
+      });
+      return checked;
+    }
+
     function triggerSave(ratio, headingID, isAuto) {
       var slug = progress.getAttribute('data-slug') || '';
       var part = progress.getAttribute('data-part') || '';
@@ -412,10 +428,13 @@
         setStatus('Auto-saving...', false);
       }
 
+      var body = {ratio: ratio, heading_id: headingID, auto: isAuto};
+      if (exercises !== null) body.exercises = collectExercises();
+
       fetch('/-/progress/' + encodeURIComponent(slug) + '/' + encodeURIComponent(part), {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ratio: ratio, heading_id: headingID, auto: isAuto})
+        body: JSON.stringify(body)
       }).then(function(response){
         if (!response.ok) {
           return response.text().then(function(text){
@@ -521,6 +540,18 @@
         handleHeadingChange(reader.currentHeadingID());
       }
     }, 500);
+  })();
+</script>
+<script>
+  (function () {
+    var bar = document.getElementById('progressBar');
+    if (!bar) return;
+    var raw = bar.getAttribute('data-saved-exercises');
+    if (!raw) return;
+    raw.split(',').forEach(function (s) {
+      var cb = document.querySelector('.exercise-check[data-exercise-index="' + s.trim() + '"]');
+      if (cb) cb.checked = true;
+    });
   })();
 </script>
 <script>

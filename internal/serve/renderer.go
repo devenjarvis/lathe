@@ -15,9 +15,12 @@ import (
 	highlighting "github.com/yuin/goldmark-highlighting/v2"
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/extension"
+	goldmarkeast "github.com/yuin/goldmark/extension/ast"
 	"github.com/yuin/goldmark/parser"
+	"github.com/yuin/goldmark/renderer"
 	goldmarkhtml "github.com/yuin/goldmark/renderer/html"
 	"github.com/yuin/goldmark/text"
+	"github.com/yuin/goldmark/util"
 )
 
 // TOCEntry is a single h2 heading collected for the in-page table of contents
@@ -27,6 +30,10 @@ type TOCEntry struct {
 	ID   string
 	Text string
 }
+
+// Specifically for overriding the goldmark renderer for custom input checkboxes
+// within exercise-related output at the bottom of tutorials.
+type exerciseCheckboxRenderer struct{}
 
 // Chroma syntax styles, chosen to harmonize with the warm "paper"/"ember"
 // palette: tango's muted browns/olives in light, gruvbox's warm ambers/oranges
@@ -74,6 +81,8 @@ func RenderMarkdownWithTOC(src []byte) ([]byte, []TOCEntry, error) {
 			// GFM tables — without this, pipe-delimited tables fall through as
 			// literal text. styles.css already styles <table>/<th>/<td>.
 			extension.Table,
+			// SKILL render output format needs to match GitHub Markdown syntax (- [ ])
+			extension.TaskList,
 			// LaTeX math passes through goldmark untouched — without this,
 			// CommonMark backslash-escapes corrupt TeX before it reaches the
 			// browser (`\|` -> `|`, `\;` -> `;`). KaTeX auto-render in
@@ -91,9 +100,22 @@ func RenderMarkdownWithTOC(src []byte) ([]byte, []TOCEntry, error) {
 				},
 			}),
 		),
-		goldmark.WithParserOptions(parser.WithAutoHeadingID()),
+		goldmark.WithParserOptions(
+			parser.WithAutoHeadingID(),
+			// Tag exercise-section task-list checkboxes (exerciseChecklist) so the
+			// node renderer below can emit them as interactive inputs.
+			parser.WithASTTransformers(
+				util.Prioritized(exerciseChecklist{}, 100),
+			),
+		),
 		goldmark.WithRendererOptions(
 			goldmarkhtml.WithUnsafe(),
+			// Override the TaskList extension's checkbox renderer (priority 500).
+			// goldmark registers node renderers lowest-number-wins, so 100 takes
+			// precedence (see exerciseCheckboxRenderer).
+			renderer.WithNodeRenderers(
+				util.Prioritized(exerciseCheckboxRenderer{}, 100),
+			),
 		),
 	)
 	doc := md.Parser().Parse(text.NewReader(src))
@@ -103,6 +125,86 @@ func RenderMarkdownWithTOC(src []byte) ([]byte, []TOCEntry, error) {
 		return nil, nil, err
 	}
 	return buf.Bytes(), toc, nil
+}
+
+// exerciseCheckboxRenderer replaces goldmark's default task-list checkbox.
+// Checkboxes the transformer tagged as exercises render *enabled* with a
+// styling/JS hook; every other task checkbox keeps the upstream disabled
+// rendering, so task lists elsewhere in a tutorial are unaffected.
+func (exerciseCheckboxRenderer) RegisterFuncs(reg renderer.NodeRendererFuncRegisterer) {
+	reg.Register(goldmarkeast.KindTaskCheckBox, renderExerciseCheckbox)
+}
+
+func renderExerciseCheckbox(w util.BufWriter, _ []byte, node ast.Node, entering bool) (ast.WalkStatus, error) {
+	if !entering {
+		return ast.WalkContinue, nil
+	}
+	n := node.(*goldmarkeast.TaskCheckBox)
+
+	idx, tagged := node.AttributeString("data-exercise-index")
+	if !tagged {
+		// Outside an exercise section: reproduce the upstream default exactly
+		// (disabled, non-XHTML — our renderer config doesn't set XHTML).
+		if n.IsChecked {
+			_, _ = w.WriteString(`<input checked="" disabled="" type="checkbox"> `)
+		} else {
+			_, _ = w.WriteString(`<input disabled="" type="checkbox"> `)
+		}
+		return ast.WalkContinue, nil
+	}
+
+	// Exercise checkbox: interactive, carries a stable index for save/restore.
+	_, _ = fmt.Fprintf(w, `<input type="checkbox" class="exercise-check" data-exercise-index="%d"`, idx.(int))
+	if n.IsChecked {
+		_, _ = w.WriteString(` checked=""`)
+	}
+	_, _ = w.WriteString("> ")
+	return ast.WalkContinue, nil
+}
+
+// exerciseChecklist tags every task-list checkbox that lives inside an exercise
+// section with a stable, part-local index, in document order. The renderer reads
+// that tag to decide which checkboxes become interactive. Detection keys on the
+// heading's auto-generated id slug (assigned during parse, so it's present here).
+type exerciseChecklist struct{}
+
+func (exerciseChecklist) Transform(doc *ast.Document, _ text.Reader, _ parser.Context) {
+	idx := 0
+	for n := doc.FirstChild(); n != nil; n = n.NextSibling() {
+		h, ok := n.(*ast.Heading)
+		if !ok || h.Level != 2 {
+			continue
+		}
+		idAttr, ok := h.AttributeString("id") // same pattern as collectH2TOC
+		if !ok {
+			continue
+		}
+		idBytes, _ := idAttr.([]byte)
+		if !isExerciseHeading(string(idBytes)) {
+			continue
+		}
+		// Walk the section body forward until the next h1/h2 boundary.
+		for s := h.NextSibling(); s != nil; s = s.NextSibling() {
+			if hh, ok := s.(*ast.Heading); ok && hh.Level <= 2 {
+				break
+			}
+			_ = ast.Walk(s, func(c ast.Node, entering bool) (ast.WalkStatus, error) {
+				if entering {
+					if cb, ok := c.(*goldmarkeast.TaskCheckBox); ok {
+						cb.SetAttributeString("data-exercise-index", idx)
+						idx++
+					}
+				}
+				return ast.WalkContinue, nil
+			})
+		}
+	}
+}
+
+// isExerciseHeading is the single fragile input, check for them explicitly.
+// This can be extended later to include things like "bonus", "challenges", etc.
+func isExerciseHeading(id string) bool {
+	return strings.Contains(id, "exercise")
 }
 
 // collectH2TOC walks the parsed AST and returns one TOCEntry per <h2>. h1, h3,

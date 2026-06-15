@@ -468,6 +468,24 @@ pre[data-overflow="true"]{box-shadow:inset -18px 0 14px -12px rgba(40,30,20,.20)
 #askInput:focus{outline:2px solid var(--accent);outline-offset:1px}
 .ask-controls{display:flex;gap:.5rem;justify-content:flex-end}
 /* #askSubmit / #askStop are .btn .btn-sm (primary / danger) in the markup. */
+/* List items that contain an exercise checkbox (tight or loose lists). */
+li:has(> .exercise-check),
+li:has(> p > .exercise-check) {
+  list-style: none;
+  position: relative;
+  padding-left: 2rem;
+}
+.exercise-check {
+  position: absolute;
+  left: 0;
+  margin-top: 0.25em;
+  cursor: pointer;
+}
+/* Custom styling once an exercise is checked. */
+li:has(.exercise-check:checked) {
+  opacity: 0.55;
+  text-decoration: line-through;
+}
 
 /* ---- List page (body.list) ---------------------------------------------- */
 body.list{max-width:46rem;margin:clamp(1.5rem,.9rem + 2vw,3rem) auto;padding:0 clamp(.9rem,.4rem + 2vw,1.5rem)}

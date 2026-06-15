@@ -455,6 +455,16 @@ func (s *Server) renderPart(w http.ResponseWriter, tut *store.Tutorial, tutDir, 
 
 	currentProgress := currentPartProgress(tut, part)
 
+	// Per-part exercise checkbox state lives in its own sidecar (exercises.json),
+	// deliberately outside the monotonic progress record. Best-effort like
+	// progress: a read error just yields no restored checks. Only the current
+	// part's indices are surfaced — they match the data-exercise-index values the
+	// renderer assigned for this part.
+	var checkedExercises []int
+	if state, err := store.ReadExercises(tutDir); err == nil {
+		checkedExercises = state[part]
+	}
+
 	// Compute the 1-based part number of the globally saved progress so the
 	// client can perform a cheap cross-part monotonic check and avoid
 	// unnecessary API calls when re-visiting an earlier part.
@@ -476,6 +486,7 @@ func (s *Server) renderPart(w http.ResponseWriter, tut *store.Tutorial, tutDir, 
 		"VoiceSpec":         voiceSpec,
 		"CurrentPart":       part,
 		"CurrentProgress":   currentProgress,
+		"CheckedExercises":  checkedExercises,
 		"CurrentPartNumber": currentNumber,
 		"SavedPartNumber":   savedPartNumber,
 		"TotalParts":        len(tut.Parts),

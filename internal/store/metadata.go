@@ -145,6 +145,46 @@ func WriteProgress(tutorialDir string, progress *Progress) error {
 	return writeJSONFile(filepath.Join(tutorialDir, "progress.json"), progress)
 }
 
+// ExerciseState maps a part filename (e.g. "part-02.md") to the indices of the
+// exercises a reader has checked off in that part. It lives in an exercises.json
+// sidecar, deliberately separate from progress.json: checkbox state is per-part
+// and bidirectional (unchecking is a normal action), so it must never be folded
+// into the monotonic, single-slot reading-progress record.
+type ExerciseState map[string][]int
+
+// ReadExercises returns the saved exercise checkbox state for a tutorial. A
+// missing exercises.json is not an error — it yields an empty (non-nil) state —
+// so callers can treat "never saved" and "saved nothing" identically. A present
+// but unreadable or corrupt file still surfaces its error.
+func ReadExercises(tutorialDir string) (ExerciseState, error) {
+	state := ExerciseState{}
+	if err := readJSONFile(filepath.Join(tutorialDir, "exercises.json"), &state); err != nil {
+		if os.IsNotExist(err) {
+			return state, nil
+		}
+		return state, err
+	}
+	return state, nil
+}
+
+// WriteExercisePart merges one part's checked indices into exercises.json,
+// leaving every other part's entry untouched — so saving part 2 can never
+// clobber or check part 1's boxes. The incoming slice is the part's complete
+// checked set (an unchecked box is simply absent), so an empty set deletes the
+// part's entry entirely rather than storing an empty array.
+func WriteExercisePart(tutorialDir, part string, checked []int) error {
+	state, err := ReadExercises(tutorialDir)
+	if err != nil {
+		return err
+	}
+	if len(checked) > 0 {
+		state[part] = checked
+	} else {
+		delete(state, part)
+	}
+	return writeJSONFile(filepath.Join(tutorialDir, "exercises.json"), state)
+}
+
 func ReadVerifyResult(tutorialDir string) (*VerifyResult, error) {
 	var v VerifyResult
 	if err := readJSONFile(filepath.Join(tutorialDir, "verify-result.json"), &v); err != nil {
