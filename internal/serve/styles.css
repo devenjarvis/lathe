@@ -468,24 +468,21 @@ pre[data-overflow="true"]{box-shadow:inset -18px 0 14px -12px rgba(40,30,20,.20)
 #askInput:focus{outline:2px solid var(--accent);outline-offset:1px}
 .ask-controls{display:flex;gap:.5rem;justify-content:flex-end}
 /* #askSubmit / #askStop are .btn .btn-sm (primary / danger) in the markup. */
-/* List items that contain an exercise checkbox (tight or loose lists). */
-li:has(> .exercise-check),
-li:has(> p > .exercise-check) {
-  list-style: none;
-  position: relative;
-  padding-left: 2rem;
-}
-.exercise-check {
-  position: absolute;
-  left: 0;
-  margin-top: 0.25em;
-  cursor: pointer;
-}
-/* Custom styling once an exercise is checked. */
-li:has(.exercise-check:checked) {
-  opacity: 0.55;
-  text-decoration: line-through;
-}
+/* List items that contain an exercise checkbox (tight or loose lists).*/
+#exercises + ul{counter-reset:exercise}
+#exercises + ul li:has(>.exercise-check),#exercises + ul li:has(>p>.exercise-check){--ex-pt:.3rem;--ex-lh:1.7;list-style:none;position:relative;counter-increment:exercise;padding:var(--ex-pt) 0 var(--ex-pt) 4.5rem;line-height:var(--ex-lh);text-decoration:line-through;text-decoration-color:transparent;background:transparent;box-shadow:inset 3px 0 0 transparent;transition:color var(--transition),opacity var(--transition),background var(--transition),box-shadow var(--transition),text-decoration-color var(--transition)}
+#exercises + ul li:has(.exercise-check)>p:first-of-type{margin-top:0}
+#exercises + ul li:has(.exercise-check)>p:last-of-type{margin-bottom:0}
+#exercises + ul li:has(>.exercise-check)::before,#exercises + ul li:has(>p>.exercise-check)::before{content:counter(exercise)".";position:absolute;left:.5rem;top:var(--ex-pt);line-height:var(--ex-lh);font-family:var(--font-display);font-weight:700;color:var(--text-subtle);text-decoration:none;transition:color var(--transition)}
+#exercises + ul .exercise-check{-webkit-appearance:none;appearance:none;box-sizing:border-box;font:inherit;width:1.4rem;height:1.4rem;border-radius:8px;border:1.5px solid var(--border);background:var(--surface);position:absolute;left:2.1rem;top:calc(var(--ex-pt) + (var(--ex-lh)*1em - 1.4rem)/2);margin:0;cursor:pointer;transition:background var(--transition),border-color var(--transition),box-shadow var(--transition),transform 120ms ease}
+#exercises + ul .exercise-check:hover{border-color:color-mix(in srgb,var(--accent) 55%,var(--border));background:color-mix(in srgb,var(--accent) 8%,var(--surface))}
+#exercises + ul .exercise-check:active{transform:scale(.9)}
+#exercises + ul .exercise-check:focus-visible{outline:2px solid color-mix(in srgb,var(--accent) 45%,transparent);outline-offset:2px}
+#exercises + ul .exercise-check:checked{background-color:var(--accent);border-color:var(--accent);box-shadow:inset 0 1px 0 rgba(0,0,0,.06);background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 10'><path d='M1 5.2 L4.2 8.4 L11 1.2' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' fill='none'/></svg>");background-repeat:no-repeat;background-position:center;background-size:62%;animation:ex-check-pop .26s ease}
+@keyframes ex-check-pop{0%{transform:scale(1)}45%{transform:scale(1.16)}100%{transform:scale(1)}}
+#exercises + ul li:has(.exercise-check:checked){opacity:.85;color:var(--text-faint);text-decoration-color:currentColor;background:color-mix(in srgb,var(--accent-soft) 10%,transparent);box-shadow:inset 3px 0 0 var(--accent)}
+#exercises + ul li:has(.exercise-check:checked)::before{color:var(--accent)}
+@media (prefers-reduced-motion:reduce){#exercises + ul .exercise-check{animation:none;transition:none}}
 
 /* ---- List page (body.list) ---------------------------------------------- */
 body.list{max-width:46rem;margin:clamp(1.5rem,.9rem + 2vw,3rem) auto;padding:0 clamp(.9rem,.4rem + 2vw,1.5rem)}

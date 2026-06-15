@@ -116,9 +116,9 @@ One paragraph naming the unanswered question a future part will answer. Include 
 
 ## Exercises
 
-- [ ] 1. <specific>
-- [ ] 2. <specific>
-- [ ] 3. <specific>
+- [ ] <specific>
+- [ ] <specific>
+- [ ] <specific>
 
 ## Sources
 
@@ -310,7 +310,7 @@ Every part ends with **four** things:
 
 1. **A send-off (or forward hook).** For the final part: one short paragraph inviting the reader to leave the path you took. For non-final parts: a single forward-pointing sentence naming the question the next part will answer — lean into the cliffhanger.
 2. **A closing reflection.** One self-explanation prompt, in plain prose (not a callout): *"Before you move on: in two sentences, why does the ring buffer beat a channel here? Write it in your own words — the answer that satisfies a sceptical colleague."* Pick the single most important design decision in this part and ask the reader to explain the *why*, not the *what*. Don't answer it for them.
-3. **`## Exercises`**, numbered, 3–5 of them. Each specific enough that a motivated reader can start it in 30 seconds. *"Add FM modulation between two oscillators. Routing matrix is up to you — at minimum, let oscillator 2 modulate oscillator 1's frequency."* Not *"explore further."*
+3. **`## Exercises`**, Markdown task-list checkboxes (- [ ]), 3-5 of them. Each specific enough that a motivated reader can start it in 30 seconds. *"Add FM modulation between two oscillators. Routing matrix is up to you — at minimum, let oscillator 2 modulate oscillator 1's frequency."* Not *"explore further."*
 4. **`## Sources`**, numbered, one entry per source used inline in *this part*. Format: `[Title](url) — one sentence on why this source matters`. Group by primary docs / papers / deep-dives if more than ~5 entries.
 
 ## Output files
