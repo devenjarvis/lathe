@@ -819,7 +819,7 @@
       section.appendChild(panel);
     }
 
-    function wire(formId, errClass, lead, bodyFn){
+    function wire(formId, errClass, lead, bodyFn, pollFrom){
       var form = document.getElementById(formId);
       // Idempotent: the status poller re-runs the wiring after swapping a fresh
       // verify/extend form into the DOM. A swapped-in form is a brand-new node
@@ -842,6 +842,11 @@
           if (r.ok) {
             return r.json().then(function(data){
               renderHandoff(form.closest('section') || form.parentNode, data.command || '', lead);
+              // The handoff hands the reader a command to paste into their agent;
+              // the agent then flips status out-of-process. Start polling now so
+              // the page picks up the transition into verifying/extending (and
+              // through to done) without the reader having to hard-refresh.
+              if (pollFrom && window.latheStartStatusPoll) window.latheStartStatusPoll(pollFrom);
             });
           }
           return r.text().then(function(t){
@@ -860,13 +865,13 @@
     window.latheWireHandoffForms = function(){
       wire('verifyForm', '.verify-error',
         'To verify this tutorial, paste this into your coding agent:',
-        function(){ return null; });
+        function(){ return null; }, 'verifying');
       wire('extendForm', '.extend-error',
         'To add this part, paste this into your coding agent:',
         function(form){
           var guidance = form.querySelector('textarea[name="guidance"]').value;
           return JSON.stringify({guidance: guidance});
-        });
+        }, 'extending');
     };
     window.latheWireHandoffForms();
   })();
@@ -874,44 +879,89 @@
 <script>
   // Status poller — replaces the old full-page meta-refresh. While a tutorial is
   // verifying or extending, an out-of-process skill flips its status in
-  // metadata.json; we poll /-/status for that change and, when it lands, swap
-  // only the status-dependent regions (#badgeRegion / #verifyRegion /
-  // #extendRegion) in place — no reload, no scroll jump. JS-off readers fall back
-  // to the <noscript> meta-refresh in <head>.
+  // metadata.json; we poll /-/status for that change and swap only the status-
+  // dependent regions (#badgeRegion / #verifyRegion / #extendRegion) in place —
+  // no reload, no scroll jump. JS-off readers fall back to the <noscript>
+  // meta-refresh in <head>.
+  //
+  // Two entry points share this loop: a page that LOADED already verifying/
+  // extending (auto-started below), and a fresh verify/extend submit on a settled
+  // page (started by latheWireHandoffForms after the handoff renders). The latter
+  // is what removes the old "hard refresh to see it start" step.
   (function(){
     var el = document.getElementById('statusPoll');
     if (!el) return;
-    var status = el.getAttribute('data-status');
-    // Only transient pages poll; a settled page has nothing to wait for.
-    if (status !== 'verifying' && status !== 'extending') return;
     var slug = el.getAttribute('data-slug');
     var part = el.getAttribute('data-part');
-    if (!slug || !part) return;
-    var url = '/-/status/' + encodeURIComponent(slug) + '/' + encodeURIComponent(part) +
-      '?from=' + encodeURIComponent(status);
 
     function swap(id, html){
       var node = document.getElementById(id);
       if (node && typeof html === 'string') node.innerHTML = html;
     }
-
-    var timer = setInterval(poll, 5000);
-    function poll(){
-      fetch(url, {headers: {'Accept': 'application/json'}})
-        .then(function(r){ return r.ok ? r.json() : null; })
-        .then(function(data){
-          if (!data || !data.done) return; // still in flight — keep waiting
-          clearInterval(timer);
-          swap('badgeRegion', data.badge);
-          swap('verifyRegion', data.verify);
-          swap('extendRegion', data.extend);
-          // Re-attach submit handlers to any form just swapped in (re-verify after
-          // a failure, or the extend form). Idempotent, so untouched forms are
-          // left alone.
-          if (window.latheWireHandoffForms) window.latheWireHandoffForms();
-        })
-        .catch(function(){ /* transient network blip — keep polling */ });
+    function applyRegions(data){
+      swap('badgeRegion', data.badge);
+      swap('verifyRegion', data.verify);
+      swap('extendRegion', data.extend);
+      // Re-attach submit handlers to any form just swapped in (the spinner panel,
+      // a re-verify form after a failure, or the extend form). Idempotent, so
+      // untouched forms are left alone.
+      if (window.latheWireHandoffForms) window.latheWireHandoffForms();
     }
+
+    // A single long-lived reconciliation loop. `rendered` is the status the DOM
+    // currently shows — seeded from the page's load-time status, advanced each time
+    // we swap a new status in. Every poll compares the live status against it and
+    // swaps the three regions whenever they differ, so the page tracks ANY change:
+    // the start of a verify/extend, its completion, and re-verifies that bounce
+    // failed→verifying→verified→… back and forth. It never stops (a finished verify
+    // can be re-run at any time); a hidden tab just pauses the fetch.
+    //
+    // fromStatus seeds ?from= (the extend "Part N is ready" gate). It's the caller's
+    // hint or the load-time status, then corrected to whatever transient state we
+    // actually observe, so the poll that catches an extend completing asks with
+    // from=extending and gets the ready link.
+    window.latheStartStatusPoll = function(fromStatus){
+      if (!slug || !part) return;
+      if (el.dataset.polling) return; // a loop is already running for this page
+      el.dataset.polling = '1';
+      var rendered = el.getAttribute('data-status');
+      var from = (fromStatus === 'verifying' || fromStatus === 'extending') ? fromStatus
+               : (rendered === 'verifying' || rendered === 'extending') ? rendered : '';
+
+      function statusURL(){
+        var u = '/-/status/' + encodeURIComponent(slug) + '/' + encodeURIComponent(part);
+        return from ? u + '?from=' + encodeURIComponent(from) : u;
+      }
+
+      setInterval(poll, 5000);
+      function poll(){
+        // A backgrounded tab can't show updates anyway; skip the fetch and resume
+        // when it's visible again so an all-day-open page isn't polling localhost
+        // every 5s for nothing.
+        if (document.hidden) return;
+        fetch(statusURL(), {headers: {'Accept': 'application/json'}})
+          .then(function(r){ return r.ok ? r.json() : null; })
+          .then(function(data){
+            if (!data) return;
+            // Track a live transient state so the next poll uses the right ?from=.
+            if (data.status === 'verifying' || data.status === 'extending') from = data.status;
+            // Reconcile: when the live status differs from what's on screen, swap
+            // the badge / verify / extend regions (and re-wire any form swapped in).
+            if (data.status !== rendered){
+              rendered = data.status;
+              applyRegions(data);
+            }
+          })
+          .catch(function(){ /* transient network blip — keep polling */ });
+      }
+    };
+
+    // Always poll the reading page. A verify/extend can begin without any click on
+    // this page (the reader pastes the handoff command into their agent, or just
+    // runs /lathe-verify directly), so the poller must be live to catch the
+    // transition into verifying/extending. The load-time status seeds ?from=; live
+    // data corrects it. JS-off readers fall back to the <noscript> meta-refresh.
+    window.latheStartStatusPoll(el.getAttribute('data-status'));
   })();
 </script>
 </body>

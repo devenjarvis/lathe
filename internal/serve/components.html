@@ -62,7 +62,7 @@
      provenance line. */}}
 {{define "statusHeader"}}
 {{- template "badge" .Tutorial.Status}}
-{{- if .VerifiedDate}}<p class="provenance verified-date">Verified {{.VerifiedDate}}</p>{{end}}
+{{- if .VerifiedDate}}<p class="provenance verified-date">{{if eq .Tutorial.Status "skipped"}}Skipped{{else}}Verified{{end}} {{.VerifiedDate}}</p>{{end}}
 {{end}}
 
 {{/* verifySection — the failure callout plus the verifying-panel / verify-form. */}}
@@ -77,7 +77,7 @@
 {{- end}}
 {{- if eq .Tutorial.Status "verifying"}}
 <section class="verify-section verifying-panel">
-  <p>⏳ Verifying this tutorial…</p>
+  <p><span class="status-spinner" aria-hidden="true"></span>Verifying this tutorial…</p>
   <p class="muted">This panel updates automatically.</p>
 </section>
 {{- else if or (eq .Tutorial.Status "unverified") (eq .Tutorial.Status "failed") (eq .Tutorial.Status "skipped")}}
@@ -101,7 +101,7 @@
 </section>
 {{- else if eq .Tutorial.Status "extending"}}
 <section class="extend-section extending-panel">
-  <p>⏳ Generating part {{.PendingPartNumber}}…</p>
+  <p><span class="status-spinner" aria-hidden="true"></span>Generating part {{.PendingPartNumber}}…</p>
   <p class="muted">This panel updates automatically.</p>
 </section>
 {{- else}}

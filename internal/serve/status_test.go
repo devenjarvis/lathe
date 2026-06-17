@@ -161,6 +161,28 @@ func TestStatusVerifyPollNoReadyLink(t *testing.T) {
 	}
 }
 
+// A skipped tutorial records a CheckedAt date, but the provenance line must not
+// mislabel it as "Verified" — skipped means verification did not run.
+func TestStatusSkippedDateLabel(t *testing.T) {
+	dir := t.TempDir()
+	tutDir := makeExtendTutorial(t, dir, "test-tut", store.StatusSkipped, []string{"part-01.md"})
+	if err := store.WriteVerifyResult(tutDir, &store.VerifyResult{
+		Status:    store.StatusSkipped,
+		CheckedAt: "2026-06-03T12:00:00Z",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	srv := serve.NewServer(dir)
+
+	_, resp := getStatus(t, srv, "/-/status/test-tut/part-01.md?from=verifying")
+	if !strings.Contains(resp.Badge, "Skipped Jun 3, 2026") {
+		t.Errorf("skipped date should be labeled Skipped, got %q", resp.Badge)
+	}
+	if strings.Contains(resp.Badge, "Verified Jun 3, 2026") {
+		t.Errorf("skipped badge must not label its date as Verified, got %q", resp.Badge)
+	}
+}
+
 func TestStatusUnknownPartIs404(t *testing.T) {
 	dir := t.TempDir()
 	makeExtendTutorial(t, dir, "test-tut", store.StatusVerifying, []string{"part-01.md"})
