@@ -374,7 +374,10 @@ pre[data-overflow="true"]{box-shadow:inset -18px 0 14px -12px rgba(40,30,20,.20)
 .part-menu .title{min-width:0}
 
 /* Series TOC at bottom of part */
-.series-toc{margin-top:3rem;padding-top:1.6rem;border-top:1px solid var(--border)}
+/* The bordered sections that stack below the article (series TOC, part nav,
+   verify, extend) all share one top rhythm — margin-top:2rem + padding-top:1.6rem
+   — so their divider rules are evenly distributed rather than bunched. */
+.series-toc{margin-top:2rem;padding-top:1.6rem;border-top:1px solid var(--border)}
 .series-toc > h2{font-family:var(--font-display);font-size:1.05rem;font-weight:600;margin:0 0 .8rem;color:var(--text);line-height:1.3;letter-spacing:-.01em}
 .series-toc ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.45rem}
 .series-toc li{margin:0}
@@ -386,7 +389,7 @@ pre[data-overflow="true"]{box-shadow:inset -18px 0 14px -12px rgba(40,30,20,.20)
 
 /* Inline prev/next part navigation — compact buttons pinned to each edge
    (prev left, next right), sized to content rather than stretched full-width. */
-.part-nav{display:flex;justify-content:space-between;gap:.75rem;margin-top:1.6rem;padding-top:1.6rem;border-top:1px solid var(--border)}
+.part-nav{display:flex;justify-content:space-between;gap:.75rem;margin-top:2rem;padding-top:1.6rem;border-top:1px solid var(--border)}
 .part-nav a{min-width:0;max-width:min(46%,20rem);text-decoration:none;color:var(--text-subtle);background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-md);padding:.5rem .8rem;display:flex;flex-direction:column;gap:.1rem;transition:color var(--transition),border-color var(--transition),background var(--transition)}
 .part-nav a:hover{color:var(--accent);border-color:var(--border-strong);background:var(--surface-sunken)}
 .part-nav .label{font-family:var(--font-display);font-size:.72rem;font-weight:700;letter-spacing:.03em;color:var(--text-faint)}
@@ -408,7 +411,16 @@ pre[data-overflow="true"]{box-shadow:inset -18px 0 14px -12px rgba(40,30,20,.20)
 .verify-error{font-size:.85rem;color:var(--badge-failed-text);min-height:1.2em;margin-top:.5rem}
 .verifying-panel{color:var(--text-muted)}
 .verifying-panel .muted{font-size:.85rem;color:var(--text-faint);margin-top:.25rem}
+/* Zero the panels' default <p> margins so the spinner line and the "updates
+   automatically" note sit tight (the .muted margin-top above sets the gap) and
+   no stray 1.05rem trails before the series TOC below. */
+.verifying-panel p,.extending-panel p{margin:0}
 .verify-failure code{word-break:break-all}
+/* Loading spinner shared by the verifying / extending panels. Inline ring that
+   reuses the muted palette; the badge-pulse reduced-motion guard pattern applies. */
+.status-spinner{display:inline-block;width:.8em;height:.8em;margin-right:.45rem;vertical-align:-.08em;border:2px solid var(--border);border-top-color:var(--text-muted);border-radius:9999px;animation:status-spin .7s linear infinite}
+@keyframes status-spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.status-spinner{animation:none}}
 
 /* The extend submit sits in a flex-column form; keep it left-aligned. (Visual
    style comes from .btn .btn-primary in the markup.) */

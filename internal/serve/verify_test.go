@@ -141,8 +141,18 @@ func TestVerifyingPanelAutoRefreshes(t *testing.T) {
 		t.Fatalf("GET part = %d, want 200", w.Code)
 	}
 	body := w.Body.String()
-	if !strings.Contains(body, `http-equiv="refresh"`) {
-		t.Error("verifying page should have meta refresh tag")
+	// With JS the status poller updates in place; the full-page meta-refresh now
+	// only fires as a <noscript> fallback, never on its own.
+	if !strings.Contains(body, `<noscript><meta http-equiv="refresh" content="5"></noscript>`) {
+		t.Error("verifying page should carry the noscript meta-refresh fallback")
+	}
+	// The swappable region the poller targets must be present, with the verifying
+	// panel inside it.
+	if !strings.Contains(body, `id="verifyRegion"`) {
+		t.Error("verifying page should render the #verifyRegion swap container")
+	}
+	if !strings.Contains(body, `id="statusPoll"`) {
+		t.Error("verifying page should render the #statusPoll element that drives polling")
 	}
 	if strings.Contains(body, `id="verifyForm"`) {
 		t.Error("verify form should NOT appear while status is verifying")
