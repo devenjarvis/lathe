@@ -54,19 +54,19 @@ wrote it" isn't an answer to review feedback.
 
 ## Getting set up
 
-New to contributing on GitHub? No problem — here's the whole flow, step by step.
-
-**1. Fork the repo.** Click "Fork" at the top-right of the
-[GitHub page](https://github.com/devenjarvis/lathe). This gives you your own
-copy to push to.
-
-**2. Clone your fork and build it.** Replace `YOUR-USERNAME` with your GitHub
-username:
+**1. Fork the repo** and clone your fork. Replace `YOUR-USERNAME` with your
+GitHub username:
 
 ```bash
 git clone https://github.com/YOUR-USERNAME/lathe
 cd lathe
-go build -o lathe        # build the binary (gitignored at the repo root)
+```
+
+**2. Build and test it.** Name the binary something like `lathe-local` so it
+doesn't clash with any `lathe` you already have installed:
+
+```bash
+go build -o lathe-local  # build the binary (gitignored at the repo root)
 go test ./...            # run the tests — make sure they pass before you change anything
 ```
 
