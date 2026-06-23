@@ -330,3 +330,106 @@ func TestHighlightCSS(t *testing.T) {
 		t.Error("HighlightCSS() missing expected dark-theme color")
 	}
 }
+
+func TestRenderExerciseChecklistInteractive(t *testing.T) {
+	// Task-list checkboxes inside an exercise section become interactive inputs:
+	// enabled, class="exercise-check", carrying a stable part-local index — and the
+	// checked state survives.
+	src := []byte("# Title\n\n## Exercises\n\n- [ ] Write the parser\n- [x] Wire it up\n")
+	out, err := serve.RenderMarkdown(src)
+	if err != nil {
+		t.Fatalf("RenderMarkdown() error = %v", err)
+	}
+	html := string(out)
+	if !strings.Contains(html, `<input type="checkbox" class="exercise-check" data-exercise-index="0">`) {
+		t.Errorf("first exercise checkbox not rendered interactive, got:\n%s", html)
+	}
+	if !strings.Contains(html, `<input type="checkbox" class="exercise-check" data-exercise-index="1" checked="">`) {
+		t.Errorf("checked exercise checkbox missing checked state/index, got:\n%s", html)
+	}
+	// Interactive exercise inputs are never disabled — no upstream default leaks in.
+	if strings.Contains(html, `<input disabled="" type="checkbox">`) {
+		t.Errorf("exercise checkboxes should be enabled, found a disabled default, got:\n%s", html)
+	}
+}
+
+func TestRenderNonExerciseTaskListStaysDisabled(t *testing.T) {
+	// Task lists outside an exercise section keep goldmark's default disabled
+	// rendering — the feature must not hijack every checklist in a tutorial.
+	src := []byte("# Title\n\n## Setup steps\n\n- [x] Install the toolchain\n- [ ] Clone the repo\n")
+	out, err := serve.RenderMarkdown(src)
+	if err != nil {
+		t.Fatalf("RenderMarkdown() error = %v", err)
+	}
+	html := string(out)
+	if !strings.Contains(html, `<input checked="" disabled="" type="checkbox">`) {
+		t.Errorf("checked non-exercise checkbox lost its disabled default, got:\n%s", html)
+	}
+	if !strings.Contains(html, `<input disabled="" type="checkbox">`) {
+		t.Errorf("unchecked non-exercise checkbox lost its disabled default, got:\n%s", html)
+	}
+	if strings.Contains(html, "exercise-check") {
+		t.Errorf("non-exercise task list was wrongly made interactive, got:\n%s", html)
+	}
+}
+
+func TestRenderExerciseIndicesArePartLocalAndSkipNonExercises(t *testing.T) {
+	// Indices are assigned in document order across *all* exercise sections in the
+	// part, and only to exercise checkboxes — a task list in a non-exercise section
+	// neither becomes interactive nor consumes an index.
+	src := []byte("# Title\n\n" +
+		"## Exercises\n\n- [ ] First\n- [ ] Second\n\n" +
+		"## Notes\n\n- [ ] Not an exercise\n\n" +
+		"## Bonus Exercises\n\n- [ ] Third\n")
+	out, err := serve.RenderMarkdown(src)
+	if err != nil {
+		t.Fatalf("RenderMarkdown() error = %v", err)
+	}
+	html := string(out)
+	for _, want := range []string{
+		`class="exercise-check" data-exercise-index="0"`,
+		`class="exercise-check" data-exercise-index="1"`,
+		`class="exercise-check" data-exercise-index="2"`,
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("missing exercise checkbox %q, got:\n%s", want, html)
+		}
+	}
+	// The non-exercise box stays a disabled default and takes no index, so the
+	// third exercise checkbox is index 2 — never 3.
+	if strings.Contains(html, `data-exercise-index="3"`) {
+		t.Errorf("non-exercise checkbox wrongly consumed an exercise index, got:\n%s", html)
+	}
+	if !strings.Contains(html, `<input disabled="" type="checkbox">`) {
+		t.Errorf("non-exercise checkbox should remain a disabled default, got:\n%s", html)
+	}
+}
+
+func TestRenderExerciseHeadingDetection(t *testing.T) {
+	// A heading turns its section's checkboxes interactive iff its slug contains
+	// "exercise" — the single intentional trigger. Verify representative positive
+	// and negative headings.
+	cases := []struct {
+		heading     string
+		interactive bool
+	}{
+		{"Exercises", true},
+		{"Exercise", true},
+		{"Bonus Exercise", true},
+		{"Try It Yourself", false},
+		{"Summary", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.heading, func(t *testing.T) {
+			src := []byte("# Title\n\n## " + tc.heading + "\n\n- [ ] a box\n")
+			out, err := serve.RenderMarkdown(src)
+			if err != nil {
+				t.Fatalf("RenderMarkdown() error = %v", err)
+			}
+			got := strings.Contains(string(out), "exercise-check")
+			if got != tc.interactive {
+				t.Errorf("heading %q: interactive = %v, want %v; got:\n%s", tc.heading, got, tc.interactive, out)
+			}
+		})
+	}
+}

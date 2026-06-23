@@ -524,3 +524,113 @@ func TestPendingPartOmittedWhenEmpty(t *testing.T) {
 		t.Error("pending_part should be omitted from JSON when empty")
 	}
 }
+
+func sameInts(a, b []int) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func TestExercisesRoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	if err := store.WriteExercisePart(dir, "part-02.md", []int{0, 2, 5}); err != nil {
+		t.Fatalf("WriteExercisePart: %v", err)
+	}
+	state, err := store.ReadExercises(dir)
+	if err != nil {
+		t.Fatalf("ReadExercises: %v", err)
+	}
+	if !sameInts(state["part-02.md"], []int{0, 2, 5}) {
+		t.Errorf("exercises = %v, want [0 2 5]", state["part-02.md"])
+	}
+}
+
+func TestReadExercisesMissingFileIsEmptyNotError(t *testing.T) {
+	// A tutorial that never saved a checkbox has no exercises.json; that must read
+	// as an empty (non-nil) state, so callers treat "never saved" like "saved
+	// nothing" without special-casing.
+	state, err := store.ReadExercises(t.TempDir())
+	if err != nil {
+		t.Fatalf("ReadExercises on missing file: %v", err)
+	}
+	if state == nil {
+		t.Fatal("ReadExercises returned nil state, want empty non-nil map")
+	}
+	if len(state) != 0 {
+		t.Errorf("ReadExercises on missing file = %v, want empty", state)
+	}
+}
+
+func TestWriteExercisePartMergesWithoutClobbering(t *testing.T) {
+	// Per-part keying is the whole point of the separate sidecar: saving one part
+	// must never disturb another part's boxes.
+	dir := t.TempDir()
+	if err := store.WriteExercisePart(dir, "part-01.md", []int{1}); err != nil {
+		t.Fatalf("WriteExercisePart part-01: %v", err)
+	}
+	if err := store.WriteExercisePart(dir, "part-02.md", []int{0, 3}); err != nil {
+		t.Fatalf("WriteExercisePart part-02: %v", err)
+	}
+	state, err := store.ReadExercises(dir)
+	if err != nil {
+		t.Fatalf("ReadExercises: %v", err)
+	}
+	if !sameInts(state["part-01.md"], []int{1}) {
+		t.Errorf("part-01 = %v, want [1]", state["part-01.md"])
+	}
+	if !sameInts(state["part-02.md"], []int{0, 3}) {
+		t.Errorf("part-02 = %v, want [0 3]", state["part-02.md"])
+	}
+}
+
+func TestWriteExercisePartEmptyDeletesEntry(t *testing.T) {
+	// An empty checked-set means every box was unchecked: the part's entry is
+	// removed (not stored as an empty array), and sibling parts survive.
+	dir := t.TempDir()
+	if err := store.WriteExercisePart(dir, "part-01.md", []int{0}); err != nil {
+		t.Fatalf("WriteExercisePart part-01: %v", err)
+	}
+	if err := store.WriteExercisePart(dir, "part-02.md", []int{2, 4}); err != nil {
+		t.Fatalf("WriteExercisePart part-02: %v", err)
+	}
+	if err := store.WriteExercisePart(dir, "part-02.md", nil); err != nil {
+		t.Fatalf("WriteExercisePart clear part-02: %v", err)
+	}
+
+	state, err := store.ReadExercises(dir)
+	if err != nil {
+		t.Fatalf("ReadExercises: %v", err)
+	}
+	if _, ok := state["part-02.md"]; ok {
+		t.Errorf("part-02 entry should be deleted after empty save, got %v", state["part-02.md"])
+	}
+	if !sameInts(state["part-01.md"], []int{0}) {
+		t.Errorf("part-01 = %v, want [0] preserved", state["part-01.md"])
+	}
+	// The cleared part must not linger as an empty array in the JSON.
+	data, err := os.ReadFile(filepath.Join(dir, "exercises.json"))
+	if err != nil {
+		t.Fatalf("ReadFile exercises.json: %v", err)
+	}
+	if strings.Contains(string(data), "part-02.md") {
+		t.Errorf("exercises.json still references cleared part-02:\n%s", data)
+	}
+}
+
+func TestReadExercisesCorruptFileErrors(t *testing.T) {
+	// Only a *missing* file is the empty case; a present-but-unreadable sidecar
+	// must surface its error rather than be silently treated as empty.
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "exercises.json"), []byte("not json"), 0644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	if _, err := store.ReadExercises(dir); err == nil {
+		t.Error("ReadExercises on corrupt file = nil error, want error")
+	}
+}

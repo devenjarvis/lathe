@@ -1951,3 +1951,143 @@ func TestPartPageLoadsKatex(t *testing.T) {
 		t.Error("part page missing the auto-render invocation")
 	}
 }
+
+func sameIntSlice(a, b []int) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func postProgress(t *testing.T, srv *serve.Server, slug, part, body string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodPost, "/-/progress/"+slug+"/"+part, bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Origin", "http://localhost:4242")
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+	return w
+}
+
+func TestProgressEndpointSavesExercises(t *testing.T) {
+	dir := t.TempDir()
+	tutDir := makeTestTutorial(t, dir, "test-series", true)
+	srv := serve.NewServer(dir)
+
+	w := postProgress(t, srv, "test-series", "part-02.md", `{"ratio":0.42,"exercises":[0,2]}`)
+	if w.Code != http.StatusOK {
+		t.Fatalf("POST progress = %d, want %d; body=%s", w.Code, http.StatusOK, w.Body.String())
+	}
+	state, err := store.ReadExercises(tutDir)
+	if err != nil {
+		t.Fatalf("ReadExercises: %v", err)
+	}
+	if !sameIntSlice(state["part-02.md"], []int{0, 2}) {
+		t.Errorf("saved exercises = %v, want [0 2]", state["part-02.md"])
+	}
+}
+
+func TestProgressEndpointOmittedExercisesCreatesNoSidecar(t *testing.T) {
+	// A part with no exercises sends no "exercises" field (nil slice); the handler
+	// must skip the write entirely rather than create an empty exercises.json.
+	dir := t.TempDir()
+	tutDir := makeTestTutorial(t, dir, "test-series", true)
+	srv := serve.NewServer(dir)
+
+	w := postProgress(t, srv, "test-series", "part-02.md", `{"ratio":0.42,"heading_id":"next-step"}`)
+	if w.Code != http.StatusOK {
+		t.Fatalf("POST progress = %d, want %d; body=%s", w.Code, http.StatusOK, w.Body.String())
+	}
+	if _, err := os.Stat(filepath.Join(tutDir, "exercises.json")); !os.IsNotExist(err) {
+		t.Errorf("exercises.json should not exist after an exercise-less save, stat err = %v", err)
+	}
+}
+
+func TestProgressEndpointEmptyExercisesClearsEntry(t *testing.T) {
+	// A present-but-empty array means the reader unchecked everything: it writes
+	// through and clears the part's saved entry.
+	dir := t.TempDir()
+	tutDir := makeTestTutorial(t, dir, "test-series", true)
+	srv := serve.NewServer(dir)
+
+	if w := postProgress(t, srv, "test-series", "part-02.md", `{"ratio":0.42,"exercises":[0,1]}`); w.Code != http.StatusOK {
+		t.Fatalf("seed POST progress = %d, want %d; body=%s", w.Code, http.StatusOK, w.Body.String())
+	}
+	if w := postProgress(t, srv, "test-series", "part-02.md", `{"ratio":0.5,"exercises":[]}`); w.Code != http.StatusOK {
+		t.Fatalf("clear POST progress = %d, want %d; body=%s", w.Code, http.StatusOK, w.Body.String())
+	}
+
+	state, err := store.ReadExercises(tutDir)
+	if err != nil {
+		t.Fatalf("ReadExercises: %v", err)
+	}
+	if _, ok := state["part-02.md"]; ok {
+		t.Errorf("part-02 entry should be cleared by an empty array, got %v", state["part-02.md"])
+	}
+}
+
+func TestProgressEndpointSavesExercisesDespiteMonotonicGuard(t *testing.T) {
+	// Headline design point: exercise state persists independently of the monotonic
+	// reading-progress guard. An *auto* save for an earlier part is rejected for
+	// progress (no regression) yet still records that part's boxes.
+	dir := t.TempDir()
+	tutDir := makeTestTutorial(t, dir, "test-series", true)
+	// High-water reading progress sits at the later part-02.
+	if err := store.WriteProgress(tutDir, &store.Progress{Part: "part-02.md", Ratio: 0.8, UpdatedAt: time.Now()}); err != nil {
+		t.Fatalf("WriteProgress: %v", err)
+	}
+	srv := serve.NewServer(dir)
+
+	// Auto-save while reviewing the earlier part-01, checking a box there.
+	w := postProgress(t, srv, "test-series", "part-01.md", `{"ratio":0.1,"exercises":[0],"auto":true}`)
+	if w.Code != http.StatusOK {
+		t.Fatalf("POST progress = %d, want %d; body=%s", w.Code, http.StatusOK, w.Body.String())
+	}
+
+	// Progress must not regress: the response still reports part-02 as the position.
+	var resp struct {
+		Progress *store.Progress `json:"progress"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if resp.Progress == nil || resp.Progress.Part != "part-02.md" {
+		t.Errorf("progress regressed: got %+v, want it held at part-02.md", resp.Progress)
+	}
+
+	// ...but the part-01 exercise box must still be recorded.
+	state, err := store.ReadExercises(tutDir)
+	if err != nil {
+		t.Fatalf("ReadExercises: %v", err)
+	}
+	if !sameIntSlice(state["part-01.md"], []int{0}) {
+		t.Errorf("part-01 exercises = %v, want [0] recorded despite the progress guard", state["part-01.md"])
+	}
+}
+
+func TestPartPageRendersSavedExercises(t *testing.T) {
+	// The renderPart read path surfaces the current part's saved boxes to the
+	// template as data-saved-exercises, so the client can restore them on load.
+	dir := t.TempDir()
+	tutDir := makeTestTutorial(t, dir, "test-series", true)
+	if err := store.WriteExercisePart(tutDir, "part-02.md", []int{0, 2}); err != nil {
+		t.Fatalf("WriteExercisePart: %v", err)
+	}
+
+	srv := serve.NewServer(dir)
+	req := httptest.NewRequest(http.MethodGet, "/test-series/part-02.md", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("GET /test-series/part-02.md = %d, want %d", w.Code, http.StatusOK)
+	}
+	if !strings.Contains(w.Body.String(), `data-saved-exercises="0,2"`) {
+		t.Errorf("part page missing restored data-saved-exercises; body excerpt:\n%s", w.Body.String())
+	}
+}
