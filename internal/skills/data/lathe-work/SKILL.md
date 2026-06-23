@@ -50,19 +50,20 @@ Repeat until the user stops you (Ctrl-C, "stop the worker", or closing the sessi
 
 3. **Briefly note** in chat what you just handled (e.g. "Verified digital-synth-zig — clean" or "Answered a question on part-02"), then **loop back to step 1.**
 
-## Keeping the loop's context small
+## Keeping the loop responsive and its context small
 
-This loop is long-running and each job is independent — nothing carries over from one job to the next — so don't let the dispatcher accumulate full job transcripts.
+This loop is long-running and each job is independent — nothing carries over from one job to the next — so keep the dispatcher thin and don't let it block or accumulate full job transcripts.
 
-- **Prefer a fresh sub-context per job (if your agent supports it).** When you can spawn a sub-task/subagent with its own context window (e.g. Claude Code subagents), run each claimed job there: the sub-task applies the matching `/lathe-*` protocol, closes the job itself (`lathe work done` / `lathe work answer`), and returns just a one-line summary. The dispatcher's own context then grows by a sentence per job instead of a whole verify/extend transcript. Keep the outer loop thin: claim → hand the job to a fresh sub-context → record the summary → repeat.
-- **Otherwise, lean on auto-compaction and restart periodically.** If sub-tasks aren't available, your agent's automatic context compaction will keep the loop alive, but it's lossy — so periodically stop and re-run `/lathe-work` to reset. This is safe and lossless: the **queue lives in the server**, so any unclaimed job stays queued and a mid-flight claimed job is re-queued after the reclaim timeout. Nothing is lost by restarting.
+- **Dispatch each job to a fresh sub-context, in the *background* if you can (best).** When you can spawn a sub-task/subagent with its own context window (e.g. Claude Code subagents), run each claimed job there: the sub-task applies the matching `/lathe-*` protocol and **closes the job itself** (`lathe work done` / `lathe work answer`). Two payoffs: the dispatcher's context grows by a sentence per job instead of a whole verify/extend transcript, and — crucially — **if your agent can run the sub-task in the background (e.g. `run_in_background`), do that and immediately go back to `lathe work next` instead of waiting on it.** The sub-task self-reports, so the loop never needs its return value; meanwhile your continued polling keeps worker presence fresh during a long verify/extend (a foreground/blocking dispatch would stop polling and let presence lapse, so a mid-job button click would fall back to copy-paste). Keep the outer loop to just: claim → fire the job into a background sub-context → poll again.
+- **If you can't background sub-tasks, process one job at a time** — that's fine, the loop simply isn't concurrent. Foreground each job, report it, then poll again.
+- **Lean on auto-compaction and restart periodically as a backstop.** If sub-contexts aren't available at all, your agent's automatic context compaction will keep the loop alive, but it's lossy — so periodically stop and re-run `/lathe-work` to reset. This is safe and lossless: the **queue lives in the server**, so any unclaimed job stays queued and a mid-flight claimed job is re-queued after the reclaim timeout. Nothing is lost by restarting.
 
 ## Boundaries
 
 - **Reuse the protocols, don't reinvent them.** Each job type is just "run the matching `/lathe-*` skill, then report." All the real rules (read-only verify, the extend handshake, grounded ask answers) live in those skills and win on any conflict.
 - **Always close the job.** `verify`/`extend` → `lathe work done <id>`; `ask` → `lathe work answer <id> --answer -` (which closes it). A job left open ties up the browser until the server's reclaim timeout.
 - **Interactive session only.** Never shell out to `-p` / headless to do the work — that's the metered path this whole design avoids.
-- **One job at a time.** Finish and report the current job before claiming the next.
+- **Sequential or concurrent — match your harness.** Without background sub-tasks, finish and report each job before claiming the next. With them, several jobs may be in flight at once; that's fine and keeps presence fresh. Concurrency is safe: the server rejects a second verify/extend on a tutorial that's already verifying/extending, so two jobs can't collide on the same `slug`, and ask jobs are read-only.
 
 ## Stop
 
