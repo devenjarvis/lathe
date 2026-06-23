@@ -50,6 +50,13 @@ Repeat until the user stops you (Ctrl-C, "stop the worker", or closing the sessi
 
 3. **Briefly note** in chat what you just handled (e.g. "Verified digital-synth-zig — clean" or "Answered a question on part-02"), then **loop back to step 1.**
 
+## Keeping the loop's context small
+
+This loop is long-running and each job is independent — nothing carries over from one job to the next — so don't let the dispatcher accumulate full job transcripts.
+
+- **Prefer a fresh sub-context per job (if your agent supports it).** When you can spawn a sub-task/subagent with its own context window (e.g. Claude Code subagents), run each claimed job there: the sub-task applies the matching `/lathe-*` protocol, closes the job itself (`lathe work done` / `lathe work answer`), and returns just a one-line summary. The dispatcher's own context then grows by a sentence per job instead of a whole verify/extend transcript. Keep the outer loop thin: claim → hand the job to a fresh sub-context → record the summary → repeat.
+- **Otherwise, lean on auto-compaction and restart periodically.** If sub-tasks aren't available, your agent's automatic context compaction will keep the loop alive, but it's lossy — so periodically stop and re-run `/lathe-work` to reset. This is safe and lossless: the **queue lives in the server**, so any unclaimed job stays queued and a mid-flight claimed job is re-queued after the reclaim timeout. Nothing is lost by restarting.
+
 ## Boundaries
 
 - **Reuse the protocols, don't reinvent them.** Each job type is just "run the matching `/lathe-*` skill, then report." All the real rules (read-only verify, the extend handshake, grounded ask answers) live in those skills and win on any conflict.
