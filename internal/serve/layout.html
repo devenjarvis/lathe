@@ -124,7 +124,7 @@
 <aside id="askDrawer" data-slug="{{.Tutorial.Slug}}" data-part="{{.CurrentPart}}" aria-hidden="true">
   <header>
     <h3>Ask about "{{.Tutorial.Title}}"</h3>
-    <span id="workerStatus" class="worker-status" hidden title="An agent running /lathe-work is connected — Ask, Verify, and Add-a-part run there directly.">● agent connected</span>
+    <span id="workerStatus" class="worker-status" hidden title="An agent running /lathe-work is connected — Ask, Verify, and Extend run there directly.">● agent connected</span>
     <button type="button" id="askClose" aria-label="Close">×</button>
   </header>
   <div id="askLog" role="log" aria-live="polite"></div>
@@ -839,7 +839,7 @@
 </script>
 <script>
   // Worker-connected indicator. Polls /-/worker so the reader can see whether the
-  // Ask / Verify / Add-a-part buttons will drive work in a connected agent
+  // Ask / Verify / Extend buttons will drive work in a connected agent
   // (/lathe-work running) or fall back to the copy-paste handoff. Cheap and
   // best-effort: a failed fetch just leaves the last known state.
   (function(){

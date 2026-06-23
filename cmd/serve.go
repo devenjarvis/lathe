@@ -43,7 +43,7 @@ var serveCmd = &cobra.Command{
 		// Nudge toward live mode without spawning anything: starting the loop is
 		// the user's call (it can't be agent-agnostic or non-metered otherwise —
 		// see the worker-bridge note in AGENTS.md).
-		fmt.Println("Live mode: run /lathe-work in your coding agent to drive Ask/Verify/Add-a-part here (otherwise the buttons hand you a command to paste).")
+		fmt.Println("Live mode: run /lathe-work in your coding agent to drive Ask/Verify/Extend here (otherwise the buttons hand you a command to paste).")
 		openBrowser(url)
 
 		// Bind to loopback only: the server is unauthenticated and exposes a
