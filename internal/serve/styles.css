@@ -473,6 +473,14 @@ pre[data-overflow="true"]{box-shadow:inset -18px 0 14px -12px rgba(40,30,20,.20)
 .ask-rich > :last-child{margin-bottom:0}
 /* The worker-connected indicator in the Ask drawer header: a small muted dot. */
 .worker-status{font-size:.78rem;color:var(--text-muted);margin-left:auto;margin-right:.6rem;white-space:nowrap}
+/* First-boot live-mode nudge: a bottom-center toast that fades in, then out.
+   z-index sits below the Ask drawer/backdrop (90/85) so opening Ask covers it. */
+.live-nudge{position:fixed;left:50%;bottom:1.25rem;transform:translateX(-50%) translateY(.5rem);z-index:82;display:flex;align-items:center;gap:.6rem;max-width:min(92vw,38rem);padding:.7rem .9rem;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:var(--radius-md);box-shadow:var(--shadow-md);font-size:.88rem;line-height:1.45;opacity:0;transition:opacity .35s ease,transform .35s ease}
+.live-nudge.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.live-nudge code{font-size:.85em}
+.live-nudge .live-nudge-dot{color:var(--accent);flex:none}
+.live-nudge .live-nudge-close{flex:none;background:none;border:none;color:var(--text-muted);font-size:1.15rem;line-height:1;cursor:pointer;padding:0 .15rem;margin-left:.2rem}
+.live-nudge .live-nudge-close:hover{color:var(--text)}
 #askForm{display:flex;flex-direction:column;gap:.6rem;padding:1rem;border-top:1px solid var(--border)}
 #askInput{width:100%;resize:vertical;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:var(--radius-md);padding:.55rem .7rem;font-family:var(--font-body);font-size:.92rem;line-height:1.4}
 #askInput:focus{outline:2px solid var(--accent);outline-offset:1px}

@@ -51,6 +51,49 @@
   </button>
 {{end}}
 
+{{/* liveNudge — a one-time toast nudging the reader to start the /lathe-work
+     loop for live mode. Included on both the list and reading pages (shared so
+     "first boot" is once total, whichever page loads first). It only appears
+     when no worker is already connected and it has never been shown before
+     (localStorage), then fades after a few seconds. Self-contained markup +
+     script so a single {{template "liveNudge"}} drops it into either page. */}}
+{{define "liveNudge"}}
+<div id="liveNudge" class="live-nudge" role="status" hidden>
+  <span class="live-nudge-dot" aria-hidden="true">●</span>
+  <span>Tip: run <code>/lathe-work</code> in your coding agent to drive Ask, Verify, and Add-a-part right here — no copy-paste.</span>
+  <button type="button" class="live-nudge-close" aria-label="Dismiss">×</button>
+</div>
+<script>
+  (function(){
+    var el = document.getElementById('liveNudge');
+    if (!el) return;
+    var KEY = 'latheLiveNudgeSeen';
+    var hideTimer;
+    function dismiss(){
+      clearTimeout(hideTimer);
+      el.classList.remove('show');
+      setTimeout(function(){ el.hidden = true; }, 400); // let the fade finish
+    }
+    el.querySelector('.live-nudge-close').addEventListener('click', dismiss);
+    // First boot only: never shown before. (Reading the flag is best-effort —
+    // a privacy mode that throws on localStorage just means it may show again.)
+    try { if (localStorage.getItem(KEY)) return; } catch(e){}
+    fetch('/-/worker', {headers: {'Accept': 'application/json'}})
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(data){
+        // Mark seen regardless so it's a one-time nudge; skip showing it when a
+        // worker is already connected (they clearly know about live mode).
+        try { localStorage.setItem(KEY, '1'); } catch(e){}
+        if (data && data.connected) return;
+        el.hidden = false;
+        requestAnimationFrame(function(){ el.classList.add('show'); });
+        hideTimer = setTimeout(dismiss, 7000);
+      })
+      .catch(function(){ /* offline / endpoint missing — just skip the nudge */ });
+  })();
+</script>
+{{end}}
+
 {{/* The three partials below are the status-dependent regions of the reading
      page (layout.html only — list.html never calls them). Each is wrapped in a
      stable-id container on the page (#badgeRegion / #verifyRegion / #extendRegion)
