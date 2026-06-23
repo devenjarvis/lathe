@@ -124,6 +124,7 @@
 <aside id="askDrawer" data-slug="{{.Tutorial.Slug}}" data-part="{{.CurrentPart}}" aria-hidden="true">
   <header>
     <h3>Ask about "{{.Tutorial.Title}}"</h3>
+    <span id="workerStatus" class="worker-status" hidden title="An agent running /lathe-work is connected — Ask, Verify, and Add-a-part run there directly.">● agent connected</span>
     <button type="button" id="askClose" aria-label="Close">×</button>
   </header>
   <div id="askLog" role="log" aria-live="polite"></div>
@@ -741,6 +742,55 @@
       input.disabled = sending;
     }
 
+    // A pending-answer bubble shown while a connected worker answers the question
+    // out-of-process. pollAskAnswer turns it into the real answer when it arrives.
+    function appendThinking(){
+      var was = nearBottom();
+      var el = document.createElement('div');
+      el.className = 'ask-bubble ask-answer ask-thinking';
+      el.textContent = 'Thinking…';
+      log.appendChild(el);
+      if (was) pinBottom();
+      return el;
+    }
+
+    // Poll GET /-/work/{jobId} until the worker records its answer, then render it
+    // into the thinking bubble (rich HTML when the server rendered the markdown,
+    // else plain text). Capped so a worker that never answers doesn't poll forever.
+    function pollAskAnswer(jobId){
+      var bubble = appendThinking();
+      var attempts = 0;
+      var maxAttempts = 400; // ~10 min at 1.5s
+      var timer = setInterval(function(){
+        if (document.hidden) return; // a hidden tab can't show it; resume when visible
+        attempts++;
+        if (attempts > maxAttempts){
+          clearInterval(timer);
+          bubble.classList.remove('ask-thinking');
+          bubble.textContent = 'No answer yet — make sure /lathe-work is running in your agent, then ask again.';
+          return;
+        }
+        fetch('/-/work/' + encodeURIComponent(jobId), {headers: {'Accept': 'application/json'}})
+          .then(function(r){ return r.ok ? r.json() : null; })
+          .then(function(data){
+            if (!data) return;
+            if (data.state === 'done' || (data.answer && data.answer.length)){
+              clearInterval(timer);
+              var was = nearBottom();
+              bubble.classList.remove('ask-thinking');
+              if (data.answerHTML){
+                bubble.classList.add('ask-rich');
+                bubble.innerHTML = data.answerHTML;
+              } else {
+                bubble.textContent = data.answer || '(no answer)';
+              }
+              if (was) pinBottom();
+            }
+          })
+          .catch(function(){ /* transient network blip — keep polling */ });
+      }, 1500);
+    }
+
     input.addEventListener('keydown', function(ev){
       if (ev.key === 'Enter' && !ev.shiftKey) {
         ev.preventDefault();
@@ -770,7 +820,13 @@
           });
         }
         return response.json().then(function(data){
-          appendHandoff(data.command || '');
+          // A connected worker answers in the user's session and posts the answer
+          // back — poll for it. With no worker, fall back to the paste-able handoff.
+          if (data.mode === 'queued') {
+            pollAskAnswer(data.jobId);
+          } else {
+            appendHandoff(data.command || '');
+          }
         });
       }).catch(function(err){
         appendBubble('ask-answer', 'Error: ' + (err && err.message ? err.message : 'request failed'));
@@ -782,10 +838,29 @@
   })();
 </script>
 <script>
-  // Verify and "Add Part" both hand off to the user's interactive coding-agent
-  // session instead of running anything server-side. On success the server
-  // returns {command}; we render a "copy this and paste it into your coding
-  // agent" panel in place of the form.
+  // Worker-connected indicator. Polls /-/worker so the reader can see whether the
+  // Ask / Verify / Add-a-part buttons will drive work in a connected agent
+  // (/lathe-work running) or fall back to the copy-paste handoff. Cheap and
+  // best-effort: a failed fetch just leaves the last known state.
+  (function(){
+    var dot = document.getElementById('workerStatus');
+    if (!dot) return;
+    function refresh(){
+      if (document.hidden) return;
+      fetch('/-/worker', {headers: {'Accept': 'application/json'}})
+        .then(function(r){ return r.ok ? r.json() : null; })
+        .then(function(data){ if (data) dot.hidden = !data.connected; })
+        .catch(function(){ /* leave the last known state */ });
+    }
+    refresh();
+    setInterval(refresh, 30000);
+  })();
+</script>
+<script>
+  // Verify and "Add Part" drive a connected worker when one is present (mode
+  // "queued"), else hand off to the user's interactive coding-agent session
+  // (mode "handoff"). On handoff we render a "copy this and paste it into your
+  // coding agent" panel in place of the form; on queued, a brief working note.
   (function(){
     function renderHandoff(section, command, lead){
       var panel = document.createElement('div');
@@ -819,7 +894,21 @@
       section.appendChild(panel);
     }
 
-    function wire(formId, errClass, lead, bodyFn, pollFrom){
+    // renderQueued replaces the form with a brief "your agent is on it" note when
+    // a connected worker picked the job up. The status poller swaps in the real
+    // verifying/extending spinner panel within a few seconds.
+    function renderQueued(section, lead){
+      var panel = document.createElement('div');
+      panel.className = 'handoff-panel queued-panel';
+      var note = document.createElement('p');
+      note.className = 'handoff-note';
+      note.textContent = lead;
+      panel.appendChild(note);
+      section.innerHTML = '';
+      section.appendChild(panel);
+    }
+
+    function wire(formId, errClass, lead, queuedLead, bodyFn, pollFrom){
       var form = document.getElementById(formId);
       // Idempotent: the status poller re-runs the wiring after swapping a fresh
       // verify/extend form into the DOM. A swapped-in form is a brand-new node
@@ -841,11 +930,17 @@
         }).then(function(r){
           if (r.ok) {
             return r.json().then(function(data){
-              renderHandoff(form.closest('section') || form.parentNode, data.command || '', lead);
-              // The handoff hands the reader a command to paste into their agent;
-              // the agent then flips status out-of-process. Start polling now so
-              // the page picks up the transition into verifying/extending (and
-              // through to done) without the reader having to hard-refresh.
+              var section = form.closest('section') || form.parentNode;
+              // queued: a connected worker will do the work and flip status
+              // out-of-process. handoff: no worker, so hand back a command to
+              // paste. Either way start polling now so the page picks up the
+              // transition into verifying/extending (and through to done) without
+              // the reader having to hard-refresh.
+              if (data.mode === 'queued') {
+                renderQueued(section, queuedLead);
+              } else {
+                renderHandoff(section, data.command || '', lead);
+              }
               if (pollFrom && window.latheStartStatusPoll) window.latheStartStatusPoll(pollFrom);
             });
           }
@@ -865,9 +960,11 @@
     window.latheWireHandoffForms = function(){
       wire('verifyForm', '.verify-error',
         'To verify this tutorial, paste this into your coding agent:',
+        'Your connected agent is verifying this tutorial…',
         function(){ return null; }, 'verifying');
       wire('extendForm', '.extend-error',
         'To add this part, paste this into your coding agent:',
+        'Your connected agent is writing this part…',
         function(form){
           var guidance = form.querySelector('textarea[name="guidance"]').value;
           return JSON.stringify({guidance: guidance});

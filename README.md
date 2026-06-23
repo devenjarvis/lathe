@@ -37,7 +37,14 @@ Don't worry, we also have dark mode:
 
 Click the tutorial you want to read and start learning! 
 
-The CLI has a bunch of other commands, but honestly those were built to give the LLM a deterministic way to manage tutorials. I expect the above to be all you need (it's all I ever use) for day-to-day. If you want to ask a question about a tutorial, have the LLM verify it, or extend it with an additional part, the UI has affordances for each of these which will give you the exact skill/prompt to give your LLM in order to trigger the action.
+The CLI has a bunch of other commands, but honestly those were built to give the LLM a deterministic way to manage tutorials. I expect the above to be all you need (it's all I ever use) for day-to-day. If you want to ask a question about a tutorial, have the LLM verify it, or extend it with an additional part, the UI has affordances for each of these.
+
+There are two ways those buttons work:
+
+- **Live mode (no copy-paste):** run `/lathe-work` once in your coding agent while `lathe serve` is running. That starts a small worker loop, the Ask drawer shows "● agent connected", and the **Ask / Verify this tutorial / Add a part** buttons drive the work directly in that session — the answer renders right in the reader, verify and extend update in place. Works in any supported agent. Stop the loop any time; the buttons just revert to copy-paste.
+- **Copy-paste fallback (no worker connected):** each button hands you the exact `/lathe-*` command to paste into your LLM to trigger the action.
+
+Either way the model work runs in your interactive agent session — the binary never drives a model itself.
 
 ## Install
 
@@ -135,9 +142,9 @@ That said, for the sake of transparency, today I test lathe for my own usecases 
 
 ## Alright then, how does it work?
 
-- **LLM skills** — generate and work with tutorials, all run in your interactive coding-agent session: `/lathe` writes `part-01.md`, `/lathe-extend` adds the next part, `/lathe-verify` works through a tutorial to confirm it compiles and runs, `/lathe-ask` answers questions about a part you're reading, and `/lathe-tag` adds search tags to existing tutorials. 
-  - The Go binary never drives a model — all model work runs in your interactive agent session, so it stays on whatever subscription or endpoint that agent uses. (Concretely, this also keeps Lathe off metered headless runs like Claude Code's `claude -p`, which is planned to be metered as of 2026-06-15.) Maybe down the line the cost proves minimal — generating tutorials doesn't consume a lot of tokens compared to vibecoding — and we move some of these interactions back into the UI. We'll see!
-- **`lathe` CLI** (Go) — copies tutorials into `~/.lathe/tutorials/`, serves the rendered output at `http://localhost:4242`, and owns all durable state. It never calls an LLM itself: the web buttons and the `lathe verify`/`lathe extend` commands just hand you the skill command to paste into your session, and the skills call back into the CLI (`lathe store`, `lathe verify-result`, `lathe extend-start`/`extend-commit`, `lathe voice add`) to record results.
+- **LLM skills** — generate and work with tutorials, all run in your interactive coding-agent session: `/lathe` writes `part-01.md`, `/lathe-extend` adds the next part, `/lathe-verify` works through a tutorial to confirm it compiles and runs, `/lathe-ask` answers questions about a part you're reading, `/lathe-tag` adds search tags to existing tutorials, and `/lathe-work` runs a worker loop so the web buttons drive Ask/Verify/Extend directly (see [live mode](#quick-start) above).
+  - The Go binary never drives a model — all model work runs in your interactive agent session, so it stays on whatever subscription or endpoint that agent uses. (Concretely, this also keeps Lathe off metered headless runs like Claude Code's `claude -p`, which is planned to be metered as of 2026-06-15.) `/lathe-work` honors this too: it's a long-poll loop in your *interactive* session, never a headless `-p` run.
+- **`lathe` CLI** (Go) — copies tutorials into `~/.lathe/tutorials/`, serves the rendered output at `http://localhost:4242`, and owns all durable state. It never calls an LLM itself. When a `/lathe-work` worker is connected, the web buttons enqueue a job for that session to pick up; otherwise they hand you the skill command to paste. Either way the skills do the model work and call back into the CLI (`lathe store`, `lathe verify-result`, `lathe extend-start`/`extend-commit`, `lathe voice add`, and `lathe work next`/`answer`/`done` for the worker loop) to record results and close out jobs.
 
 ## What's up with the fancy UI?
 
@@ -242,7 +249,7 @@ Every tutorial keeps the research trail behind it — the URLs the generation sk
 
 ## Verification
 
-Verification is **opt-in** and runs in your interactive LLM session. Storing a tutorial leaves it `unverified` and nothing runs until you ask. The `lathe verify <slug>` command, the `--verify` flag on `lathe store`, and the **Verify this tutorial** button in the web UI all just hand you the same command to paste into your session:
+Verification is **opt-in** and runs in your interactive LLM session. Storing a tutorial leaves it `unverified` and nothing runs until you ask. With a `/lathe-work` worker connected, the **Verify this tutorial** button kicks it off directly in that session. Otherwise — and via the `lathe verify <slug>` command or the `--verify` flag on `lathe store` — you get the same command to paste into your session:
 
 ```
 /lathe-verify <slug>

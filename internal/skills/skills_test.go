@@ -10,7 +10,7 @@ func TestAllReturnsEverySkillWithMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatalf("All() error: %v", err)
 	}
-	const want = 6
+	const want = 7
 	if len(all) != want {
 		t.Fatalf("All() returned %d skills, want %d", len(all), want)
 	}
@@ -22,6 +22,7 @@ func TestAllReturnsEverySkillWithMetadata(t *testing.T) {
 		"lathe-tag":    false,
 		"lathe-verify": false,
 		"lathe-voice":  false,
+		"lathe-work":   false,
 	}
 	for _, s := range all {
 		if _, ok := wantSlugs[s.Slug]; !ok {

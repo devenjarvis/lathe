@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/devenjarvis/lathe/internal/queue"
 	"github.com/devenjarvis/lathe/internal/store"
 	"github.com/devenjarvis/lathe/internal/voice"
 )
@@ -42,6 +43,11 @@ type Server struct {
 	listTmpl     *template.Template
 	highlightCSS template.CSS
 	designCSS    template.CSS
+	// queue bridges the browser and an interactive coding-agent session: the
+	// ask/verify/extend buttons enqueue a job when a worker is connected (else
+	// they fall back to the copy-paste handoff), and a /lathe-work loop long-polls
+	// /-/work to claim and run it. The binary still never drives a model.
+	queue *queue.Queue
 }
 
 func NewServer(tutorialsDir string) *Server {
@@ -63,6 +69,7 @@ func NewServer(tutorialsDir string) *Server {
 		listTmpl:     listTmpl,
 		highlightCSS: css,
 		designCSS:    template.CSS(stylesCSS),
+		queue:        queue.New(),
 	}
 }
 
@@ -78,6 +85,14 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /-/extend/{slug}", s.handleExtend)
 	mux.HandleFunc("POST /-/verify/{slug}", s.handleVerify)
 	mux.HandleFunc("GET /-/status/{slug}/{part}", s.handleStatus)
+	// Worker bridge (all loopback). The worker long-polls /-/work to claim a job,
+	// reports an ask answer via .../answer or a verify/extend completion via
+	// .../done, and the browser polls GET /-/work/{id} for an ask answer.
+	mux.HandleFunc("GET /-/work", s.handleWorkNext)
+	mux.HandleFunc("GET /-/work/{id}", s.handleWorkGet)
+	mux.HandleFunc("POST /-/work/{id}/answer", s.handleWorkAnswer)
+	mux.HandleFunc("POST /-/work/{id}/done", s.handleWorkDone)
+	mux.HandleFunc("GET /-/worker", s.handleWorker)
 	return mux
 }
 

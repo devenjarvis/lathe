@@ -463,6 +463,16 @@ pre[data-overflow="true"]{box-shadow:inset -18px 0 14px -12px rgba(40,30,20,.20)
 .ask-handoff-note,.handoff-note{font-size:.85rem;color:var(--text-muted);margin:0 0 .5rem}
 .ask-handoff-cmd,.handoff-cmd{margin:0 0 .6rem;white-space:pre-wrap;word-break:break-word;font-size:.85rem}
 .handoff-panel{margin-top:.5rem}
+/* Pending-answer bubble while a connected worker answers out-of-process. */
+.ask-thinking{opacity:.7;font-style:italic}
+/* A worker-answered bubble carries rendered markdown (block elements), so it
+   opts out of the plain-text pre-wrap and trims the outer block margins so the
+   answer sits flush inside the bubble. */
+.ask-rich{white-space:normal}
+.ask-rich > :first-child{margin-top:0}
+.ask-rich > :last-child{margin-bottom:0}
+/* The worker-connected indicator in the Ask drawer header: a small muted dot. */
+.worker-status{font-size:.78rem;color:var(--text-muted);margin-left:auto;margin-right:.6rem;white-space:nowrap}
 #askForm{display:flex;flex-direction:column;gap:.6rem;padding:1rem;border-top:1px solid var(--border)}
 #askInput{width:100%;resize:vertical;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:var(--radius-md);padding:.55rem .7rem;font-family:var(--font-body);font-size:.92rem;line-height:1.4}
 #askInput:focus{outline:2px solid var(--accent);outline-offset:1px}

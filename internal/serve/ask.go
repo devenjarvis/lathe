@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/devenjarvis/lathe/internal/queue"
 	"github.com/devenjarvis/lathe/internal/store"
 )
 
@@ -22,6 +23,10 @@ const maxQuestionBytes = 8 << 10 // 8 KiB
 func (s *Server) handleAsk(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if !sameOrigin(r) {
+		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}
 
@@ -63,6 +68,12 @@ func (s *Server) handleAsk(w http.ResponseWriter, r *http.Request) {
 	question := strings.TrimSpace(payload.Question)
 	if question == "" {
 		http.Error(w, "question is required", http.StatusBadRequest)
+		return
+	}
+
+	if s.queue.WorkerConnected() {
+		id := s.queue.Enqueue(queue.Job{Type: queue.JobAsk, Slug: slug, Part: part, Question: question})
+		writeQueued(w, id)
 		return
 	}
 
