@@ -86,9 +86,10 @@ lathe skills install --agent cursor    # ./.cursor/commands/<slug>.md (Cursor sl
 lathe skills install --agent codex     # ./.agents/skills/<name>/SKILL.md (Codex Agent Skills)
 lathe skills install --agent gemini    # ./.gemini/skills/<name>/SKILL.md (Gemini CLI)
 lathe skills install --agent opencode  # ./.opencode/skills/<name>/SKILL.md (opencode)
-lathe skills install --agent cline     # ./.cline/skills/<name>/SKILL.md (Cline)
-lathe skills install --agent windsurf  # ./.windsurf/skills/<name>/SKILL.md (Windsurf)
-lathe skills install --agent all       # every target above
+lathe skills install --agent cline        # ./.cline/skills/<name>/SKILL.md (Cline)
+lathe skills install --agent windsurf     # ./.windsurf/skills/<name>/SKILL.md (Windsurf)
+lathe skills install --agent antigravity  # ./.antigravity/skills/<name>/SKILL.md (Antigravity)
+lathe skills install --agent all          # every target above
 lathe skills list                      # show the bundled skills
 ```
 

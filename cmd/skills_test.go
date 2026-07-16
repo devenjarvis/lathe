@@ -153,6 +153,7 @@ func TestSkillsInstallRawShipAgents(t *testing.T) {
 		{"gemini", []string{".gemini", "skills"}, []string{".gemini", "skills"}},
 		{"opencode", []string{".opencode", "skills"}, []string{".config", "opencode", "skills"}},
 		{"cline", []string{".cline", "skills"}, []string{".cline", "skills"}},
+		{"antigravity", []string{".antigravity", "skills"}, []string{".gemini", "config", "plugins", "custom-skills", "skills"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.agent+"-project", func(t *testing.T) {
@@ -250,6 +251,7 @@ func TestSkillsInstallAll(t *testing.T) {
 	mustExist(t, filepath.Join(dir, ".opencode", "skills", "lathe", "SKILL.md"))
 	mustExist(t, filepath.Join(dir, ".cline", "skills", "lathe", "SKILL.md"))
 	mustExist(t, filepath.Join(dir, ".windsurf", "skills", "lathe", "SKILL.md"))
+	mustExist(t, filepath.Join(dir, ".antigravity", "skills", "lathe", "SKILL.md"))
 }
 
 // TestSkillsInstallAllUser exercises the one non-trivial interaction the
@@ -274,6 +276,7 @@ func TestSkillsInstallAllUser(t *testing.T) {
 	mustExist(t, filepath.Join(home, ".gemini", "skills", "lathe", "SKILL.md"))
 	mustExist(t, filepath.Join(home, ".config", "opencode", "skills", "lathe", "SKILL.md"))
 	mustExist(t, filepath.Join(home, ".cline", "skills", "lathe", "SKILL.md"))
+	mustExist(t, filepath.Join(home, ".gemini", "config", "plugins", "custom-skills", "skills", "lathe", "SKILL.md"))
 	// Project-only / no-user-dir targets fall back to the project even under --user.
 	mustExist(t, filepath.Join(proj, ".windsurf", "skills", "lathe", "SKILL.md"))
 	mustExist(t, filepath.Join(proj, ".cursor", "commands", "lathe.md"))
