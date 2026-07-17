@@ -16,14 +16,15 @@ import (
 // `brew install` / `go install` with no repo clone.
 var skillsCmd = &cobra.Command{
 	Use:   "skills",
-	Short: "Manage the bundled Lathe skills (install into Claude Code / Cursor / Codex / Gemini / opencode / Cline / Windsurf)",
+	Short: "Manage the bundled Lathe skills (install into Claude Code / Cursor / Codex / Gemini / opencode / Cline / Windsurf / Antigravity)",
 }
 
 // rawShipTarget describes an agent that consumes the raw SKILL.md verbatim —
 // the format is now a cross-tool standard (name + description frontmatter)
-// shared by Claude Code, Codex, Gemini CLI, opencode, Cline, and Windsurf, so
-// these all ship the bytes unchanged. Cursor is the lone exception: it needs a
-// markdown translation, so it keeps its own branch in installForAgent.
+// shared by Claude Code, Codex, Gemini CLI, opencode, Cline, Windsurf, and
+// Antigravity, so these all ship the bytes unchanged. Cursor is the lone
+// exception: it needs a markdown translation, so it keeps its own branch in
+// installForAgent.
 //
 // The path-segment data drives a single generic resolver (rawShipDir): project
 // holds the segments under the project root, user holds the segments under $HOME
@@ -45,6 +46,7 @@ var rawShipTargets = map[string]rawShipTarget{
 	"opencode":    {display: "opencode", project: []string{".opencode", "skills"}, user: []string{".config", "opencode", "skills"}},
 	"cline":       {display: "Cline", project: []string{".cline", "skills"}, user: []string{".cline", "skills"}},
 	"windsurf":    {display: "Windsurf", project: []string{".windsurf", "skills"}},
+	"antigravity": {display: "Antigravity", project: []string{".antigravity", "skills"}, user: []string{".gemini", "config", "plugins", "custom-skills", "skills"}},
 }
 
 // installForAgent writes every skill for one agent and returns the file count.

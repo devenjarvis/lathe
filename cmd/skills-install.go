@@ -14,7 +14,7 @@ var (
 
 var skillsInstallCmd = &cobra.Command{
 	Use:   "install",
-	Short: "Write the bundled skills into Claude Code, Cursor, Codex, Gemini, opencode, Cline, and/or Windsurf",
+	Short: "Write the bundled skills into Claude Code, Cursor, Codex, Gemini, opencode, Cline, Windsurf, and/or Antigravity",
 	Long: `Write the bundled Lathe skills into an agent's skills/commands directory.
 
 Targets (--agent):
@@ -25,6 +25,7 @@ Targets (--agent):
   opencode      ./.opencode/skills/<name>/SKILL.md   (--user: ~/.config/opencode/skills/...)
   cline         ./.cline/skills/<name>/SKILL.md      (--user: ~/.cline/skills/...)
   windsurf      ./.windsurf/skills/<name>/SKILL.md   (project-only; --user falls back)
+  antigravity   ./.antigravity/skills/<name>/SKILL.md (--user: ~/.gemini/config/plugins/custom-skills/skills/...)
   all           all of the above
 
 By default skills install into the current project (cwd). Pass --user to install
@@ -43,12 +44,12 @@ Existing files are overwritten (install is idempotent).`,
 
 		var agents []string
 		switch skillsAgent {
-		case "claude-code", "cursor", "codex", "gemini", "opencode", "cline", "windsurf":
+		case "claude-code", "cursor", "codex", "gemini", "opencode", "cline", "windsurf", "antigravity":
 			agents = []string{skillsAgent}
 		case "all":
-			agents = []string{"claude-code", "cursor", "codex", "gemini", "opencode", "cline", "windsurf"}
+			agents = []string{"claude-code", "cursor", "codex", "gemini", "opencode", "cline", "windsurf", "antigravity"}
 		default:
-			return fmt.Errorf("invalid --agent %q (want claude-code, cursor, codex, gemini, opencode, cline, windsurf, or all)", skillsAgent)
+			return fmt.Errorf("invalid --agent %q (want claude-code, cursor, codex, gemini, opencode, cline, windsurf, antigravity, or all)", skillsAgent)
 		}
 
 		out := cmd.OutOrStdout()
@@ -66,7 +67,7 @@ Existing files are overwritten (install is idempotent).`,
 }
 
 func init() {
-	skillsInstallCmd.Flags().StringVar(&skillsAgent, "agent", "claude-code", "target agent: claude-code, cursor, codex, gemini, opencode, cline, windsurf, or all")
+	skillsInstallCmd.Flags().StringVar(&skillsAgent, "agent", "claude-code", "target agent: claude-code, cursor, codex, gemini, opencode, cline, windsurf, antigravity, or all")
 	skillsInstallCmd.Flags().BoolVar(&skillsUser, "user", false, "install into the user home dir instead of the project (cursor/windsurf are project-only: warn and fall back to the project)")
 	skillsCmd.AddCommand(skillsInstallCmd)
 }
