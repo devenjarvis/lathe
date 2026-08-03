@@ -10,6 +10,7 @@ import (
 
 	chromahtml "github.com/alecthomas/chroma/v2/formatters/html"
 	"github.com/alecthomas/chroma/v2/styles"
+	"github.com/devenjarvis/lathe/internal/anchor"
 	"github.com/gohugoio/hugo-goldmark-extensions/passthrough"
 	"github.com/yuin/goldmark"
 	highlighting "github.com/yuin/goldmark-highlighting/v2"
@@ -68,7 +69,12 @@ func RenderMarkdown(src []byte) ([]byte, error) {
 // headings for the in-page TOC. parser.WithAutoHeadingID assigns each heading
 // a stable id slug; the same slug is captured here for anchor links.
 func RenderMarkdownWithTOC(src []byte) ([]byte, []TOCEntry, error) {
+	// Callouts first, so a fenced block nested in a callout body is un-quoted
+	// and visible to the anchor rewriter. Anchors before mermaid is arbitrary —
+	// a mermaid block carries no path=, so anchor.Rewrite passes it through
+	// untouched.
 	src = preprocessCallouts(src)
+	src = anchor.Rewrite(src)
 	src = preprocessMermaid(src)
 	md := goldmark.New(
 		goldmark.WithExtensions(

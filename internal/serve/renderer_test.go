@@ -433,3 +433,98 @@ func TestRenderExerciseHeadingDetection(t *testing.T) {
 		})
 	}
 }
+
+func TestRenderAnchoredCodeBlock(t *testing.T) {
+	src := []byte("Here is the router.\n\n```go path=internal/serve/server.go lines=76-80\nmux.HandleFunc(\"GET /{slug}/\", s.handleTutorial)\n```\n")
+	out, err := serve.RenderMarkdown(src)
+	if err != nil {
+		t.Fatalf("serve.RenderMarkdown() error = %v", err)
+	}
+	html := string(out)
+
+	for _, want := range []string{
+		`class="anchor"`,
+		`data-path="internal/serve/server.go"`,
+		`data-lines="76-80"`,
+		`class="anchor-path"`,
+		"internal/serve/server.go:76-80",
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("anchored block output missing %q, got:\n%s", want, html)
+		}
+	}
+	// The body must still be highlighted — the whole point of rewriting to a
+	// plain fence inside the container rather than putting path= on the info
+	// string where goldmark-highlighting would choke on it.
+	if !strings.Contains(html, `class="chroma"`) {
+		t.Errorf("anchored block lost chroma highlighting, got:\n%s", html)
+	}
+	// The info string itself must not survive into the markup — only the data
+	// attributes we emit deliberately.
+	if strings.Contains(html, "go path=") || strings.Contains(html, "lines=76-80") {
+		t.Errorf("the fence info string leaked into the rendered output, got:\n%s", html)
+	}
+}
+
+func TestRenderPlainCodeBlockUnaffectedByAnchors(t *testing.T) {
+	src := []byte("```go\nfmt.Println(\"hi\")\n```\n")
+	out, err := serve.RenderMarkdown(src)
+	if err != nil {
+		t.Fatalf("serve.RenderMarkdown() error = %v", err)
+	}
+	html := string(out)
+	if strings.Contains(html, "anchor") {
+		t.Errorf("a plain fenced block must not become an anchor, got:\n%s", html)
+	}
+	if !strings.Contains(html, `class="chroma"`) {
+		t.Errorf("plain fenced block lost chroma highlighting, got:\n%s", html)
+	}
+}
+
+func TestRenderAnchoredBlockInsideCallout(t *testing.T) {
+	src := []byte("> [!NOTE]\n> Look at this:\n>\n> ```go path=cmd/root.go lines=10-12\n> var rootCmd = 1\n> ```\n")
+	out, err := serve.RenderMarkdown(src)
+	if err != nil {
+		t.Fatalf("serve.RenderMarkdown() error = %v", err)
+	}
+	html := string(out)
+	if !strings.Contains(html, `class="callout callout-note"`) {
+		t.Errorf("callout wrapper missing, got:\n%s", html)
+	}
+	if !strings.Contains(html, `data-path="cmd/root.go"`) {
+		t.Errorf("anchor inside a callout body was not rewritten, got:\n%s", html)
+	}
+	if !strings.Contains(html, `class="chroma"`) {
+		t.Errorf("anchor inside a callout lost highlighting, got:\n%s", html)
+	}
+}
+
+func TestRenderAnchoredBlockWithoutLines(t *testing.T) {
+	src := []byte("```go path=cmd/root.go\nvar rootCmd = 1\n```\n")
+	out, err := serve.RenderMarkdown(src)
+	if err != nil {
+		t.Fatalf("serve.RenderMarkdown() error = %v", err)
+	}
+	html := string(out)
+	if strings.Contains(html, "data-lines") {
+		t.Errorf("a path-only anchor must emit no data-lines, got:\n%s", html)
+	}
+	if !strings.Contains(html, "cmd/root.go</p>") {
+		t.Errorf("path-only anchor header should be the bare path, got:\n%s", html)
+	}
+}
+
+func TestRenderMermaidStillWorksAlongsideAnchors(t *testing.T) {
+	src := []byte("```mermaid\ngraph TD;\n  A-->B;\n```\n\n```go path=a.go lines=1-2\nx()\n```\n")
+	out, err := serve.RenderMarkdown(src)
+	if err != nil {
+		t.Fatalf("serve.RenderMarkdown() error = %v", err)
+	}
+	html := string(out)
+	if !strings.Contains(html, `<div class="mermaid">`) {
+		t.Errorf("mermaid block lost its wrapper, got:\n%s", html)
+	}
+	if !strings.Contains(html, `data-path="a.go"`) {
+		t.Errorf("anchored block after a mermaid block was not rewritten, got:\n%s", html)
+	}
+}

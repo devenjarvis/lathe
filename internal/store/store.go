@@ -25,7 +25,21 @@ type StoreOptions struct {
 	Tools   []Tool   // languages/tools + versions (NormalizeTools)
 	Voice   string   // writing voice the tutorial was generated in (NormalizeVoice)
 	Model   string   // LLM that authored the tutorial, a display label (NormalizeModel)
+	// Kind selects the guide shape. The zero value stores as KindTutorial.
+	Kind Kind
+	// RepoCommit is the SHA an onboarding guide's anchors are pinned to, and
+	// RepoPath is where the repo was checked out on the authoring machine. Both
+	// are required (alongside Repo) when Kind is KindOnboarding.
+	RepoCommit string
+	RepoPath   string
 }
+
+// ErrOnboardingRepoRequired is returned when an onboarding guide is stored
+// without the full repo/commit/path triple. Drift-checking is the only
+// verification an onboarding guide gets, and it is impossible without a pin, so
+// this is rejected up front rather than producing a guide that can never be
+// checked.
+var ErrOnboardingRepoRequired = errors.New("onboarding guides require --repo, --repo-commit, and --repo-path")
 
 // Store copies a tutorial directory into ~/.lathe/tutorials/ and writes its
 // metadata with status=unverified. Verification is opt-in and never auto-runs
@@ -37,6 +51,19 @@ func Store(srcPath string, opts StoreOptions) (*Tutorial, error) {
 	// namespaces the temp dir). Strip it so the prefix doesn't leak into the
 	// stored slug — and from there into the derived title.
 	slug = strings.TrimPrefix(slug, "lathe-")
+
+	kind := opts.Kind
+	if kind == "" {
+		kind = KindTutorial
+	}
+	repo := NormalizeRepo(opts.Repo)
+	repoCommit := NormalizeCommit(opts.RepoCommit)
+	repoPath := strings.TrimSpace(opts.RepoPath)
+	// Validate before any copying happens, so a rejected store leaves nothing
+	// behind in ~/.lathe/tutorials/.
+	if kind == KindOnboarding && (repo == "" || repoCommit == "" || repoPath == "") {
+		return nil, ErrOnboardingRepoRequired
+	}
 
 	tutorialsDir, err := config.TutorialsDir()
 	if err != nil {
@@ -58,11 +85,20 @@ func Store(srcPath string, opts StoreOptions) (*Tutorial, error) {
 
 	parts := detectParts(destDir)
 
-	repo := NormalizeRepo(opts.Repo)
 	branch := strings.TrimSpace(opts.Branch)
 	if repo == "" {
 		// A branch with no repo is meaningless — don't record a dangling branch.
+		// Same for the pin and the local checkout path.
 		branch = ""
+		repoCommit = ""
+		repoPath = ""
+	}
+
+	// Keep the back-compat guarantee visible: a plain tutorial writes no "kind"
+	// key at all, so its metadata.json is byte-identical to a pre-feature one.
+	storedKind := kind
+	if storedKind == KindTutorial {
+		storedKind = ""
 	}
 
 	t := &Tutorial{
@@ -73,8 +109,11 @@ func Store(srcPath string, opts StoreOptions) (*Tutorial, error) {
 		Status:     StatusUnverified,
 		Tags:       NormalizeTags(opts.Tags),
 		Parts:      parts,
+		Kind:       storedKind,
 		Repo:       repo,
 		RepoBranch: branch,
+		RepoCommit: repoCommit,
+		RepoPath:   repoPath,
 		Tools:      NormalizeTools(opts.Tools),
 		Sources:    NormalizeSources(opts.Sources),
 		Voice:      NormalizeVoice(opts.Voice),
@@ -309,6 +348,14 @@ func NormalizeVoice(voice string) string {
 // reading-page byline).
 func NormalizeModel(model string) string {
 	return strings.TrimSpace(model)
+}
+
+// NormalizeCommit canonicalizes a git SHA: trimmed and lowercased, since git
+// object names are case-insensitive hex but compare byte-wise everywhere we use
+// them. Returns "" for empty input so RepoCommit stays omitempty in
+// metadata.json.
+func NormalizeCommit(sha string) string {
+	return strings.ToLower(strings.TrimSpace(sha))
 }
 
 func SlugToTitle(slug string) string {

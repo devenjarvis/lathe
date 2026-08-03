@@ -9,15 +9,18 @@ import (
 )
 
 var (
-	withVerify    bool
-	storeTags     []string
-	storeTagsList []string
-	storeSources  []string
-	storeRepo     string
-	storeBranch   string
-	storeTools    []string
-	storeVoice    string
-	storeModel    string
+	withVerify      bool
+	storeTags       []string
+	storeTagsList   []string
+	storeSources    []string
+	storeRepo       string
+	storeBranch     string
+	storeRepoCommit string
+	storeRepoPath   string
+	storeKind       string
+	storeTools      []string
+	storeVoice      string
+	storeModel      string
 )
 
 var storeCmd = &cobra.Command{
@@ -25,14 +28,21 @@ var storeCmd = &cobra.Command{
 	Short: "Save a tutorial directory to ~/.lathe/tutorials/",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		kind, err := store.NormalizeKind(storeKind)
+		if err != nil {
+			return err
+		}
 		tut, err := store.Store(args[0], store.StoreOptions{
-			Tags:    splitTags(append(storeTags, storeTagsList...)),
-			Sources: storeSources,
-			Repo:    storeRepo,
-			Branch:  storeBranch,
-			Tools:   parseTools(storeTools),
-			Voice:   storeVoice,
-			Model:   storeModel,
+			Tags:       splitTags(append(storeTags, storeTagsList...)),
+			Sources:    storeSources,
+			Repo:       storeRepo,
+			Branch:     storeBranch,
+			Kind:       kind,
+			RepoCommit: storeRepoCommit,
+			RepoPath:   storeRepoPath,
+			Tools:      parseTools(storeTools),
+			Voice:      storeVoice,
+			Model:      storeModel,
 		})
 		if err != nil {
 			return err
@@ -44,6 +54,10 @@ var storeCmd = &cobra.Command{
 				fmt.Printf(" (%s)", tut.RepoBranch)
 			}
 			fmt.Println()
+		}
+		if tut.IsOnboarding() {
+			fmt.Printf("Pinned at: %s\n", tut.RepoCommit)
+			fmt.Printf("\nTo check it against the repo later, run:\n\n  lathe drift %s\n", tut.Slug)
 		}
 		// Verification runs in the user's interactive coding-agent session via
 		// the /lathe-verify skill (the binary never drives a model), so --verify
@@ -86,6 +100,9 @@ func init() {
 	storeCmd.Flags().StringArrayVar(&storeSources, "source", nil, "URL consulted while researching the tutorial (repeatable; the research trail surfaced as provenance)")
 	storeCmd.Flags().StringVar(&storeRepo, "repo", "", "git remote the tutorial was written for (canonicalized to host/org/repo for grouping)")
 	storeCmd.Flags().StringVar(&storeBranch, "repo-branch", "", "branch the tutorial targets (only recorded when --repo is set)")
+	storeCmd.Flags().StringVar(&storeKind, "kind", "", "tutorial (default) or onboarding — an onboarding guide to an existing codebase")
+	storeCmd.Flags().StringVar(&storeRepoCommit, "repo-commit", "", "commit SHA the guide's anchored excerpts are pinned to (required with --kind onboarding)")
+	storeCmd.Flags().StringVar(&storeRepoPath, "repo-path", "", "local checkout the guide was written against (required with --kind onboarding; a hint only — drift prefers the current directory)")
 	storeCmd.Flags().StringArrayVar(&storeTools, "tool", nil, "language/tool and version the tutorial targets, as name:version (repeatable)")
 	storeCmd.Flags().StringVar(&storeVoice, "voice", "", "writing voice the tutorial was generated in (built-in preset or custom voice name)")
 	storeCmd.Flags().StringVar(&storeModel, "model", "", "LLM that authored the tutorial, as a display label (e.g. \"Claude Opus 4.8\"); shown in the reading-page byline")

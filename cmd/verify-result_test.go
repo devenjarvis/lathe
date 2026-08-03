@@ -18,6 +18,7 @@ func resetVerifyResultFlags(t *testing.T) {
 		verifyResultFailedStep = 0
 		verifyResultError = ""
 		verifyResultCheckedAt = ""
+		verifyResultRepoCommit = ""
 	})
 }
 
@@ -121,5 +122,68 @@ func TestVerifyResultRejectsBadStatus(t *testing.T) {
 	verifyResultStatus = "bogus"
 	if err := verifyResultCmd.RunE(verifyResultCmd, []string{"test-slug"}); err == nil {
 		t.Error("verify-result should reject an unknown --status")
+	}
+}
+
+func TestVerifyResultRePinsRepoCommit(t *testing.T) {
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+	tutDir := filepath.Join(homeDir, ".lathe", "tutorials", "onboard")
+	if err := os.MkdirAll(tutDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	old := "1111111111111111111111111111111111111111"
+	tut := &store.Tutorial{
+		Slug:       "onboard",
+		Status:     store.StatusStale,
+		Kind:       store.KindOnboarding,
+		Repo:       "github.com/devenjarvis/lathe",
+		RepoCommit: old,
+		RepoPath:   "/tmp/lathe",
+	}
+	if err := store.WriteMetadata(tutDir, tut); err != nil {
+		t.Fatal(err)
+	}
+
+	resetVerifyResultFlags(t)
+	verifyResultStatus = "verified"
+	verifyResultRepoCommit = "  2222222222222222222222222222222222222222 "
+	if err := verifyResultCmd.RunE(verifyResultCmd, []string{"onboard"}); err != nil {
+		t.Fatalf("verify-result: %v", err)
+	}
+
+	got, _ := store.ReadMetadata(tutDir)
+	if got.RepoCommit != "2222222222222222222222222222222222222222" {
+		t.Errorf("RepoCommit = %q, want the re-pinned SHA", got.RepoCommit)
+	}
+	if got.Status != store.StatusVerified {
+		t.Errorf("Status = %q, want verified", got.Status)
+	}
+}
+
+func TestVerifyResultLeavesRepoCommitAloneWithoutTheFlag(t *testing.T) {
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+	tutDir := filepath.Join(homeDir, ".lathe", "tutorials", "onboard")
+	if err := os.MkdirAll(tutDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	old := "1111111111111111111111111111111111111111"
+	if err := store.WriteMetadata(tutDir, &store.Tutorial{
+		Slug: "onboard", Status: store.StatusUnverified,
+		Kind: store.KindOnboarding, Repo: "github.com/devenjarvis/lathe",
+		RepoCommit: old, RepoPath: "/tmp/lathe",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	resetVerifyResultFlags(t)
+	verifyResultStatus = "verified"
+	if err := verifyResultCmd.RunE(verifyResultCmd, []string{"onboard"}); err != nil {
+		t.Fatalf("verify-result: %v", err)
+	}
+	got, _ := store.ReadMetadata(tutDir)
+	if got.RepoCommit != old {
+		t.Errorf("RepoCommit = %q, want it unchanged at %q", got.RepoCommit, old)
 	}
 }

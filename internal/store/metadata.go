@@ -2,10 +2,13 @@ package store
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/devenjarvis/lathe/internal/drift"
 )
 
 type Status string
@@ -17,7 +20,37 @@ const (
 	StatusFailed     Status = "failed"
 	StatusSkipped    Status = "skipped"
 	StatusExtending  Status = "extending"
+	// StatusStale is set by `lathe drift` on an onboarding guide whose anchored
+	// excerpts no longer match the repository at HEAD. It is not a failure — the
+	// guide was true when written — so it clears back to unverified as soon as a
+	// later drift run comes back clean.
+	StatusStale Status = "stale"
 )
+
+// Kind distinguishes a topic tutorial (the original and default shape) from an
+// onboarding guide written against a specific git repository at a pinned commit.
+// The zero value is deliberately meaningful: every metadata.json written before
+// onboarding guides existed has no "kind" key and reads as KindTutorial.
+type Kind string
+
+const (
+	KindTutorial   Kind = "tutorial"
+	KindOnboarding Kind = "onboarding"
+)
+
+// NormalizeKind canonicalizes a --kind flag value. Empty means "tutorial", the
+// default shape; anything outside the enum is rejected rather than silently
+// stored, because Kind gates the verification path a guide gets.
+func NormalizeKind(raw string) (Kind, error) {
+	switch k := Kind(strings.ToLower(strings.TrimSpace(raw))); k {
+	case "", KindTutorial:
+		return KindTutorial, nil
+	case KindOnboarding:
+		return KindOnboarding, nil
+	default:
+		return "", fmt.Errorf("invalid kind %q (want tutorial or onboarding)", raw)
+	}
+}
 
 type Tutorial struct {
 	Slug        string    `json:"slug"`
@@ -41,6 +74,21 @@ type Tutorial struct {
 	// meaningful when Repo is set).
 	Repo       string `json:"repo,omitempty"`
 	RepoBranch string `json:"repo_branch,omitempty"`
+	// Kind is "onboarding" for a guide to an existing codebase and "" (read as
+	// "tutorial") for everything else. Empty is the back-compat default, so every
+	// metadata.json written before this field existed keeps working untouched.
+	Kind Kind `json:"kind,omitempty"`
+	// RepoCommit is the SHA the guide's anchored excerpts were written against —
+	// the pin `lathe drift` diffs HEAD back to. Required for onboarding guides
+	// and meaningless without one. It has exactly two writers: `lathe store`
+	// (initial) and `lathe verify-result --repo-commit` (re-pin after a
+	// confirming re-verify). Nothing else may re-pin.
+	RepoCommit string `json:"repo_commit,omitempty"`
+	// RepoPath is where the repository was checked out on the authoring machine.
+	// It is a *hint* only — a copied ~/.lathe or a re-cloned repo makes it wrong
+	// — so drift resolution prefers an explicit --repo-path and then the cwd
+	// whose origin matches Repo, falling back to this last.
+	RepoPath string `json:"repo_path,omitempty"`
 	// Tools are the languages/tools and their versions the tutorial is rooted in,
 	// captured up front so an old tutorial (e.g. written against an outdated
 	// toolchain) is identifiable later. Surfaced as version chips and a dedicated
@@ -90,6 +138,22 @@ type Progress struct {
 
 func (t *Tutorial) IsSeries() bool {
 	return len(t.Parts) > 1
+}
+
+// EffectiveKind resolves the stored Kind, treating the empty value written by
+// every pre-feature metadata.json as KindTutorial.
+func (t *Tutorial) EffectiveKind() Kind {
+	if t.Kind == "" {
+		return KindTutorial
+	}
+	return t.Kind
+}
+
+// IsOnboarding reports whether this is a repo onboarding guide — the guides that
+// are verified by drift-checking their anchors rather than by following them in
+// a scratch dir.
+func (t *Tutorial) IsOnboarding() bool {
+	return t.EffectiveKind() == KindOnboarding
 }
 
 // RepoDisplay returns the short, human-facing form of the repo (the last two
@@ -183,6 +247,25 @@ func WriteExercisePart(tutorialDir, part string, checked []int) error {
 		delete(state, part)
 	}
 	return writeJSONFile(filepath.Join(tutorialDir, "exercises.json"), state)
+}
+
+// ReadDrift returns the last recorded drift check for a tutorial. Like
+// verify-result.json it is a sidecar read best-effort at the point of use, and
+// is deliberately NOT surfaced as a json:"-" field on Tutorial — a
+// ReadMetadata→mutate→WriteMetadata round-trip must never be able to snapshot it
+// into metadata.json. A missing drift.json returns an unwrapped os.ErrNotExist
+// so callers can distinguish "never checked" from "unreadable".
+func ReadDrift(tutorialDir string) (*drift.Result, error) {
+	var r drift.Result
+	if err := readJSONFile(filepath.Join(tutorialDir, "drift.json"), &r); err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+// WriteDrift persists a drift check as the drift.json sidecar.
+func WriteDrift(tutorialDir string, r *drift.Result) error {
+	return writeJSONFile(filepath.Join(tutorialDir, "drift.json"), r)
 }
 
 func ReadVerifyResult(tutorialDir string) (*VerifyResult, error) {

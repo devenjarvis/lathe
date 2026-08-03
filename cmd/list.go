@@ -63,6 +63,8 @@ func statusBadge(s store.Status) string {
 		return "⚠️ skipped"
 	case store.StatusExtending:
 		return "⏳ extending"
+	case store.StatusStale:
+		return "🕰️ stale"
 	default:
 		return string(s)
 	}

@@ -17,6 +17,7 @@ var (
 	verifyResultFailedStep int
 	verifyResultError      string
 	verifyResultCheckedAt  string
+	verifyResultRepoCommit string
 )
 
 // verifyResultCmd is how the /lathe-verify skill records the outcome of a
@@ -76,6 +77,15 @@ var verifyResultCmd = &cobra.Command{
 		if err := store.WriteVerifyResult(tutDir, result); err != nil {
 			return fmt.Errorf("write verify result: %w", err)
 		}
+		// Re-pinning an onboarding guide has exactly two owners: `lathe store`
+		// (initial) and this flag, set by /lathe-verify after a confirming
+		// re-verify at HEAD. Notably NOT `lathe extend-commit` — a new part
+		// written at a newer HEAD alongside older parts pinned at an older commit
+		// is the ambiguity this design exists to avoid, which is why the extend
+		// skill refuses to run against a drifted guide instead.
+		if sha := store.NormalizeCommit(verifyResultRepoCommit); sha != "" {
+			tut.RepoCommit = sha
+		}
 		tut.Status = status
 		if err := store.WriteMetadata(tutDir, tut); err != nil {
 			return fmt.Errorf("write metadata: %w", err)
@@ -100,6 +110,7 @@ func init() {
 	verifyResultCmd.Flags().IntVar(&verifyResultFailedStep, "failed-step", 0, "1-indexed step number that failed")
 	verifyResultCmd.Flags().StringVar(&verifyResultError, "error", "", "error message or output to record")
 	verifyResultCmd.Flags().StringVar(&verifyResultCheckedAt, "checked-at", "", "RFC3339 timestamp (defaults to now)")
+	verifyResultCmd.Flags().StringVar(&verifyResultRepoCommit, "repo-commit", "", "re-pin an onboarding guide to this commit (the SHA the guide was just re-verified against)")
 	verifyResultCmd.MarkFlagRequired("status") //nolint:errcheck
 	rootCmd.AddCommand(verifyResultCmd)
 }

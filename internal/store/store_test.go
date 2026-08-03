@@ -483,3 +483,117 @@ func TestPromoteIndexToPartFailsCleanly(t *testing.T) {
 		t.Error("PromoteIndexToPart() on missing dir should return error")
 	}
 }
+
+func TestStoreOnboardingRequiresTheRepoTriple(t *testing.T) {
+	// An onboarding guide's whole anti-rot mechanism is the commit pin, so the
+	// repo/commit/path triple is not optional — a guide stored without it could
+	// never be drift-checked.
+	full := store.StoreOptions{
+		Kind:       store.KindOnboarding,
+		Repo:       "git@github.com:devenjarvis/lathe.git",
+		RepoCommit: "1e7c9f6aaaabbbbccccddddeeeeffff0000111122",
+		RepoPath:   "/Users/x/Code/lathe",
+	}
+	cases := []struct {
+		name   string
+		mutate func(o *store.StoreOptions)
+	}{
+		{"no repo", func(o *store.StoreOptions) { o.Repo = "" }},
+		{"no commit", func(o *store.StoreOptions) { o.RepoCommit = "" }},
+		{"no path", func(o *store.StoreOptions) { o.RepoPath = "" }},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			src := t.TempDir()
+			if err := os.WriteFile(filepath.Join(src, "part-01.md"), []byte("# Hi"), 0644); err != nil {
+				t.Fatal(err)
+			}
+			home := t.TempDir()
+			t.Setenv("HOME", home)
+
+			opts := full
+			tc.mutate(&opts)
+			if _, err := store.Store(src, opts); err == nil {
+				t.Fatal("Store() should reject an onboarding guide missing part of the repo triple")
+			}
+			// Validation must happen before anything is copied.
+			if _, err := os.Stat(filepath.Join(home, ".lathe", "tutorials", filepath.Base(src))); !os.IsNotExist(err) {
+				t.Errorf("a rejected onboarding store left a tutorial dir behind: err=%v", err)
+			}
+		})
+	}
+}
+
+func TestStoreOnboardingHappyPath(t *testing.T) {
+	src := filepath.Join(t.TempDir(), "lathe-lathe-onboarding")
+	if err := os.MkdirAll(src, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(src, "part-01.md"), []byte("# Hi"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", t.TempDir())
+
+	tut, err := store.Store(src, store.StoreOptions{
+		Kind:       store.KindOnboarding,
+		Repo:       "git@github.com:devenjarvis/lathe.git",
+		Branch:     "main",
+		RepoCommit: "  1E7C9F6AAAABBBBCCCCDDDDEEEEFFFF0000111122 ",
+		RepoPath:   "/Users/x/Code/lathe",
+	})
+	if err != nil {
+		t.Fatalf("Store() error = %v", err)
+	}
+	if !tut.IsOnboarding() {
+		t.Error("IsOnboarding() = false")
+	}
+	if tut.Repo != "github.com/devenjarvis/lathe" {
+		t.Errorf("Repo = %q, want the normalized form", tut.Repo)
+	}
+	if tut.RepoCommit != "1e7c9f6aaaabbbbccccddddeeeeffff0000111122" {
+		t.Errorf("RepoCommit = %q, want trimmed and lowercased", tut.RepoCommit)
+	}
+	if tut.Status != store.StatusUnverified {
+		t.Errorf("Status = %q, want unverified", tut.Status)
+	}
+}
+
+func TestStorePlainTutorialNeedsNoRepo(t *testing.T) {
+	src := t.TempDir()
+	if err := os.WriteFile(filepath.Join(src, "part-01.md"), []byte("# Hi"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", t.TempDir())
+
+	tut, err := store.Store(src, store.StoreOptions{Kind: store.KindTutorial})
+	if err != nil {
+		t.Fatalf("Store() error = %v", err)
+	}
+	if tut.IsOnboarding() {
+		t.Error("IsOnboarding() = true for an explicit tutorial kind")
+	}
+}
+
+func TestNormalizeKind(t *testing.T) {
+	tests := []struct {
+		in   string
+		want store.Kind
+		ok   bool
+	}{
+		{"", store.KindTutorial, true},
+		{"tutorial", store.KindTutorial, true},
+		{"  Onboarding ", store.KindOnboarding, true},
+		{"ONBOARDING", store.KindOnboarding, true},
+		{"guide", "", false},
+	}
+	for _, tt := range tests {
+		got, err := store.NormalizeKind(tt.in)
+		if (err == nil) != tt.ok {
+			t.Errorf("NormalizeKind(%q) err = %v, want ok=%v", tt.in, err, tt.ok)
+			continue
+		}
+		if tt.ok && got != tt.want {
+			t.Errorf("NormalizeKind(%q) = %q, want %q", tt.in, got, tt.want)
+		}
+	}
+}

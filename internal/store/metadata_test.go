@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/devenjarvis/lathe/internal/drift"
 	"github.com/devenjarvis/lathe/internal/store"
 )
 
@@ -632,5 +633,112 @@ func TestReadExercisesCorruptFileErrors(t *testing.T) {
 	}
 	if _, err := store.ReadExercises(dir); err == nil {
 		t.Error("ReadExercises on corrupt file = nil error, want error")
+	}
+}
+
+func TestMetadataWithNoKindReadsAsTutorial(t *testing.T) {
+	// The back-compat guarantee for every tutorial already in the library: a
+	// metadata.json written before onboarding guides existed has no "kind" key
+	// and must keep reading as a plain tutorial.
+	dir := t.TempDir()
+	raw := `{"slug":"old","title":"Old","topic":"old","created":"2026-05-03T00:00:00Z","status":"verified"}`
+	if err := os.WriteFile(filepath.Join(dir, "metadata.json"), []byte(raw), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := store.ReadMetadata(dir)
+	if err != nil {
+		t.Fatalf("ReadMetadata() error = %v", err)
+	}
+	if got.Kind != "" {
+		t.Errorf("Kind = %q, want empty", got.Kind)
+	}
+	if got.EffectiveKind() != store.KindTutorial {
+		t.Errorf("EffectiveKind() = %q, want %q", got.EffectiveKind(), store.KindTutorial)
+	}
+	if got.IsOnboarding() {
+		t.Error("IsOnboarding() = true for a pre-feature tutorial")
+	}
+}
+
+func TestMetadataRoundTripOnboardingFields(t *testing.T) {
+	dir := t.TempDir()
+	original := &store.Tutorial{
+		Slug:       "lathe-onboarding",
+		Kind:       store.KindOnboarding,
+		Repo:       "github.com/devenjarvis/lathe",
+		RepoBranch: "main",
+		RepoCommit: "1e7c9f6aaaabbbbccccddddeeeeffff0000111122",
+		RepoPath:   "/Users/x/Code/lathe",
+	}
+	if err := store.WriteMetadata(dir, original); err != nil {
+		t.Fatal(err)
+	}
+	got, err := store.ReadMetadata(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got.IsOnboarding() {
+		t.Error("IsOnboarding() = false")
+	}
+	if got.RepoCommit != original.RepoCommit {
+		t.Errorf("RepoCommit = %q, want %q", got.RepoCommit, original.RepoCommit)
+	}
+	if got.RepoPath != original.RepoPath {
+		t.Errorf("RepoPath = %q, want %q", got.RepoPath, original.RepoPath)
+	}
+}
+
+func TestOnboardingFieldsStayOmittedForPlainTutorials(t *testing.T) {
+	dir := t.TempDir()
+	if err := store.WriteMetadata(dir, &store.Tutorial{Slug: "plain", Title: "Plain"}); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(dir, "metadata.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, key := range []string{"kind", "repo_commit", "repo_path"} {
+		if strings.Contains(string(data), key) {
+			t.Errorf("metadata.json contains %q for a plain tutorial:\n%s", key, data)
+		}
+	}
+}
+
+func TestReadDriftMissingFile(t *testing.T) {
+	dir := t.TempDir()
+	_, err := store.ReadDrift(dir)
+	if !os.IsNotExist(err) {
+		t.Fatalf("ReadDrift() on a missing file = %v, want os.ErrNotExist", err)
+	}
+}
+
+func TestWriteReadDrift(t *testing.T) {
+	dir := t.TempDir()
+	original := &drift.Result{
+		PinnedCommit: "abc123",
+		HeadCommit:   "def456",
+		CheckedAt:    "2026-07-27T00:00:00Z",
+		Anchors: []drift.AnchorResult{
+			{Part: "part-01.md", Path: "cmd/store.go", Start: 10, End: 20, CurrentStart: 12, Verdict: drift.VerdictMoved},
+			{Part: "part-01.md", Path: "cmd/gone.go", Verdict: drift.VerdictBroken},
+		},
+		Summary: map[drift.Verdict]int{drift.VerdictMoved: 1, drift.VerdictBroken: 1},
+	}
+	if err := store.WriteDrift(dir, original); err != nil {
+		t.Fatalf("WriteDrift() error = %v", err)
+	}
+	got, err := store.ReadDrift(dir)
+	if err != nil {
+		t.Fatalf("ReadDrift() error = %v", err)
+	}
+	if got.PinnedCommit != original.PinnedCommit || got.HeadCommit != original.HeadCommit {
+		t.Errorf("commits = %q/%q", got.PinnedCommit, got.HeadCommit)
+	}
+	if len(got.Anchors) != 2 || got.Anchors[0].Verdict != drift.VerdictMoved {
+		t.Errorf("Anchors = %#v", got.Anchors)
+	}
+	if !got.Stale() {
+		t.Error("Stale() = false, want true (one broken anchor)")
 	}
 }

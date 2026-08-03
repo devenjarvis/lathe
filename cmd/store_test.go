@@ -56,3 +56,77 @@ func TestStoreCmdRecordsModel(t *testing.T) {
 		t.Errorf("Model = %q, want %q", got.Model, "Claude Opus 4.8")
 	}
 }
+
+func resetOnboardingStoreFlags(t *testing.T) {
+	t.Helper()
+	t.Cleanup(func() {
+		storeKind = ""
+		storeRepo = ""
+		storeBranch = ""
+		storeRepoCommit = ""
+		storeRepoPath = ""
+	})
+}
+
+func TestStoreCmdOnboardingRequiresTheRepoTriple(t *testing.T) {
+	src := t.TempDir()
+	if err := os.WriteFile(filepath.Join(src, "part-01.md"), []byte("# Hi"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", t.TempDir())
+	resetOnboardingStoreFlags(t)
+
+	storeKind = "onboarding"
+	storeRepo = "git@github.com:devenjarvis/lathe.git"
+	// No --repo-commit and no --repo-path.
+	if err := storeCmd.RunE(storeCmd, []string{src}); err == nil {
+		t.Fatal("store --kind onboarding without --repo-commit should error")
+	}
+}
+
+func TestStoreCmdRejectsUnknownKind(t *testing.T) {
+	src := t.TempDir()
+	if err := os.WriteFile(filepath.Join(src, "part-01.md"), []byte("# Hi"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", t.TempDir())
+	resetOnboardingStoreFlags(t)
+
+	storeKind = "guide"
+	if err := storeCmd.RunE(storeCmd, []string{src}); err == nil {
+		t.Fatal("store --kind guide should error")
+	}
+}
+
+func TestStoreCmdRecordsOnboardingPin(t *testing.T) {
+	src := t.TempDir()
+	if err := os.WriteFile(filepath.Join(src, "part-01.md"), []byte("# Hi"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	resetOnboardingStoreFlags(t)
+
+	storeKind = "onboarding"
+	storeRepo = "git@github.com:devenjarvis/lathe.git"
+	storeBranch = "main"
+	storeRepoCommit = "1e7c9f6aaaabbbbccccddddeeeeffff0000111122"
+	storeRepoPath = "/Users/x/Code/lathe"
+
+	if err := storeCmd.RunE(storeCmd, []string{src}); err != nil {
+		t.Fatalf("store: %v", err)
+	}
+	got, err := store.ReadMetadata(filepath.Join(home, ".lathe", "tutorials", filepath.Base(src)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got.IsOnboarding() {
+		t.Error("IsOnboarding() = false")
+	}
+	if got.RepoCommit != storeRepoCommit {
+		t.Errorf("RepoCommit = %q, want %q", got.RepoCommit, storeRepoCommit)
+	}
+	if got.RepoPath != "/Users/x/Code/lathe" {
+		t.Errorf("RepoPath = %q", got.RepoPath)
+	}
+}
