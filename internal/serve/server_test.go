@@ -2091,3 +2091,72 @@ func TestPartPageRendersSavedExercises(t *testing.T) {
 		t.Errorf("part page missing restored data-saved-exercises; body excerpt:\n%s", w.Body.String())
 	}
 }
+
+func TestStaleBadgeRendersOnList(t *testing.T) {
+	dir := t.TempDir()
+	tutDir := filepath.Join(dir, "test-stale")
+	if err := os.MkdirAll(tutDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	tut := &store.Tutorial{
+		Slug:       "test-stale",
+		Title:      "Test Stale",
+		Status:     store.StatusStale,
+		Kind:       store.KindOnboarding,
+		Repo:       "github.com/devenjarvis/lathe",
+		RepoCommit: "1111111111111111111111111111111111111111",
+		RepoPath:   "/tmp/lathe",
+		Parts:      []string{"part-01.md"},
+		Created:    time.Now(),
+	}
+	if err := os.WriteFile(filepath.Join(tutDir, "part-01.md"), []byte("# Part 1"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.WriteMetadata(tutDir, tut); err != nil {
+		t.Fatal(err)
+	}
+
+	srv := serve.NewServer(dir)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("GET / = %d, want %d", w.Code, http.StatusOK)
+	}
+	if !strings.Contains(w.Body.String(), `class="badge stale"`) {
+		t.Error("list page missing stale badge for tutorial with status=stale")
+	}
+}
+
+func TestNoKindRendersAsBeforeOnList(t *testing.T) {
+	// The back-compat guarantee at the UI layer: a tutorial written before
+	// onboarding guides existed carries no kind and must render untouched.
+	dir := t.TempDir()
+	tutDir := filepath.Join(dir, "test-plain")
+	if err := os.MkdirAll(tutDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(tutDir, "part-01.md"), []byte("# Part 1"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	raw := `{"slug":"test-plain","title":"Test Plain","topic":"test plain","created":"2026-05-03T00:00:00Z","status":"verified","parts":["part-01.md"]}`
+	if err := os.WriteFile(filepath.Join(tutDir, "metadata.json"), []byte(raw), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	srv := serve.NewServer(dir)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	body := w.Body.String()
+	if !strings.Contains(body, `class="badge verified"`) {
+		t.Errorf("a pre-feature tutorial lost its badge:\n%s", body)
+	}
+	// (The inlined stylesheet always carries the --badge-stale tokens, so match
+	// the badge class rather than the bare word.)
+	if strings.Contains(body, `class="badge stale"`) {
+		t.Error("a pre-feature tutorial should never render as stale")
+	}
+}

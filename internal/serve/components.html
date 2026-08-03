@@ -38,6 +38,7 @@
 {{- else if eq . "failed"}}<span class="badge failed"><span class="badge-dot"></span>Failed</span>
 {{- else if eq . "skipped"}}<span class="badge skipped"><span class="badge-dot"></span>Skipped</span>
 {{- else if eq . "extending"}}<span class="badge extending"><span class="badge-dot"></span>Extending…</span>
+{{- else if eq . "stale"}}<span class="badge stale"><span class="badge-dot"></span>Stale</span>
 {{- end}}
 {{end}}
 

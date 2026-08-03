@@ -11,6 +11,8 @@ This is just **long-poll → do the model work → report → repeat**, so it wo
 
 When this loop is **not** running, the buttons fall back to today's copy-paste handoff — so starting it is purely additive.
 
+**The "Check for drift" button on an onboarding guide is not a job.** Drift is a pure git computation with no model in it, so the server runs it in-process and answers the browser directly — there is no `drift` job type and this loop never sees one. That is deliberate, not an omission.
+
 ## Prerequisite
 
 `lathe serve` must be running (the loop talks to it via `~/.lathe/serve.json`). If `lathe work next` reports "no lathe server is running", tell the user to start `lathe serve` in another terminal, then start the loop.
@@ -32,7 +34,7 @@ Repeat until the user stops you (Ctrl-C, "stop the worker", or closing the sessi
 
 2. **Dispatch on `type`**, applying the existing protocol as the source of truth — don't duplicate or paraphrase it, *apply* it:
 
-   - **`verify`** → apply the **`/lathe-verify`** protocol against `slug` exactly as written (it marks the tutorial `verifying`, follows it in a fresh scratch dir, and records the outcome via `lathe verify-result`). When it finishes, close the job:
+   - **`verify`** → apply the **`/lathe-verify`** protocol against `slug` exactly as written (it marks the tutorial `verifying`, then either follows it in a fresh scratch dir or drift-checks it against its repository — that skill branches on `kind`, so there is nothing to decide here — and records the outcome via `lathe verify-result`). When it finishes, close the job:
      ```bash
      lathe work done <id>
      ```

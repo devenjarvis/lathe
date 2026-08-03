@@ -50,12 +50,24 @@ tokens only — never raw hex.
 
 ### Color — status badges (`-bg` / `-text`)
 
-Five rendered states (a sixth, `unverified`, renders no badge). Warm-retoned so
+Six rendered states (a seventh, `unverified`, renders no badge). Warm-retoned so
 nothing screams against the paper.
 
 `--badge-verified-*` (olive green) · `--badge-verifying-*` (amber) ·
 `--badge-failed-*` (rust) · `--badge-extending-*` (dusty blue) ·
-`--badge-skipped-*` (neutral).
+`--badge-skipped-*` (neutral) · `--badge-stale-*` (faded plum).
+
+`stale` marks an onboarding guide whose anchored excerpts no longer match the
+repository at HEAD. It is **not** a failure — the guide was true when written —
+so it reads as faded rather than alarming, and `lathe drift` clears it back to
+`unverified` on the next clean check.
+
+### Color — anchored code excerpts (`--anchor-*`)
+
+`--anchor-border` / `--anchor-label` style the `path:line` header sitting on top
+of an anchored code block (`.anchor-path`). Deliberately quiet — it is metadata
+above the code, not a callout. The block body keeps the normal `--code-bg`
+treatment.
 
 ### Color — callouts (`-bg` / `-border` / `-label`)
 
@@ -91,6 +103,7 @@ Each component is a class in `styles.css`. Markup it expects:
 |---|---|---|
 | Button | `.btn` + `.btn-primary`/`.btn-ghost`/`.btn-danger` (+ `.btn-pill`/`.btn-sm`) | layout.html action buttons |
 | Status badge | `.badge.<status>` | `{{template "badge" <Status>}}` (components.html) |
+| Anchored code excerpt | `.anchor` + `.anchor-path` | emitted by `anchor.Rewrite` (internal/anchor) |
 | Theme toggle | `.theme-toggle[data-theme-toggle]` | `{{template "themeToggle" .}}` |
 | Sidebar nav | `nav`, `.back-link`, `.toc-label`, `ul.toc` | layout.html |
 | Series TOC | `.series-toc`, `.current-row`, `.part-num` | layout.html |
@@ -174,6 +187,8 @@ it from a component class:
    `[data-theme="dark"]` in `styles.css`, plus a `.badge.<name>` rule.
 3. Add the case to the `{{define "badge"}}` partial in `components.html` and keep
    the emoji+word wording in sync with `cmd/list.go` `statusBadge`.
+4. Add it to the status list in the list page's client-side **Status** filter
+   (`list.html`) so it is still findable in a large library.
 
 **New callout type:**
 1. Add the marker to the `calloutBlock` regexp and `calloutLabel` in

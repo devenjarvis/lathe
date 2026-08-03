@@ -8,6 +8,7 @@ Lathe generates hands-on, multi-part technical tutorials on demand, with skills 
 
 ## What is it?
 - Generate hands-on technical tutorials (single-part or a multi-part series) from any prompt
+- Generate **onboarding guides for a codebase you already have** — anchored to real files and pinned to a commit, so Lathe can tell you when the guide has fallen behind the code
 - Work through the tutorial yourself in a purpose-built local UI
 - Use skills to ask questions, verify the tutorial, and extend it with a new part
 - Search, filter, and manage tutorials from your library
@@ -233,9 +234,53 @@ Tutorials live globally in `~/.lathe/tutorials/`, one directory per slug:
 }
 ```
 
-Everything beyond the core fields (`slug`/`title`/`topic`/`created`/`status`) is optional and omitted when empty: `tools` (the languages/toolchains the tutorial targets, surfaced as version chips and the **Versions** filter), `sources` (the research trail — see below), `voice` and `model` (the byline on the reading page), and `repo`/`repo_branch` when a tutorial was written against a specific git repository.
+Everything beyond the core fields (`slug`/`title`/`topic`/`created`/`status`) is optional and omitted when empty: `tools` (the languages/toolchains the tutorial targets, surfaced as version chips and the **Versions** filter), `sources` (the research trail — see below), `voice` and `model` (the byline on the reading page), and `repo`/`repo_branch` when a tutorial was written against a specific git repository. Onboarding guides add `kind: "onboarding"`, `repo_commit` (the pin), and `repo_path` (the local checkout, a hint only) — see **Onboarding guides** below. A tutorial with no `kind` is a plain topic tutorial, which is why every guide written before onboarding existed keeps working untouched.
 
-Status is one of `unverified` (the default after `lathe store`; renders no badge), `verifying`, `verified`, `failed`, `skipped`, or `extending` (set while `/lathe-extend` is writing a new part). On failure, a `verify-result.json` is written alongside with the failed part, step number, and error output; the web UI renders it as a panel on the tutorial page.
+Status is one of `unverified` (the default after `lathe store`; renders no badge), `verifying`, `verified`, `failed`, `skipped`, `extending` (set while `/lathe-extend` is writing a new part), or `stale` (an onboarding guide whose anchors no longer match the code). On failure, a `verify-result.json` is written alongside with the failed part, step number, and error output; the web UI renders it as a panel on the tutorial page. A drift check writes `drift.json` with the per-anchor verdicts.
+
+## Onboarding guides
+
+`/lathe` teaches you a topic. `/lathe-onboard` teaches you **a codebase you already have** — the guide you wish someone had handed you on day one.
+
+```
+/lathe-onboard ~/Code/some-repo      # or just /lathe-onboard inside the repo
+```
+
+The skill reads the repo the way a careful new hire would: it pins `HEAD`, reads the README and contributing docs, finds and *actually runs* the build and test commands, locates the entry points, ranks the files by churn to find the hotspots, and digs the design rationale out of commit bodies. Then it writes one part that walks a single **real end-to-end path** through the code — "what happens when you click Verify" — hop by hop.
+
+**Every code block is a real excerpt, anchored to the file it came from:**
+
+````markdown
+```go path=internal/serve/server.go lines=76-84
+mux.HandleFunc("POST /-/verify/{slug}", s.handleVerify)
+```
+````
+
+Lathe renders that with a copyable `path:line` header above the highlighted code. More importantly, it makes the guide **checkable**.
+
+### Drift — knowing when the guide went stale
+
+The problem with internal documentation isn't writing it, it's that it silently stops being true. Because an onboarding guide is pinned to a commit and its excerpts name real line ranges, Lathe can just *ask git*:
+
+```bash
+lathe drift <slug>
+```
+
+It diffs the pinned commit against `HEAD` and classifies every anchor:
+
+| Verdict | Meaning | Marks the guide stale? |
+| --- | --- | --- |
+| `ok` | unchanged, same place | no |
+| `moved` | same code, different line number | no |
+| `renamed` | same code, the file moved | no |
+| `changed` | something edited the anchored lines | **yes** |
+| `broken` | the file is gone | **yes** |
+
+A `changed` or `broken` anchor sets the status to `stale`; a later clean check puts it back to `unverified`. `moved` and `renamed` are deliberately *not* drift — a blank line added above an excerpt shifts its line number without making the guide any less true, and a drift check that cried wolf about that would be worse than no drift check at all. When the pinned commit isn't in the repo (a shallow clone, a rebase), the answer is **unknown**: it exits non-zero and leaves the status alone rather than reporting drift it can't actually see.
+
+The reading page has a **Check for drift** button that runs the same check. Unlike Ask / Verify / Add-a-part, it needs no `/lathe-work` worker and no model at all — drift is pure git arithmetic, so the binary does it itself and answers the browser directly.
+
+When drift shows up, `/lathe-verify <slug>` is the follow-up: it reads the changed regions at `HEAD`, judges whether the surrounding prose is still true, and re-pins the guide to `HEAD` when it is.
 
 ## Sources & provenance
 
@@ -257,6 +302,8 @@ Verification is **opt-in** and runs in your interactive LLM session. Storing a t
 ```
 
 The `/lathe-verify` skill works through every step in the tutorial, creating files in a fresh `mktemp -d` scratch dir (never your repo), running commands, executing each `## Checkpoint` block and then calls `lathe verify-result` to record the outcome in the tutorial's `metadata.json`. It marks the run `verifying` when it starts and a terminal `verified` / `failed` / `skipped` when it finishes.
+
+For an **onboarding guide** there is nothing to build in a scratch dir — you can't recreate someone's codebase. Verification runs `lathe drift <slug>` instead, reads whatever the code does now at the changed anchors, and judges whether the prose around them still tells the truth. A confirming verify re-pins the guide to `HEAD`.
 
 Verification only makes sense where the tutorial's toolchain is installed. If a required tool is missing (e.g. no `zig` binary), the run is reported as **skipped** (⚠️) rather than failed — "couldn't verify here" is not the same as "broken."
 

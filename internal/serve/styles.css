@@ -33,6 +33,7 @@
   --badge-failed-bg:#F4DCD2; --badge-failed-text:#963517;
   --badge-extending-bg:#DDE5E8; --badge-extending-text:#3F5A66;
   --badge-skipped-bg:#ECE3D5; --badge-skipped-text:#6B5F53;
+  --badge-stale-bg:#EDE4EF; --badge-stale-text:#7A5A82;
 
   /* Callouts (light) — bg / border / label */
   --callout-note-bg:#E8EDF1; --callout-note-border:#6B8CAE; --callout-note-label:#3F5E80;
@@ -78,6 +79,7 @@
   --badge-failed-bg:#3A241B; --badge-failed-text:#E89A7C;
   --badge-extending-bg:#1E2B2C; --badge-extending-text:#79B0AE;
   --badge-skipped-bg:#2A2218; --badge-skipped-text:#9C8F7C;
+  --badge-stale-bg:#2A222C; --badge-stale-text:#C4A3CB;
 
   --callout-note-bg:#182430; --callout-note-border:#4E7090; --callout-note-label:#8DAFC9;
   --callout-tip-bg:#1E2A18; --callout-tip-border:#6E8A42; --callout-tip-label:#A8C07A;
@@ -227,6 +229,7 @@ pre[data-overflow="true"]{box-shadow:inset -18px 0 14px -12px rgba(40,30,20,.20)
 .badge.failed .badge-dot{background:var(--badge-failed-text)}
 .badge.extending .badge-dot{background:var(--badge-extending-text)}
 .badge.skipped .badge-dot{background:var(--badge-skipped-text)}
+.badge.stale .badge-dot{background:var(--badge-stale-text)}
 /* In-flight states get a gentle pulse; stilled for reduced-motion users. */
 .badge.verifying .badge-dot,.badge.extending .badge-dot{animation:badge-pulse 1.6s ease-in-out infinite}
 @keyframes badge-pulse{0%,100%{opacity:1}50%{opacity:.35}}

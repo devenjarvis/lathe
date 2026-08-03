@@ -20,6 +20,7 @@ Add the next part to a stored tutorial. Triggered by `/lathe-extend <slug> [guid
    - The **level of the reader**.
    - The **repo and pinned tool versions** in `metadata.json` (`repo`, `repo_branch`, `tools`) — the new part *inherits* them. Write against the same versions; don't silently bump to a newer toolchain. (If the reader explicitly wants to move the tutorial to a new version, that's a heads-up that it may be time for a fresh tutorial, not a quiet drift — flag it rather than re-pinning here.)
    - Where the previous part's **"What's next"** pointed — that's your mandate for this part unless the user's guidance redirects it.
+   - The **`kind`**. If it is `"onboarding"`, everything about *shape* comes from the **`lathe-onboard`** skill instead of `lathe` — read it, and see "Extending an onboarding guide" below before you go further.
 
 2. **Research first.** Same discipline as the `lathe` skill's "Research first" step: actually open 3–8 authoritative sources for whatever this new part introduces, take notes with URLs beside the load-bearing facts, and ground or `[!UNVERIFIED]`-flag every load-bearing claim. New material gets the same scrutiny as Part 1 did. No web access? Say so in one line and write conservatively, flagging the load-bearing unknowns.
 
@@ -43,11 +44,42 @@ Add the next part to a stored tutorial. Triggered by `/lathe-extend <slug> [guid
 
 6. **Tell the user** it's added: how to view it (`lathe serve`), and that verification is opt-in (`/lathe-verify <slug>` — the "Verify this tutorial" button hands you that command). Then stay in session for follow-ups.
 
+## Extending an onboarding guide (`kind: onboarding`)
+
+Same handshake, three additional rules. Apply these **before** step 2.
+
+**1. Refuse to extend a drifted guide.** Run the drift check first, from inside the repository:
+
+```bash
+lathe drift <slug>          # or: lathe drift <slug> --repo-path <dir>
+```
+
+If it reports any `changed` or `broken` anchor — or sets the status to `stale` — **stop and tell the user**: the existing parts no longer describe the code, so a new part written against today's HEAD would sit alongside prose that is already wrong. Ask them to run `/lathe-verify <slug>` first, which re-checks the prose and re-pins the guide. Only then extend.
+
+If drift exits non-zero with "unknown", stop too — you can't confirm the guide's state, so don't add to it.
+
+**2. Inherit the pin. Never re-pin.** The new part quotes the codebase **at `repo_commit`**, not at HEAD. Read the files at that commit:
+
+```bash
+git -C <repo> show <repo_commit>:<path>
+```
+
+One guide has exactly one pin. `lathe extend-commit` has no `--repo-commit` flag on purpose: a new part written at a newer HEAD alongside older parts pinned at an older commit is precisely the ambiguity this design exists to avoid. Re-pinning belongs to `/lathe-verify` alone, after it has re-confirmed *every* part.
+
+**3. Same anchoring invariant, same reconnaissance.** Every code block is a verbatim anchored excerpt (`path=`/`lines=`) or a command to run — the `lathe-onboard` skill's "hard invariant" applies unchanged. Pick the next subsystem from the previous part's "What's next", the user's guidance, or the hotspot ranking:
+
+```bash
+git -C <repo> log --format= --name-only | sort | uniq -c | sort -rn | head -30
+```
+
+After `lathe extend-commit`, run `lathe drift <slug>` again and confirm the new part's anchors all come back `ok`.
+
 ## Boundaries
 
 - The **only durable-state writes** are `lathe extend-start` and `lathe extend-commit`. Never edit `metadata.json` directly.
 - Writing the reserved part-content file into the tutorial dir is the sole content write — and it's required (step 4).
 - Don't verify, don't write `index.md`, don't write multiple parts, don't edit existing parts.
+- For onboarding guides: **never re-pin** and **never modify the repository** you are documenting.
 
 ## Stay in session
 
