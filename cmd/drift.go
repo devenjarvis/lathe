@@ -5,13 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"path/filepath"
 
-	"github.com/devenjarvis/lathe/internal/anchor"
 	"github.com/devenjarvis/lathe/internal/config"
 	"github.com/devenjarvis/lathe/internal/drift"
-	"github.com/devenjarvis/lathe/internal/gitrepo"
 	"github.com/devenjarvis/lathe/internal/store"
 	"github.com/spf13/cobra"
 )
@@ -56,21 +53,12 @@ rather than reporting drift it cannot actually see.`,
 		if err != nil {
 			return fmt.Errorf("read metadata for %q: %w", slug, err)
 		}
-		if !tut.IsOnboarding() || tut.RepoCommit == "" {
-			return fmt.Errorf("%q is not an onboarding guide with a pinned commit; drift only applies to guides stored with --kind onboarding --repo-commit", slug)
-		}
 
-		repo, err := resolveDriftRepo(tut, driftRepoPath)
-		if err != nil {
-			return err
-		}
-
-		parts, err := driftParts(tutDir, tut)
-		if err != nil {
-			return err
-		}
-
-		result, err := drift.CheckParts(repo, tut.RepoCommit, parts)
+		// The whole flow — repo resolution, anchor parsing, the check, drift.json,
+		// and the status transition — lives in store.RunDriftCheck so this command
+		// and the reading page's "Check for drift" button cannot disagree about
+		// what a drift check does.
+		result, transition, err := store.RunDriftCheck(tutDir, tut, driftRepoPath)
 		if err != nil {
 			if errors.Is(err, drift.ErrUnknownPin) || errors.Is(err, drift.ErrNoCommonHistory) {
 				// Degrade to unknown rather than to stale: reporting drift we
@@ -81,105 +69,15 @@ rather than reporting drift it cannot actually see.`,
 			return err
 		}
 
-		if err := store.WriteDrift(tutDir, &result); err != nil {
-			return fmt.Errorf("write drift result: %w", err)
-		}
-
-		transition := applyDriftStatus(tut, &result)
-		if transition != "" {
-			if err := store.WriteMetadata(tutDir, tut); err != nil {
-				return fmt.Errorf("write metadata: %w", err)
-			}
-		}
-
 		out := cmd.OutOrStdout()
 		if driftJSON {
 			enc := json.NewEncoder(out)
 			enc.SetIndent("", "  ")
 			return enc.Encode(result)
 		}
-		printDriftReport(out, slug, tut, &result, transition)
+		printDriftReport(out, slug, tut, result, transition)
 		return nil
 	},
-}
-
-// applyDriftStatus mutates tut's status for a completed drift check and returns
-// a human-readable description of what it did (empty when nothing changed).
-//
-// Two guards matter here. A guide that is mid-verify or mid-extend is left
-// alone entirely — those statuses are in-flight markers owned by the skills, and
-// stomping one would strand a spinner in the web UI. And a guide only leaves
-// stale when a later check comes back clean, so stale never sticks after the
-// code is fixed.
-func applyDriftStatus(tut *store.Tutorial, result *drift.Result) string {
-	if tut.Status == store.StatusVerifying || tut.Status == store.StatusExtending {
-		return ""
-	}
-	switch {
-	case result.Stale() && tut.Status != store.StatusStale:
-		tut.Status = store.StatusStale
-		return "status set to stale"
-	case !result.Stale() && tut.Status == store.StatusStale:
-		tut.Status = store.StatusUnverified
-		return "status returned to unverified"
-	}
-	return ""
-}
-
-// resolveDriftRepo finds the working copy to check against, in priority order:
-// an explicit --repo-path, then the current directory when its origin matches
-// the guide's recorded repo, and only then the RepoPath recorded at store time.
-//
-// The recorded path is last on purpose: it is machine-local, so it is wrong the
-// moment ~/.lathe is copied to another machine or the repo is re-cloned
-// elsewhere. Running from inside a checkout has to be the path that always
-// works.
-func resolveDriftRepo(tut *store.Tutorial, flagPath string) (*gitrepo.Repo, error) {
-	if flagPath != "" {
-		repo, err := gitrepo.Open(flagPath)
-		if err != nil {
-			return nil, fmt.Errorf("--repo-path %s: %w", flagPath, err)
-		}
-		return repo, nil
-	}
-
-	if cwd, err := os.Getwd(); err == nil {
-		if repo, err := gitrepo.Open(cwd); err == nil {
-			if origin, err := repo.OriginURL(); err == nil {
-				if store.NormalizeRepo(origin) == tut.Repo {
-					return repo, nil
-				}
-			}
-		}
-	}
-
-	if tut.RepoPath != "" {
-		if repo, err := gitrepo.Open(tut.RepoPath); err == nil {
-			return repo, nil
-		}
-	}
-
-	return nil, fmt.Errorf(
-		"cannot find a checkout of %s for %q — run this from inside the repository, or point at it:\n\n  lathe drift %s --repo-path /path/to/repo",
-		tut.Repo, tut.Slug, tut.Slug)
-}
-
-// driftParts reads every part of the guide and parses its anchored blocks.
-func driftParts(tutDir string, tut *store.Tutorial) ([]drift.Part, error) {
-	names := tut.Parts
-	if len(names) == 0 {
-		// Legacy single-part tutorials still store index.md.
-		names = []string{"index.md"}
-	}
-	var parts []drift.Part
-	for _, name := range names {
-		data, err := os.ReadFile(filepath.Join(tutDir, name))
-		if err != nil {
-			return nil, fmt.Errorf("read %s: %w", name, err)
-		}
-		parts = append(parts, drift.Part{Name: name, Anchors: anchor.Parse(data)})
-	}
-	return parts, nil
 }
 
 func printDriftReport(w io.Writer, slug string, tut *store.Tutorial, result *drift.Result, transition string) {

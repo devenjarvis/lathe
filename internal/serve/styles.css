@@ -425,6 +425,31 @@ pre[data-overflow="true"]{box-shadow:inset -18px 0 14px -12px rgba(40,30,20,.20)
 .extending-panel .muted{font-size:.85rem;color:var(--text-faint);margin-top:.25rem}
 .verify-section{margin-top:2rem;padding-top:1.6rem;border-top:1px solid var(--border)}
 .verify-error{font-size:.85rem;color:var(--badge-failed-text);min-height:1.2em;margin-top:.5rem}
+
+/* Drift section — the onboarding-guide counterpart to the verify form. Two
+   stacked actions: the git-only "Check for drift" (primary) and the agent-driven
+   re-verify (ghost), with the pin line above them as quiet provenance. */
+.drift-section .drift-pin{font-size:.8rem;color:var(--text-faint);margin-bottom:.8rem}
+.drift-section .drift-pin code{font-size:.95em}
+.drift-section form{margin-bottom:.6rem}
+.drift-error{font-size:.85rem;color:var(--badge-failed-text);min-height:1.2em;margin-top:.5rem}
+.drift-warning .drift-list{margin:.5rem 0 .8rem;padding-left:1.2rem;font-size:.9rem}
+.drift-warning .drift-list li{margin-bottom:.25rem}
+.drift-warning .drift-list code{word-break:break-all}
+.drift-warning .muted{color:var(--text-faint)}
+
+/* A drifted anchor is flagged on the block itself, so a reader scrolling the
+   part sees which excerpt to distrust without scrolling back to the panel.
+   Only non-ok anchors carry data-drift, so a clean guide is untouched. */
+.anchor[data-drift] .anchor-path{border-color:var(--callout-warn-border);color:var(--callout-warn-label);background:var(--callout-warn-bg)}
+.anchor[data-drift] pre{border-color:var(--callout-warn-border)}
+.anchor[data-drift] .anchor-path::after{font-style:italic}
+.anchor[data-drift="changed"] .anchor-path::after{content:" · changed since this was written"}
+.anchor[data-drift="broken"] .anchor-path::after{content:" · this file is gone"}
+.anchor[data-drift="moved"] .anchor-path::after{content:" · moved"}
+.anchor[data-drift="renamed"] .anchor-path::after{content:" · this file was renamed"}
+.anchor[data-drift="moved"] .anchor-path,.anchor[data-drift="renamed"] .anchor-path{border-color:var(--anchor-border);color:var(--anchor-label);background:var(--surface-sunken)}
+.anchor[data-drift="moved"] pre,.anchor[data-drift="renamed"] pre{border-color:var(--border)}
 .verifying-panel{color:var(--text-muted)}
 .verifying-panel .muted{font-size:.85rem;color:var(--text-faint);margin-top:.25rem}
 /* Zero the panels' default <p> margins so the spinner line and the "updates

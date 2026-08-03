@@ -69,7 +69,8 @@
       {{end}}
     </header>
     {{.Content}}
-    <div id="verifyRegion">{{template "verifySection" .}}</div>
+    <div id="verifyRegion">{{if not .Tutorial.IsOnboarding}}{{template "verifySection" .}}{{end}}</div>
+    <div id="driftRegion">{{if .Tutorial.IsOnboarding}}{{template "driftSection" .}}{{end}}</div>
     {{if .Tutorial.IsSeries}}
     <section class="series-toc" aria-label="In this series">
       <h2>In this series</h2>
@@ -986,6 +987,59 @@
       });
     }
 
+    // wireDrift binds the "Check for drift" form. Drift is the one button that
+    // needs no agent: the server runs the git check in-process and answers with
+    // the re-rendered region, so there is no handoff panel and no queued panel —
+    // just a result. Same dataset.wired idempotence guard as wire(), so a region
+    // swapped in by the poller re-binds without double-binding.
+    function wireDrift(){
+      var form = document.getElementById('driftForm');
+      if (!form || form.dataset.wired) return;
+      form.dataset.wired = '1';
+      form.addEventListener('submit', function(e){
+        e.preventDefault();
+        var errEl = form.querySelector('.drift-error');
+        if (errEl) errEl.textContent = '';
+        var btn = form.querySelector('button[type="submit"]');
+        var label = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = 'Checking…';
+        fetch(form.getAttribute('action'), {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'}
+        }).then(function(r){
+          if (!r.ok) {
+            return r.text().then(function(t){
+              if (errEl) errEl.textContent = 'Error: ' + (t || r.status);
+              btn.disabled = false; btn.textContent = label;
+            });
+          }
+          return r.json().then(function(data){
+            if (data.mode === 'unknown') {
+              if (errEl) errEl.textContent = data.message || 'Drift is unknown for this guide.';
+              btn.disabled = false; btn.textContent = label;
+              return;
+            }
+            // Swap the region ourselves rather than waiting on the poller: a
+            // clean re-check changes no status, so the poller (which reconciles
+            // on change) would never fire and the click would look ignored.
+            var region = document.getElementById('driftRegion');
+            if (region && typeof data.section === 'string') {
+              region.innerHTML = data.section;
+              wireDrift();
+              if (window.latheWireHandoffForms) window.latheWireHandoffForms();
+            }
+            // A status change (→ stale, or stale → unverified) still needs the
+            // header badge updated; the poller picks that up on its next tick.
+            if (window.latheStartStatusPoll) window.latheStartStatusPoll();
+          });
+        }).catch(function(err){
+          if (errEl) errEl.textContent = 'Network error: ' + err.message;
+          btn.disabled = false; btn.textContent = label;
+        });
+      });
+    }
+
     // Exposed so the status poller can re-wire a verify/extend form it swaps in
     // after a transition completes. Safe to call repeatedly (wire() is idempotent).
     window.latheWireHandoffForms = function(){
@@ -1000,6 +1054,7 @@
           var guidance = form.querySelector('textarea[name="guidance"]').value;
           return JSON.stringify({guidance: guidance});
         }, 'extending');
+      wireDrift();
     };
     window.latheWireHandoffForms();
   })();
@@ -1029,6 +1084,7 @@
     function applyRegions(data){
       swap('badgeRegion', data.badge);
       swap('verifyRegion', data.verify);
+      swap('driftRegion', data.drift);
       swap('extendRegion', data.extend);
       // Re-attach submit handlers to any form just swapped in (the spinner panel,
       // a re-verify form after a failure, or the extend form). Idempotent, so

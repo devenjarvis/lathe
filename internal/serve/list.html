@@ -29,12 +29,14 @@
       <button type="button" class="filter-pill" aria-pressed="false" data-status="verified">Verified</button>
       <button type="button" class="filter-pill" aria-pressed="false" data-status="failed">Failed</button>
       <button type="button" class="filter-pill" aria-pressed="false" data-status="skipped">Skipped</button>
+      <button type="button" class="filter-pill" aria-pressed="false" data-status="stale">Stale</button>
       <button type="button" class="filter-pill" aria-pressed="false" data-status="unverified">Unverified</button>
     </div>
     <div class="filter-row" id="typeFilters">
       <span class="filter-label">Type</span>
       <button type="button" class="filter-pill" aria-pressed="false" data-series="false">Single</button>
       <button type="button" class="filter-pill" aria-pressed="false" data-series="true">Series</button>
+      <button type="button" class="filter-pill" aria-pressed="false" data-kind="onboarding">Onboarding</button>
     </div>
     <div class="filter-row" id="tagFilters" hidden>
       <span class="filter-label">Tags</span>
@@ -46,7 +48,7 @@
 </div>
 <div class="tutorial-list" id="tutorialList">
 {{range .Tutorials}}
-  <div class="tutorial" data-title="{{.Title}}" data-slug="{{.Slug}}" data-topic="{{.Topic}}" data-tags="{{range .Tags}}{{.}},{{end}}" data-repo="{{.RepoDisplay}}" data-tools="{{range .Tools}}{{.Name}}{{if .Version}} {{.Version}}{{end}},{{end}}" data-status="{{.Status}}" data-created="{{.Created.Format "2006-01-02T15:04:05Z07:00"}}" data-series="{{.IsSeries}}">
+  <div class="tutorial" data-title="{{.Title}}" data-slug="{{.Slug}}" data-topic="{{.Topic}}" data-tags="{{range .Tags}}{{.}},{{end}}" data-repo="{{.RepoDisplay}}" data-tools="{{range .Tools}}{{.Name}}{{if .Version}} {{.Version}}{{end}},{{end}}" data-status="{{.Status}}" data-created="{{.Created.Format "2006-01-02T15:04:05Z07:00"}}" data-series="{{.IsSeries}}" data-kind="{{.EffectiveKind}}">
     <div class="tutorial-body">
       <a class="tutorial-link" href="/{{.Slug}}/">{{.Title}}</a>
       <div class="meta">{{if .IsSeries}}{{len .Parts}} parts{{else}}single tutorial{{end}} · {{.Created.Format "Jan 2, 2006"}}{{if .Sources}} · {{len .Sources}} source{{if ne (len .Sources) 1}}s{{end}}{{end}}</div>
@@ -150,8 +152,12 @@
     function cardTools(card){ return listVals(card, 'tools'); }
     function activeValues(row, key){
       if (!row) return [];
+      // The Type row mixes data-series and data-kind pills, so drop any pressed
+      // pill that doesn't carry the key being read — each predicate only sees
+      // its own pills.
       return Array.prototype.slice.call(row.querySelectorAll('[aria-pressed="true"]'))
-        .map(function(b){ return b.dataset[key]; });
+        .map(function(b){ return b.dataset[key]; })
+        .filter(function(v){ return v !== undefined; });
     }
 
     // Build dynamic filter pills from the union of a value across all cards.
@@ -180,6 +186,7 @@
       var q = (search.value || '').trim().toLowerCase();
       var statuses = activeValues(statusRow, 'status');
       var types = activeValues(typeRow, 'series');
+      var kinds = activeValues(typeRow, 'kind');
       var tags = activeValues(tagRow, 'tag');
       var versions = activeValues(versionRow, 'version');
       var visible = 0;
@@ -191,6 +198,7 @@
         var show = (!q || hay.indexOf(q) !== -1)
           && (!statuses.length || statuses.indexOf(card.dataset.status) !== -1)
           && (!types.length || types.indexOf(card.dataset.series) !== -1)
+          && (!kinds.length || kinds.indexOf(card.dataset.kind) !== -1)
           && (!tags.length || tags.some(function(t){ return ct.indexOf(t) !== -1; }))
           && (!versions.length || versions.some(function(v){ return cv.indexOf(v) !== -1; }));
         card.classList.toggle('hidden', !show);
@@ -199,7 +207,7 @@
       noResults.hidden = visible !== 0;
       // Surface how many pill filters are active so collapsing the panel never
       // hides that filtering is on.
-      var active = statuses.length + types.length + tags.length + versions.length;
+      var active = statuses.length + types.length + kinds.length + tags.length + versions.length;
       filterToggle.textContent = active ? 'Filters · ' + active : 'Filters';
       filterToggle.classList.toggle('has-active', active > 0);
     }

@@ -90,6 +90,19 @@ func (r *Result) Stale() bool {
 	return r.Summary[VerdictChanged] > 0 || r.Summary[VerdictBroken] > 0
 }
 
+// Problems returns just the changed and broken anchors, in document order —
+// what the reading page's warning panel lists and what /lathe-verify judges.
+// Moved and renamed anchors are excluded: they are not problems, only relocations.
+func (r *Result) Problems() []AnchorResult {
+	var out []AnchorResult
+	for _, a := range r.Anchors {
+		if a.Verdict == VerdictChanged || a.Verdict == VerdictBroken {
+			out = append(out, a)
+		}
+	}
+	return out
+}
+
 // StalePartsList returns the parts containing at least one changed or broken
 // anchor, in first-seen order — what the reading page's warning panel names.
 func (r *Result) StalePartsList() []string {

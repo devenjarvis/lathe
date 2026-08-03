@@ -134,6 +134,57 @@
 {{- end}}
 {{end}}
 
+{{/* driftSection — the onboarding-guide counterpart to verifySection, rendered in
+     its place. An onboarding guide describes a codebase the reader cannot
+     recreate, so "follow it in a scratch dir" is meaningless for it; the question
+     that matters is whether it still describes the code. The "Check for drift"
+     button posts to /-/drift/{slug}, which runs in-process with no model and no
+     worker — unlike every other button on this page. The verify form is still
+     here (same #verifyForm id and action, so it reuses the existing wiring
+     verbatim) because judging whether the *prose* around a changed excerpt is
+     still true is the part that does need an agent. */}}
+{{define "driftSection"}}
+{{- if and (eq .Tutorial.Status "failed") .VerifyResult}}
+<div class="callout callout-warning verify-failure">
+  <p class="callout-label">Verification failed</p>
+  {{if .VerifyResult.Part}}<p>Part: <code>{{.VerifyResult.Part}}</code></p>{{end}}
+  {{if .VerifyResult.Error}}<p>{{.VerifyResult.Error}}</p>{{end}}
+</div>
+{{- end}}
+{{- if and .Drift .Drift.Stale}}
+<div class="callout callout-warning drift-warning">
+  <p class="callout-label">This guide has drifted</p>
+  <p>These excerpts no longer match the repository at <code>{{shortSHA .Drift.HeadCommit}}</code>:</p>
+  <ul class="drift-list">
+    {{- range .Drift.Problems}}
+    <li><code>{{.Path}}{{if .Start}}:{{.Start}}{{if ne .Start .End}}-{{.End}}{{end}}{{end}}</code> — {{.Verdict}}{{if .Part}} <span class="muted">in {{.Part}}</span>{{end}}</li>
+    {{- end}}
+  </ul>
+  <p>The code moved on; the prose here may not have. Re-verify to have your agent judge what still holds and re-pin the guide.</p>
+</div>
+{{- end}}
+{{- if eq .Tutorial.Status "verifying"}}
+<section class="verify-section verifying-panel">
+  <p><span class="status-spinner" aria-hidden="true"></span>Re-verifying this guide…</p>
+  <p class="muted">This panel updates automatically.</p>
+</section>
+{{- else}}
+<section class="verify-section drift-section">
+  <p class="drift-pin">Pinned at <code>{{shortSHA .Tutorial.RepoCommit}}</code>{{if .DriftCheckedDate}} · last checked {{.DriftCheckedDate}}{{else}} · never checked{{end}}</p>
+  <form id="driftForm" method="POST" action="/-/drift/{{.Tutorial.Slug}}">
+    <button type="submit" class="btn btn-primary">Check for drift</button>
+    <p class="drift-error" aria-live="polite"></p>
+  </form>
+  {{- if ne .Tutorial.Status "extending"}}
+  <form id="verifyForm" method="POST" action="/-/verify/{{.Tutorial.Slug}}">
+    <button type="submit" class="btn btn-ghost btn-sm">Re-verify with your agent</button>
+    <p class="verify-error" aria-live="polite"></p>
+  </form>
+  {{- end}}
+</section>
+{{- end}}
+{{end}}
+
 {{/* extendSection — a "Part N is ready" link when an extend just appended a part
      (handleStatus sets .JustAddedPart), else the extending-panel while
      generating, else the "add a part" form. */}}

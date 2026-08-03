@@ -54,6 +54,7 @@ func NewServer(tutorialsDir string) *Server {
 	funcMap := template.FuncMap{
 		"add":          func(a, b int) int { return a + b },
 		"cardProgress": cardProgress,
+		"shortSHA":     shortSHA,
 	}
 	// components.html is parsed into both template sets so its shared partials
 	// ({{define "head"}}, "badge", "themeToggle") are available to each page.
@@ -84,6 +85,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /-/progress/{slug}/{part}", s.handleProgress)
 	mux.HandleFunc("POST /-/extend/{slug}", s.handleExtend)
 	mux.HandleFunc("POST /-/verify/{slug}", s.handleVerify)
+	// Drift is deliberately NOT queued: it needs no model, so it runs in-process
+	// and answers the browser directly, with or without a /lathe-work worker.
+	mux.HandleFunc("POST /-/drift/{slug}", s.handleDrift)
 	mux.HandleFunc("GET /-/status/{slug}/{part}", s.handleStatus)
 	// Worker bridge (all loopback). The worker long-polls /-/work to claim a job,
 	// reports an ask answer via .../answer or a verify/extend completion via
@@ -341,6 +345,15 @@ func verifyMeta(tut *store.Tutorial, tutDir string) (*store.VerifyResult, string
 	return verifyResult, verifiedDate
 }
 
+// shortSHA abbreviates a commit for display. Exposed to templates so the drift
+// section can show the pin without the full 40 characters.
+func shortSHA(sha string) string {
+	if len(sha) > 8 {
+		return sha[:8]
+	}
+	return sha
+}
+
 // sameOrigin reports whether a state-changing request originated from a page
 // served by this server. It rejects a *present* Origin or Referer that points
 // elsewhere — the defense against CSRF, where another site (or a LAN device)
@@ -447,6 +460,12 @@ func (s *Server) renderPart(w http.ResponseWriter, tut *store.Tutorial, tutDir, 
 	// verify-result.json simply renders no panel and no date.
 	verifyResult, verifiedDate := verifyMeta(tut, tutDir)
 
+	// Onboarding guides carry a drift record instead of a scratch-dir verify.
+	// Best-effort like verify-result.json: never checked simply renders the
+	// "Check for drift" form with no warning panel.
+	driftResult, driftCheckedDate := driftMeta(tut, tutDir)
+	content = markDriftedAnchors(content, driftResult, part)
+
 	// Count inline [!UNVERIFIED] callouts so the page can flag, near the badge,
 	// how many claims the author couldn't ground in a source. Derived at render
 	// time from the rendered HTML, so it stays live as parts change with no
@@ -497,6 +516,8 @@ func (s *Server) renderPart(w http.ResponseWriter, tut *store.Tutorial, tutDir, 
 		"Tutorial":          tut,
 		"VerifyResult":      verifyResult,
 		"VerifiedDate":      verifiedDate,
+		"Drift":             driftResult,
+		"DriftCheckedDate":  driftCheckedDate,
 		"UnverifiedCount":   unverifiedCount,
 		"VoiceSpec":         voiceSpec,
 		"CurrentPart":       part,
@@ -595,10 +616,14 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	driftResult, driftCheckedDate := driftMeta(tut, tutDir)
+
 	data := map[string]any{
 		"Tutorial":          tut,
 		"VerifyResult":      verifyResult,
 		"VerifiedDate":      verifiedDate,
+		"Drift":             driftResult,
+		"DriftCheckedDate":  driftCheckedDate,
 		"IsLastPart":        last,
 		"NextPartNumber":    len(tut.Parts) + 1,
 		"PendingPartNumber": pendingPartNumber(tut.PendingPart, len(tut.Parts)+1),
@@ -613,12 +638,23 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 		extend = s.renderPartial("extendSection", data)
 	}
 
+	// An onboarding guide shows the drift region in place of the verify form, so
+	// exactly one of the two is ever non-empty — the client swaps both regions
+	// unconditionally and the empty one stays empty.
+	verify, driftRegion := "", ""
+	if tut.IsOnboarding() {
+		driftRegion = s.renderPartial("driftSection", data)
+	} else {
+		verify = s.renderPartial("verifySection", data)
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]any{
 		"status": tut.Status,
 		"done":   done,
 		"badge":  s.renderPartial("statusHeader", data),
-		"verify": s.renderPartial("verifySection", data),
+		"verify": verify,
+		"drift":  driftRegion,
 		"extend": extend,
 	})
 }
