@@ -83,6 +83,32 @@ func TestRenderMermaidBlock(t *testing.T) {
 	}
 }
 
+func TestRenderMermaidBlockKeepsSourceWithBlankLine(t *testing.T) {
+	// A blank line inside a diagram's source used to end the raw HTML block, so
+	// the rest of the fence was parsed as markdown and arrived as a code block.
+	// Mermaid then refused the chopped source with "Syntax error in text"
+	// (upstream #71).
+	src := []byte("# T\n\n```mermaid\nsequenceDiagram\n    participant A as Alice\n    participant B as Bob\n\n    A->>B: hello\n    B-->>A: hi back\n```\n")
+	out, err := serve.RenderMarkdown(src)
+	if err != nil {
+		t.Fatalf("RenderMarkdown() error = %v", err)
+	}
+	html := string(out)
+	if strings.Contains(html, "<pre") {
+		t.Errorf("the blank line ended the block early and the source was parsed as markdown, got:\n%s", html)
+	}
+	for _, want := range []string{
+		`<div class="mermaid">`,
+		"participant A as Alice",
+		"A-&gt;&gt;B: hello",
+		"B--&gt;&gt;A: hi back",
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("diagram source missing %q, got:\n%s", want, html)
+		}
+	}
+}
+
 func TestRenderNonMermaidCodeBlockUnchanged(t *testing.T) {
 	// A non-mermaid fenced block should still flow through chroma.
 	src := []byte("```python\nprint('ok')\n```")
