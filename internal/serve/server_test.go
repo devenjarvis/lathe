@@ -30,8 +30,9 @@ func makeTestTutorial(t *testing.T, dir, slug string, series bool) string {
 	}
 	if series {
 		tut.Parts = []string{"part-01.md", "part-02.md"}
-		for _, p := range tut.Parts {
-			if err := os.WriteFile(filepath.Join(tutDir, p), []byte("# "+p), 0644); err != nil {
+		for i, p := range tut.Parts {
+			heading := fmt.Sprintf("# Part %02d\n", i+1)
+			if err := os.WriteFile(filepath.Join(tutDir, p), []byte(heading), 0644); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -438,7 +439,24 @@ func TestTutorialPage(t *testing.T) {
 		t.Errorf("tutorial page should render one dock progress control; body excerpt:\n%s", body)
 	}
 	if !strings.Contains(body, `id="progressStatus"`) {
-		t.Error("tutorial page missing progress status live region")
+		t.Error("tutorial page missing the progress toast")
+	}
+	// The toast is visual only, so background saves stop interrupting the reader;
+	// what must be spoken lives in a separate announced region.
+	if !strings.Contains(body, `<p id="progressStatus" class="progress-status" aria-hidden="true"></p>`) {
+		t.Error("progress toast should stay visual only (aria-hidden, no live semantics)")
+	}
+	if got := strings.Count(body, `<p id="statusAnnouncer" class="visually-hidden" role="status" aria-live="polite" aria-atomic="true"></p>`); got != 1 {
+		t.Errorf("tutorial page should carry exactly one announced status region, got %d", got)
+	}
+	// An author display rule beats the browser's [hidden] rule, which would leave
+	// a dismissed element on screen and in the accessibility tree: the live nudge
+	// is display:flex, so its Dismiss button would do nothing a reader could hear.
+	if !strings.Contains(body, `[hidden]{display:none !important}`) {
+		t.Error("stylesheet must let the hidden attribute override component display rules")
+	}
+	if !strings.Contains(body, `<div id="liveNudge" class="live-nudge" role="status" hidden>`) {
+		t.Error("the live nudge should ship hidden, to be revealed by its own script")
 	}
 	if !strings.Contains(body, `data-slug="test-tutorial"`) || !strings.Contains(body, `data-part="index.md"`) {
 		t.Error("tutorial page missing progress routing data on progress bar")
@@ -526,10 +544,14 @@ func TestBylineShowsModelAndVoiceReveal(t *testing.T) {
 		t.Error("byline should name the recorded voice")
 	}
 	// The body must be rendered markdown: companion's spec opens with "# Companion",
-	// so the reveal should carry a rendered <h1> with that text — never the literal
-	// "# Companion" markdown.
-	if !strings.Contains(header, ">Companion</h1>") {
+	// so the reveal carries a rendered heading with that text — never the literal
+	// "# Companion" markdown. The heading is shifted down one level because the
+	// reveal is a fragment inside a page whose article title owns the h1.
+	if !strings.Contains(header, ">Companion</h2>") {
 		t.Errorf("voice-reveal body should render the spec markdown to HTML; header:\n%s", header)
+	}
+	if strings.Contains(header, ">Companion</h1>") {
+		t.Error("voice-reveal headings must nest below the article h1, not compete with it")
 	}
 	if strings.Contains(header, "# Companion") {
 		t.Error("voice-reveal body should not contain raw markdown heading syntax")
@@ -621,8 +643,9 @@ func makeSeriesTutorialWithParts(t *testing.T, dir, slug string, numParts int) {
 		Parts:   parts,
 		Created: time.Now(),
 	}
-	for _, p := range parts {
-		if err := os.WriteFile(filepath.Join(tutDir, p), []byte("# "+p), 0644); err != nil {
+	for i, p := range parts {
+		heading := fmt.Sprintf("# Part %02d\n", i+1)
+		if err := os.WriteFile(filepath.Join(tutDir, p), []byte(heading), 0644); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -661,7 +684,7 @@ func TestSeriesPartPrevNext(t *testing.T) {
 			// The breadcrumb part segment now lives inside the part-picker's
 			// <summary> (a <details> disclosure listing every part); the ›
 			// separator still precedes it.
-			if !strings.Contains(body, `<span class="sep">›</span>`) {
+			if !strings.Contains(body, `<span class="sep" aria-hidden="true">›</span>`) {
 				t.Errorf("missing breadcrumb separator for %s", tc.part)
 			}
 			wantCrumb := `<summary>` + tc.wantCrumb
@@ -738,6 +761,19 @@ func TestSeriesSidebarAndBottomList(t *testing.T) {
 	// The persistent top bar carries the back-link to the list page.
 	if !strings.Contains(body, `class="back-link"`) || !strings.Contains(body, "All tutorials") {
 		t.Error("page missing back-link to /")
+	}
+
+	// The narrow-viewport TOC drawer keeps its visible label as plain text on a
+	// named nav landmark. It must not inject a page-chrome heading: it renders
+	// ahead of the article h1, so an h3 there both outranks and precedes it.
+	if !strings.Contains(body, `<nav id="sidebar" aria-label="Tutorial navigation">`) {
+		t.Error("sidebar nav should carry an accessible name")
+	}
+	if !strings.Contains(body, `<p class="toc-label">On this page</p>`) {
+		t.Error("sidebar TOC should keep its visible 'On this page' label")
+	}
+	if strings.Contains(body, `<h3 class="toc-label">`) {
+		t.Error("sidebar TOC label must not be a heading")
 	}
 
 	// The on-page TOC now lives in the right-edge section rail (#tocRail), with one
@@ -864,7 +900,7 @@ func TestNonSeriesNoPartNav(t *testing.T) {
 	if strings.Contains(body, `class="part-nav"`) {
 		t.Error("non-series tutorial should not render part-nav block")
 	}
-	if strings.Contains(body, `<span class="sep">`) {
+	if strings.Contains(body, `<span class="sep" aria-hidden="true">`) {
 		t.Error("non-series tutorial should not render breadcrumb separator")
 	}
 }
@@ -881,7 +917,10 @@ func TestProvenanceSourcesRendered(t *testing.T) {
 		Status:  store.StatusUnverified,
 		Created: time.Now(),
 		Parts:   []string{"part-01.md"},
-		Sources: []string{"https://ziglang.org/documentation/master/#comptime"},
+		Sources: []store.Source{
+			{URL: "https://ziglang.org/documentation/master/#comptime"},
+			{Title: "MCP architecture overview", URL: "https://modelcontextprotocol.io/docs/learn/architecture"},
+		},
 	}
 	if err := os.WriteFile(filepath.Join(tutDir, "part-01.md"), []byte("# Part 1"), 0644); err != nil {
 		t.Fatal(err)
@@ -898,11 +937,75 @@ func TestProvenanceSourcesRendered(t *testing.T) {
 	// Provenance now renders in the article-header block atop <main>, no longer
 	// in the (relocated) sidebar.
 	header := articleHeader(t, w.Body.String())
-	if !strings.Contains(header, "Researched against 1 source") {
+	if !strings.Contains(header, "Researched against 2 sources") {
 		t.Error("article-header missing the 'Researched against N sources' provenance line")
 	}
 	if !strings.Contains(header, "https://ziglang.org/documentation/master/#comptime") {
 		t.Error("article-header missing the consulted source link")
+	}
+	// An untitled source falls back to its URL as link text; a titled one shows
+	// the title, so a screen reader's link list is readable instead of a list of
+	// raw URLs.
+	titled := `<a href="https://modelcontextprotocol.io/docs/learn/architecture" rel="noopener noreferrer" target="_blank">MCP architecture overview</a>`
+	if !strings.Contains(header, titled) {
+		t.Errorf("article-header should use a source's title as its link text; header:\n%s", header)
+	}
+}
+
+// A tutorial page renders each fenced block as a labelled artifact, and carries
+// exactly one page-level status region for copy feedback however many command
+// blocks the part has.
+func TestTutorialPageRendersTutorialBlocks(t *testing.T) {
+	dir := t.TempDir()
+	tutDir := filepath.Join(dir, "blocks")
+	if err := os.MkdirAll(tutDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	body := "# Blocks\n\nRun this:\n\n```bash\nls\n```\n\nExpected output:\n\n```text\nfile.txt\n```\n"
+	if err := os.WriteFile(filepath.Join(tutDir, "part-01.md"), []byte(body), 0644); err != nil {
+		t.Fatal(err)
+	}
+	tut := &store.Tutorial{Slug: "blocks", Title: "Blocks", Status: store.StatusUnverified, Parts: []string{"part-01.md"}}
+	if err := store.WriteMetadata(tutDir, tut); err != nil {
+		t.Fatal(err)
+	}
+
+	srv := serve.NewServer(dir)
+	req := httptest.NewRequest(http.MethodGet, "/blocks/part-01.md", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+	page := w.Body.String()
+
+	if !strings.Contains(page, `<div class="tutorial-block tutorial-block-command">`) {
+		t.Error("command block should render as a labelled container")
+	}
+	if !strings.Contains(page, `<p class="tutorial-block-label">Command · bash</p>`) {
+		t.Error("command block should carry its label as text a reader hears once")
+	}
+	if !strings.Contains(page, `>Copy command</button>`) {
+		t.Error("command block should offer a copy button")
+	}
+	if !strings.Contains(page, `<div class="tutorial-block tutorial-block-output">`) || !strings.Contains(page, "<samp>") {
+		t.Error("output block should render as a labelled container containing samp")
+	}
+	// A figure boundary announces its name on entry and again on exit, and still
+	// does not let the reader skip the block, so blocks carry no figure wrapper.
+	if strings.Contains(page, "<figure") || strings.Contains(page, "<figcaption") {
+		t.Error("tutorial blocks should not wrap themselves in a figure")
+	}
+	// One h1 per page: the part title from the body, not the tutorial name in the
+	// chrome. Two h1s split the outline a reader navigates by.
+	if got := strings.Count(page, "<h1"); got != 1 {
+		t.Errorf("part page should carry exactly one h1, got %d:\n%s", got, page)
+	}
+	if !strings.Contains(page, `<p class="article-title">`) {
+		t.Error("the article title should render without a heading level")
+	}
+	if got := strings.Count(page, `id="statusAnnouncer"`); got != 1 {
+		t.Errorf("page should carry exactly one announced status region, got %d", got)
+	}
+	if !strings.Contains(page, `role="status" aria-live="polite" aria-atomic="true"`) {
+		t.Error("the announced status region should be a polite status region")
 	}
 }
 
@@ -2089,5 +2192,118 @@ func TestPartPageRendersSavedExercises(t *testing.T) {
 	}
 	if !strings.Contains(w.Body.String(), `data-saved-exercises="0,2"`) {
 		t.Errorf("part page missing restored data-saved-exercises; body excerpt:\n%s", w.Body.String())
+	}
+}
+
+func TestSeriesTitlesComeFromPartHeadings(t *testing.T) {
+	// A part's authored h1 is its title (docs/design-system.md, "Heading
+	// ownership"), so the series TOC, the part picker, and the prev/next part nav
+	// must list that text rather than the filename. Part 2 deliberately has no h1
+	// to cover the fallback.
+	dir := t.TempDir()
+	tutDir := filepath.Join(dir, "titled-series")
+	if err := os.MkdirAll(tutDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	parts := []string{"part-01.md", "part-02.md", "part-03.md"}
+	bodies := []string{
+		"# Shuffles a hand can perform\n\nProse.\n",
+		"## A part with no level-1 heading\n\nProse.\n",
+		"# Fisher-Yates in C\n\nProse.\n",
+	}
+	for i, p := range parts {
+		if err := os.WriteFile(filepath.Join(tutDir, p), []byte(bodies[i]), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	tut := &store.Tutorial{
+		Slug:    "titled-series",
+		Title:   "Titled Series",
+		Status:  store.StatusVerified,
+		Parts:   parts,
+		Created: time.Now(),
+	}
+	if err := store.WriteMetadata(tutDir, tut); err != nil {
+		t.Fatal(err)
+	}
+	srv := serve.NewServer(dir)
+
+	get := func(part string) string {
+		t.Helper()
+		req := httptest.NewRequest(http.MethodGet, "/titled-series/"+part, nil)
+		w := httptest.NewRecorder()
+		srv.Handler().ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("GET /titled-series/%s = %d, want %d", part, w.Code, http.StatusOK)
+		}
+		return w.Body.String()
+	}
+
+	page := get("part-01.md")
+	for _, want := range []string{
+		`<span class="title">Shuffles a hand can perform</span>`,
+		`<span class="title">Fisher-Yates in C</span>`,
+		`<span class="title">Part 02</span>`,
+	} {
+		if !strings.Contains(page, want) {
+			t.Errorf("part-01 page missing series title %s", want)
+		}
+	}
+	// The filename must no longer be used as a title when the part has an h1.
+	if strings.Contains(page, `<span class="title">part-01.md</span>`) {
+		t.Error("series TOC still titles a part with its filename")
+	}
+
+	// The prev/next part nav reads the same titles: on part 2, the next card names
+	// part 3 by its heading.
+	next := get("part-02.md")
+	navStart := strings.Index(next, `class="part-nav"`)
+	if navStart < 0 {
+		t.Fatal("part-02 page missing part-nav")
+	}
+	nav := next[navStart:]
+	if !strings.Contains(nav, `<span class="title">Fisher-Yates in C</span>`) {
+		t.Errorf("next part card missing the part-03 heading; nav:\n%s", nav[:400])
+	}
+}
+
+func TestMermaidLoadersCarryFallbackAndPlainRole(t *testing.T) {
+	// The reading page must not present a diagram's source as its fallback, and
+	// the rendered SVG's role must read as a word rather than Mermaid's internal
+	// type id. Both live in the inline loader, so assert on the served page.
+	dir := t.TempDir()
+	tutDir := filepath.Join(dir, "diagrammed")
+	if err := os.MkdirAll(tutDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	body := "# Diagrammed\n\n```mermaid\nflowchart TD\n    A --> B\n```\n"
+	if err := os.WriteFile(filepath.Join(tutDir, "part-01.md"), []byte(body), 0644); err != nil {
+		t.Fatal(err)
+	}
+	tut := &store.Tutorial{Slug: "diagrammed", Title: "Diagrammed", Status: store.StatusVerified, Parts: []string{"part-01.md"}, Created: time.Now()}
+	if err := store.WriteMetadata(tutDir, tut); err != nil {
+		t.Fatal(err)
+	}
+	srv := serve.NewServer(dir)
+	req := httptest.NewRequest(http.MethodGet, "/diagrammed/part-01.md", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("GET /diagrammed/part-01.md = %d, want %d", w.Code, http.StatusOK)
+	}
+	page := w.Body.String()
+	for _, want := range []string{
+		"data-mermaid-state",              // the pending/failed marker
+		"diagram-unavailable",             // the visible fallback note
+		"aria-roledescription",            // the role rewrite
+		"This diagram could not be drawn", // the note's own words
+		// A reader with scripts off gets the same named absence: the renderer
+		// writes it inside <noscript>, and the shared head hides the raw block.
+		`<noscript><p class="diagram-unavailable">`,
+		`<noscript><style>.mermaid{display:none}</style></noscript>`,
+	} {
+		if !strings.Contains(page, want) {
+			t.Errorf("served page missing %q", want)
+		}
 	}
 }

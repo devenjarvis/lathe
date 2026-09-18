@@ -38,7 +38,10 @@ func TestWriteReadMetadata(t *testing.T) {
 
 func TestMetadataRoundTripSources(t *testing.T) {
 	dir := t.TempDir()
-	srcs := []string{"https://ziglang.org/documentation/master/#comptime", "https://example.com/spec#sec3"}
+	srcs := []store.Source{
+		{URL: "https://ziglang.org/documentation/master/#comptime"},
+		{Title: "Example spec", URL: "https://example.com/spec#sec3"},
+	}
 	tut := &store.Tutorial{
 		Slug:    "test-tut",
 		Status:  store.StatusUnverified,
@@ -56,8 +59,45 @@ func TestMetadataRoundTripSources(t *testing.T) {
 	}
 	for i := range srcs {
 		if got.Sources[i] != srcs[i] {
-			t.Errorf("Sources[%d] = %q, want %q", i, got.Sources[i], srcs[i])
+			t.Errorf("Sources[%d] = %+v, want %+v", i, got.Sources[i], srcs[i])
 		}
+	}
+}
+
+func TestMetadataReadsLegacyURLStringSources(t *testing.T) {
+	// Every tutorial stored before sources grew titles has a bare URL per source.
+	// Those files must still decode, and re-writing them must not churn their
+	// on-disk shape into objects.
+	dir := t.TempDir()
+	legacy := `{"slug":"old","title":"Old","status":"unverified","parts":["part-01.md"],"sources":["https://a.com/spec","https://b.com/paper"]}`
+	if err := os.WriteFile(filepath.Join(dir, "metadata.json"), []byte(legacy), 0644); err != nil {
+		t.Fatal(err)
+	}
+	got, err := store.ReadMetadata(dir)
+	if err != nil {
+		t.Fatalf("ReadMetadata: %v", err)
+	}
+	want := []store.Source{{URL: "https://a.com/spec"}, {URL: "https://b.com/paper"}}
+	if len(got.Sources) != len(want) {
+		t.Fatalf("Sources = %v, want %v", got.Sources, want)
+	}
+	for i := range want {
+		if got.Sources[i] != want[i] {
+			t.Errorf("Sources[%d] = %+v, want %+v", i, got.Sources[i], want[i])
+		}
+	}
+	if err := store.WriteMetadata(dir, got); err != nil {
+		t.Fatalf("WriteMetadata: %v", err)
+	}
+	data, err := os.ReadFile(filepath.Join(dir, "metadata.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), `"sources": [
+    "https://a.com/spec",
+    "https://b.com/paper"
+  ]`) {
+		t.Errorf("untitled sources should re-encode as bare URL strings; got:\n%s", data)
 	}
 }
 
@@ -76,19 +116,29 @@ func TestSourcesOmittedWhenEmpty(t *testing.T) {
 }
 
 func TestNormalizeSources(t *testing.T) {
-	// Trims, drops empties, de-dupes first-seen — but preserves case (URLs are
-	// case-sensitive, unlike tags).
-	got := store.NormalizeSources([]string{" https://A.com/Path ", "", "https://A.com/Path", "https://b.com"})
-	want := []string{"https://A.com/Path", "https://b.com"}
+	// Trims, drops entries with no URL, de-dupes first-seen — but preserves case
+	// (URLs are case-sensitive, unlike tags). A duplicate that carries a title
+	// names the earlier untitled entry instead of being dropped.
+	got := store.NormalizeSources([]store.Source{
+		{URL: " https://A.com/Path "},
+		{URL: ""},
+		{Title: "  ", URL: "https://A.com/Path"},
+		{Title: "B paper", URL: "https://b.com"},
+		{Title: "late title", URL: "https://A.com/Path"},
+	})
+	want := []store.Source{
+		{Title: "late title", URL: "https://A.com/Path"},
+		{Title: "B paper", URL: "https://b.com"},
+	}
 	if len(got) != len(want) {
 		t.Fatalf("NormalizeSources = %v, want %v", got, want)
 	}
 	for i := range want {
 		if got[i] != want[i] {
-			t.Errorf("NormalizeSources[%d] = %q, want %q", i, got[i], want[i])
+			t.Errorf("NormalizeSources[%d] = %+v, want %+v", i, got[i], want[i])
 		}
 	}
-	if store.NormalizeSources([]string{"", "  "}) != nil {
+	if store.NormalizeSources([]store.Source{{URL: ""}, {Title: "orphan title"}}) != nil {
 		t.Error("NormalizeSources of all-empty should be nil (stays omitempty)")
 	}
 }

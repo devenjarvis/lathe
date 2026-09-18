@@ -49,7 +49,7 @@ Before you write a single sentence, **go read**. Use your web search and fetch t
 
 - **Read for the load-bearing facts** you'll commit to in the tutorial: exact API/function signatures, default values, flag names, version numbers, sample rates, page sizes, semantic guarantees, error messages, historical claims. Take notes with the URL beside each fact — deep-link to the section or anchor, not the homepage.
 - **Ground the prose in what you read, not what you recall.** When a source contradicts your memory, the source wins. When you can't find a source for a load-bearing claim, that's not a green light to assert it confidently — mark it with `[!UNVERIFIED]` (see Callouts) and tell the reader what to check.
-- **Keep the list of URLs you consulted.** You'll cite the load-bearing ones inline, list them in each part's `## Sources`, and pass them to `lathe store --source` (see "After writing") so the research trail is recorded as provenance.
+- **Keep the list of URLs you consulted, each with a short title.** You'll cite the load-bearing ones inline, list them in each part's `## Sources`, and pass both title and URL to `lathe store --source` (see "After writing") so the research trail is recorded as provenance the reader can scan.
 - **No web tools in this session?** Say so to the user in one line ("Heads up — I don't have web access here, so I'm working from training knowledge; I've marked the load-bearing claims I couldn't confirm"). Then write more conservatively: claim fewer exact numbers, prefer "check your version's docs" over a guessed default, and `[!UNVERIFIED]`-flag the load-bearing unknowns (still only the load-bearing ones — don't paper the page with caveats).
 
 ## Always write Part 1 only
@@ -337,8 +337,8 @@ Decide the slug before writing. Never write `index.md` or multiple parts.
 >   pinned in that same step, e.g. `--tool zig:0.13.0 --tool llvm:18`.
 >   Opt-out only with a reason: *"no specific toolchain applies"*.
 > - **Tags (`--tag`)** → 2–5 lowercase tags (see below).
-> - **Sources (`--source`)** → one per authoritative source you read, or the
->   stated reason *"no web access this session"*.
+> - **Sources (`--source`)** → one per authoritative source you read, each as
+>   *"Title|URL"*, or the stated reason *"no web access this session"*.
 > - **Voice (`--voice`)** → the voice you wrote in (see "Voice — selected, not
 >   fixed"): the name the reader chose, or the default from `lathe voice show`.
 >   Always pass it so the choice is explicit and `/lathe-extend` can continue it.
@@ -356,7 +356,7 @@ lathe store /tmp/lathe-<slug> \
   --tag <a> --tag <b> --tag <c> \
   --repo <origin-url> --repo-branch <branch> \
   --tool <name>:<version> --tool <name>:<version> \
-  --source <url> --source <url> \
+  --source "<title>|<url>" --source "<title>|<url>" \
   --voice <name> \
   --model "<model you are running as>"
 ```
@@ -378,11 +378,14 @@ llvm:18`) — these come from the pinned toolchain and must be passed, not folde
 into tags. Lathe stores them as structured versions, shows them as chips on the
 card, and gives them their own filter — keeping the tag vocabulary clean.
 
-Pass `--source <url>` once for each authoritative source you consulted during
-the **Research first** step — the research trail, not just the ones you cited
-inline. Lathe records them as provenance: the reading page shows "Researched
-against N sources" with the list, and the list page marks how many sources back
-each tutorial. If you genuinely had no web access, omit `--source`.
+Pass `--source "<Title>|<url>"` once for each authoritative source you consulted
+during the **Research first** step — the research trail, not just the ones you
+cited inline. Give each one a short title in front of its URL; that title is
+what the reading page shows as the link text, and a title-less `--source <url>`
+falls back to displaying the URL itself. Lathe records them as provenance: the
+reading page shows "Researched against N sources" with the list, and the list
+page marks how many sources back each tutorial. If you genuinely had no web
+access, omit `--source`.
 
 Pass `--voice <name>` with the voice you wrote in — the one the reader named, or
 the default you fetched with `lathe voice show`. Lathe records it on the tutorial

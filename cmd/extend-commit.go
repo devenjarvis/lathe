@@ -56,7 +56,7 @@ var extendCommitCmd = &cobra.Command{
 		// stays live as parts are added. NormalizeSources de-dupes against what's
 		// already recorded.
 		if len(extendCommitSources) > 0 {
-			tut.Sources = store.NormalizeSources(append(tut.Sources, extendCommitSources...))
+			tut.Sources = store.NormalizeSources(append(tut.Sources, parseSources(extendCommitSources)...))
 		}
 		// Refresh the model label when supplied (last-writer-wins, so re-extending
 		// in a newer model updates the byline); an omitted --model leaves the
@@ -80,7 +80,7 @@ var (
 )
 
 func init() {
-	extendCommitCmd.Flags().StringArrayVar(&extendCommitSources, "source", nil, "URL consulted while researching this part (repeatable; appended to the tutorial's research trail)")
+	extendCommitCmd.Flags().StringArrayVar(&extendCommitSources, "source", nil, "source consulted while researching this part, as URL or \"Title|URL\" (repeatable; appended to the tutorial's research trail)")
 	extendCommitCmd.Flags().StringVar(&extendCommitModel, "model", "", "LLM authoring this part, as a display label (e.g. \"Claude Opus 4.8\"); refreshes the tutorial's byline when set")
 	rootCmd.AddCommand(extendCommitCmd)
 }

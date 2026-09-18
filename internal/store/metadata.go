@@ -48,13 +48,14 @@ type Tutorial struct {
 	// Populated via `lathe store --tool name:version`; the skill never writes
 	// metadata.json directly.
 	Tools []Tool `json:"tools,omitempty"`
-	// Sources are the URLs the generation skill actually consulted while
+	// Sources are the pages the generation skill actually consulted while
 	// researching the tutorial — the research trail behind the prose. They are
 	// distinct from the per-part inline `## Sources` citations in the markdown:
 	// this is the durable, metadata-level record surfaced as provenance in the
 	// web UI. Populated via `lathe store --source` and `lathe extend-commit
-	// --source`; the skill never writes metadata.json directly.
-	Sources []string `json:"sources,omitempty"`
+	// --source`, each as a URL or a "Title|URL" pair; the skill never writes
+	// metadata.json directly.
+	Sources []Source `json:"sources,omitempty"`
 	// Voice is the writing voice the tutorial was generated in (a built-in preset
 	// or a custom voice name). Recorded so /lathe-extend continues in the same
 	// voice and the served page can disclose it. Empty (pre-feature tutorials)
@@ -75,6 +76,54 @@ type Tutorial struct {
 type Tool struct {
 	Name    string `json:"name"`
 	Version string `json:"version,omitempty"`
+}
+
+// Source is one entry in a tutorial's research trail: a page the author
+// consulted. Title is the page's human-readable name and is what the reading
+// page uses as provenance link text; URL both targets the link and serves as
+// the label when no title was recorded. Metadata written before titles existed
+// stored a bare URL string per source, so both wire forms decode here and an
+// untitled source still encodes as a bare URL.
+type Source struct {
+	Title string `json:"title,omitempty"`
+	URL   string `json:"url"`
+}
+
+// Label is the reader-facing text for a source: its title when one was
+// recorded, otherwise the URL, which is all pre-title metadata carries.
+func (s Source) Label() string {
+	if s.Title != "" {
+		return s.Title
+	}
+	return s.URL
+}
+
+// MarshalJSON encodes an untitled source as a bare URL string. Titles arrived
+// after sources did, and every stored tutorial's metadata predates them: writing
+// objects for untitled entries would rewrite those files for no gain.
+func (s Source) MarshalJSON() ([]byte, error) {
+	if s.Title == "" {
+		return json.Marshal(s.URL)
+	}
+	type titledSource Source // named type: no MarshalJSON, so no recursion
+	return json.Marshal(titledSource(s))
+}
+
+// UnmarshalJSON accepts either wire form: the legacy bare URL string, or the
+// titled object written for sources that have one.
+func (s *Source) UnmarshalJSON(data []byte) error {
+	var url string
+	if err := json.Unmarshal(data, &url); err == nil {
+		s.URL, s.Title = url, ""
+		return nil
+	}
+	type titledSource Source
+	var obj titledSource
+	if err := json.Unmarshal(data, &obj); err != nil {
+		return err
+	}
+	*s = Source(obj)
+	return nil
 }
 
 // Progress is a reader-saved position within a tutorial. Part is the rendered

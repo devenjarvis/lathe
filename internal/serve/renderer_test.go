@@ -65,8 +65,8 @@ func TestRenderMermaidBlock(t *testing.T) {
 	}
 	html := string(out)
 
-	if !strings.Contains(html, `<div class="mermaid">`) {
-		t.Errorf("mermaid block not rewritten to <div class=\"mermaid\">, got:\n%s", html)
+	if !strings.Contains(html, `<div class="mermaid" data-note="`) {
+		t.Errorf("mermaid block not rewritten to a <div class=\"mermaid\"> carrying its note, got:\n%s", html)
 	}
 	// Chroma's <pre class="chroma"> wrapper should NOT appear for the mermaid
 	// block — it bypasses syntax highlighting entirely.
@@ -94,7 +94,7 @@ func TestRenderNonMermaidCodeBlockUnchanged(t *testing.T) {
 	if !strings.Contains(html, `class="chroma"`) {
 		t.Errorf("non-mermaid fenced block lost chroma classes, got:\n%s", html)
 	}
-	if strings.Contains(html, `<div class="mermaid">`) {
+	if strings.Contains(html, `class="mermaid"`) {
 		t.Errorf("non-mermaid block wrongly rewritten to mermaid div, got:\n%s", html)
 	}
 }
@@ -341,10 +341,10 @@ func TestRenderExerciseChecklistInteractive(t *testing.T) {
 		t.Fatalf("RenderMarkdown() error = %v", err)
 	}
 	html := string(out)
-	if !strings.Contains(html, `<input type="checkbox" class="exercise-check" data-exercise-index="0">`) {
+	if !strings.Contains(html, `<input type="checkbox" class="exercise-check" data-exercise-index="0" aria-label="Exercise 1">`) {
 		t.Errorf("first exercise checkbox not rendered interactive, got:\n%s", html)
 	}
-	if !strings.Contains(html, `<input type="checkbox" class="exercise-check" data-exercise-index="1" checked="">`) {
+	if !strings.Contains(html, `<input type="checkbox" class="exercise-check" data-exercise-index="1" aria-label="Exercise 2" checked="">`) {
 		t.Errorf("checked exercise checkbox missing checked state/index, got:\n%s", html)
 	}
 	// Interactive exercise inputs are never disabled — no upstream default leaks in.
@@ -387,9 +387,9 @@ func TestRenderExerciseIndicesArePartLocalAndSkipNonExercises(t *testing.T) {
 	}
 	html := string(out)
 	for _, want := range []string{
-		`class="exercise-check" data-exercise-index="0"`,
-		`class="exercise-check" data-exercise-index="1"`,
-		`class="exercise-check" data-exercise-index="2"`,
+		`class="exercise-check" data-exercise-index="0" aria-label="Exercise 1"`,
+		`class="exercise-check" data-exercise-index="1" aria-label="Exercise 2"`,
+		`class="exercise-check" data-exercise-index="2" aria-label="Exercise 3"`,
 	} {
 		if !strings.Contains(html, want) {
 			t.Errorf("missing exercise checkbox %q, got:\n%s", want, html)
@@ -429,6 +429,202 @@ func TestRenderExerciseHeadingDetection(t *testing.T) {
 			got := strings.Contains(string(out), "exercise-check")
 			if got != tc.interactive {
 				t.Errorf("heading %q: interactive = %v, want %v; got:\n%s", tc.heading, got, tc.interactive, out)
+			}
+		})
+	}
+}
+
+func TestRenderMarkdownShift(t *testing.T) {
+	// A fragment rendered into a page that already owns the h1 (the byline's voice
+	// spec) has its headings pushed down, so the page keeps one h1 and skips no
+	// levels on the way into the fragment.
+	src := []byte("# Voice\n\nProse.\n\n## Register\n\nMore.\n\n###### Deepest\n\nEnd.\n")
+	out, err := serve.RenderMarkdownShift(src, 1)
+	if err != nil {
+		t.Fatalf("RenderMarkdownShift() error = %v", err)
+	}
+	html := string(out)
+	for _, want := range []string{">Voice</h2>", ">Register</h3>", ">Deepest</h6>"} {
+		if !strings.Contains(html, want) {
+			t.Errorf("shifted output missing %q, got:\n%s", want, html)
+		}
+	}
+	if strings.Contains(html, "<h1") {
+		t.Errorf("shifted output must not emit an h1, got:\n%s", html)
+	}
+	// The h6 heading has nowhere lower to go: it stays h6 rather than vanishing or
+	// wrapping around.
+	if strings.Count(html, "<h6") != 1 {
+		t.Errorf("deepest heading should stay h6 exactly once, got:\n%s", html)
+	}
+}
+
+func TestRenderMarkdownShiftZeroKeepsAuthoredLevels(t *testing.T) {
+	// Shift 0 is the authored structure: the plain render must not move levels.
+	out, err := serve.RenderMarkdownShift([]byte("# Voice\n\n## Register\n"), 0)
+	if err != nil {
+		t.Fatalf("RenderMarkdownShift() error = %v", err)
+	}
+	html := string(out)
+	if !strings.Contains(html, ">Voice</h1>") || !strings.Contains(html, ">Register</h2>") {
+		t.Errorf("shift 0 should render headings as authored, got:\n%s", html)
+	}
+}
+
+func TestRenderTutorialBlockClasses(t *testing.T) {
+	// The fence's info string decides the block's class, its caption, the element
+	// that marks it as code or output, and whether it offers to be copied.
+	cases := []struct {
+		name    string
+		info    string
+		class   string
+		caption string
+		inner   string
+		button  bool
+	}{
+		{"shell command", "bash", "tutorial-block-command", "Command · bash", "<code", true},
+		{"terminal output", "text", "tutorial-block-output", "Expected output · text", "<samp", false},
+		{"json output", "json", "tutorial-block-output", "Expected output · json", "<samp", false},
+		{"source", "go", "tutorial-block-code", "Code · go", "<code", false},
+		{"unlabelled fence", "", "tutorial-block-code", "Code", "<code", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			src := []byte("# Title\n\n```" + tc.info + "\nexample line\n```\n")
+			out, err := serve.RenderMarkdown(src)
+			if err != nil {
+				t.Fatalf("RenderMarkdown() error = %v", err)
+			}
+			html := string(out)
+			if !strings.Contains(html, `<div class="tutorial-block `+tc.class+`">`) {
+				t.Errorf("missing %q, got:\n%s", tc.class, html)
+			}
+			if !strings.Contains(html, `<p class="tutorial-block-label">`+tc.caption+`</p>`) {
+				t.Errorf("missing caption %q, got:\n%s", tc.caption, html)
+			}
+			if !strings.Contains(html, tc.inner) {
+				t.Errorf("block body should use %q, got:\n%s", tc.inner, html)
+			}
+			hasButton := strings.Contains(html, ">Copy command</button>")
+			if hasButton != tc.button {
+				t.Errorf("copy button = %v, want %v, got:\n%s", hasButton, tc.button, html)
+			}
+			if !strings.HasSuffix(strings.TrimSpace(html), "</div>") {
+				t.Errorf("block should close its container, got:\n%s", html)
+			}
+		})
+	}
+}
+
+func TestRenderTutorialBlockCopyButtonSitsInItsOwnBlock(t *testing.T) {
+	// Two command blocks: each button must resolve the code element in its own
+	// container (see the copy handler in layout.html), so copying one can never
+	// read the other, and the markup needs no ids to say which is which.
+	src := []byte("# Title\n\n```bash\nfirst\n```\n\n```bash\nsecond\n```\n")
+	out, err := serve.RenderMarkdown(src)
+	if err != nil {
+		t.Fatalf("RenderMarkdown() error = %v", err)
+	}
+	html := string(out)
+	if got := strings.Count(html, `<div class="tutorial-block tutorial-block-command">`); got != 2 {
+		t.Errorf("command blocks = %d, want 2, got:\n%s", got, html)
+	}
+	if got := strings.Count(html, ">Copy command</button>"); got != 2 {
+		t.Errorf("copy buttons = %d, want one per command block, got:\n%s", got, html)
+	}
+	if strings.Contains(html, `id="block-`) {
+		t.Errorf("blocks should not mint ids for the copy button, got:\n%s", html)
+	}
+	// Every button sits inside a command block, after the code it copies.
+	firstButton := strings.Index(html, ">Copy command</button>")
+	lastBlock := strings.LastIndex(html, `<div class="tutorial-block tutorial-block-command">`)
+	if firstButton < 0 || lastBlock < 0 || firstButton > lastBlock {
+		t.Errorf("first button should sit in the first block, got:\n%s", html)
+	}
+	// The label must not be repeated through the button: a description would read
+	// it out a second time for every block on the page.
+	if strings.Contains(html, "aria-describedby") {
+		t.Errorf("copy button should not re-read its block label, got:\n%s", html)
+	}
+	// The button follows its code, so a linear read hears the command before the
+	// control and the control marks where the block ends.
+	pre := strings.Index(html, "<pre")
+	btn := strings.Index(html, ">Copy command</button>")
+	if pre < 0 || btn < 0 || btn < pre {
+		t.Errorf("copy button should follow its code block, got:\n%s", html)
+	}
+}
+
+func TestRenderTutorialBlockOutputHasNoCopyButton(t *testing.T) {
+	// Output is for comparing, not pasting: a button here would add a focus stop
+	// and invite copying text the reader is meant to check.
+	src := []byte("# Title\n\n```text\nExpected line\n```\n\n```json\n{\"a\": 1}\n```\n")
+	out, err := serve.RenderMarkdown(src)
+	if err != nil {
+		t.Fatalf("RenderMarkdown() error = %v", err)
+	}
+	html := string(out)
+	if strings.Contains(html, "copy-command") {
+		t.Errorf("output blocks must not offer a copy button, got:\n%s", html)
+	}
+	if !strings.Contains(html, "Expected line") || !strings.Contains(html, "&#34;a&#34;") {
+		t.Errorf("output text should survive highlighting, got:\n%s", html)
+	}
+}
+
+func TestRenderTutorialBlockEscapesUnlexedText(t *testing.T) {
+	// A fence with no language we can lex falls back to plain escaped text rather
+	// than dropping the body or leaking markup.
+	src := []byte("# Title\n\n```\n<script>alert(1)</script>\n```\n")
+	out, err := serve.RenderMarkdown(src)
+	if err != nil {
+		t.Fatalf("RenderMarkdown() error = %v", err)
+	}
+	html := string(out)
+	if strings.Contains(html, "<script>") {
+		t.Errorf("unlexed block must escape its text, got:\n%s", html)
+	}
+	if !strings.Contains(html, "&lt;script&gt;") {
+		t.Errorf("expected escaped text in the block, got:\n%s", html)
+	}
+}
+
+func TestRenderTutorialBlockWrapsOnlyLongNonCommandBlocks(t *testing.T) {
+	// The list wrapper is what lets a reader leave a long block with one
+	// keystroke, so it must appear on long output and stay off short output,
+	// where it would only add an announcement. Command blocks are excluded
+	// because the copy button already marks their end.
+	body := strings.Repeat("a line of output\n", 20)
+	short := strings.Repeat("a line of output\n", 3)
+	cases := []struct {
+		name    string
+		src     string
+		wrapped bool
+	}{
+		{"long output", "# Title\n\n```text\n" + body + "```\n", true},
+		{"short output", "# Title\n\n```text\n" + short + "```\n", false},
+		{"long command", "# Title\n\n```bash\n" + body + "```\n", false},
+		{"long source", "# Title\n\n```go\n" + body + "```\n", true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			out, err := serve.RenderMarkdown([]byte(tc.src))
+			if err != nil {
+				t.Fatalf("RenderMarkdown() error = %v", err)
+			}
+			html := string(out)
+			if got := strings.Contains(html, `class="tutorial-block-skip" role="list"`); got != tc.wrapped {
+				t.Errorf("list wrapper = %v, want %v, got:\n%s", got, tc.wrapped, html)
+			}
+			if !tc.wrapped {
+				return
+			}
+			// An unclosed wrapper would swallow the rest of the page into a list.
+			if strings.Count(html, "<li>") != 1 || strings.Count(html, "</li>") != 1 {
+				t.Errorf("wrapper should hold exactly one item, got:\n%s", html)
+			}
+			if !strings.HasSuffix(strings.TrimSpace(html), "</li></ul></div>") {
+				t.Errorf("wrapper should close before the container, got:\n%s", html)
 			}
 		})
 	}

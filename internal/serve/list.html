@@ -5,6 +5,7 @@
   <title>Lathe — Tutorials</title>
 </head>
 <body class="list">
+{{if .Tutorials}}<a class="skip-link" href="#searchInput">Skip to search</a>{{end}}
 <div class="header">
   <div>
     <h1>Lathe</h1>
@@ -71,13 +72,13 @@
     <div class="tutorial-actions">
       {{template "badge" .Status}}
       <form method="POST" action="/-/delete/{{.Slug}}" class="delete-form" data-tutorial-title="{{.Title}}">
-        <button type="submit" class="delete-btn" aria-label="Delete tutorial" title="Delete tutorial">×</button>
+        <button type="submit" class="delete-btn" aria-label="Delete {{.Title}}" title="Delete tutorial">×</button>
       </form>
     </div>
   </div>
 {{end}}
 </div>
-<div class="no-results" id="noResults" hidden>No tutorials match your search.</div>
+<div class="no-results" id="noResults" aria-live="polite" hidden>No tutorials match your search.</div>
 {{else}}
 <div class="empty">No tutorials yet. Run <code>/lathe</code> in your coding agent to generate one.</div>
 {{end}}

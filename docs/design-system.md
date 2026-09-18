@@ -96,13 +96,17 @@ Each component is a class in `styles.css`. Markup it expects:
 | Series TOC | `.series-toc`, `.current-row`, `.part-num` | layout.html |
 | Part nav | `.part-nav`, `.prev`/`.next`, `.label`, `.title` | layout.html |
 | Verify / extend | `.verify-section`, `.extend-section`, `#verifyForm`, `#extendForm` | layout.html |
-| Author byline | `.article-byline`, `.voice-reveal`, `.voice-reveal-body` (+ `code`) | layout.html (under the `.article-header` `<h2>`) |
+| Author byline | `.article-byline`, `.voice-reveal`, `.voice-reveal-body` (+ `code`) | layout.html (under the `.article-header` `.article-title`) |
 | Ask drawer | `#askDrawer`, `.ask-bubble`, `.ask-question`, `.ask-answer` | layout.html |
 | Reading progress bar | `#progressBar` | layout.html |
+| Progress toast | `.progress-status`, `#progressStatus` (`aria-hidden`) | layout.html |
+| Announced status region | `#statusAnnouncer` (`role="status"`, shared by the progress and copy flows) | layout.html |
+| Visually hidden utility | `.visually-hidden` | styles.css |
 | List cards | `body.list`, `.tutorial`, `.meta`, `.delete-btn`, `.empty` | list.html |
 | List card progress | `.tutorial-progress`, `.tutorial-progress-track`, `.tutorial-progress-segments`, `.tutorial-progress-label` | list.html |
 | Callouts | `.callout.callout-<type>`, `.callout-label` | emitted by `renderer.go` |
-| Code blocks | `pre`, `pre.chroma`, `code` | goldmark + chroma |
+| Tutorial blocks | `.tutorial-block`, `.tutorial-block-command`/`-output`/`-code`, `.tutorial-block-label`, `.copy-command` | emitted by `renderer.go` |
+| Code blocks | `pre`, `pre.chroma`, `code`, `samp` | goldmark + chroma |
 
 The `head`, `badge`, and `themeToggle` partials are parsed into **both** the
 layout and list template sets (see `NewServer` in `server.go`).
@@ -154,6 +158,18 @@ undefined token fall back to its own style's readable default foreground instead
 `renderer_test.go` spot-checks `#8f5902` (tango) and `#fe8019` (gruvbox); swapping
 either style means updating those assertions.
 
+### Block labels and captions
+
+A tutorial block's visible label comes from the fence's info string and nothing
+else: `bash` reads `Command · bash`, `text` and `json` read `Expected output ·
+<lang>`, any other language reads `Code · <lang>`, and a bare fence reads `Code`.
+There is no author-supplied caption syntax, and that is the settled contract
+rather than a gap (lathe-6m7). `AGENTS.md` already requires visible prose to
+introduce every block, so a caption in the source would be a second place to say
+what that prose says and the reader would hear both. The renderer names the
+artifact's kind; the author's prose names the particular thing. Reopen it with a
+tutorial that needs a caption the intro prose cannot carry.
+
 ## Light / dark behavior
 
 `[data-theme="dark"]` re-declares every token, so all components recolor from one
@@ -162,6 +178,122 @@ place. The pre-render script in the `head` partial reads `localStorage`
 paint. The `themeToggle` JS flips it and persists the choice; mermaid diagrams
 and the syntax CSS both react (the dark Chroma rules are scoped under
 `[data-theme="dark"] .chroma`).
+
+## Status messaging and announcements
+
+The reading page is quiet by default: failures speak, actions the reader took
+speak, and unsolicited successes stay silent. A background progress save happens
+every few seconds while someone reads, so announcing each one turns the page into
+a running commentary that interrupts the thing the reader came for. In WCAG
+terms, a status that keeps updating on its own needs a way to be stopped or
+hidden — [2.2.2 Pause, Stop, Hide](https://www.w3.org/WAI/WCAG22/Understanding/pause-stop-hide.html),
+Level A — and the simplest mechanism is for it never to announce at all.
+
+Two elements split the job, and the split is the point:
+
+- `#progressStatus` is the visible toast. It keeps every message, timing, and
+  error style it has always had, is `aria-hidden="true"`, and carries no live
+  semantics: it is a visual cue, not an announcement.
+- `#statusAnnouncer` is the page's one `role="status"` element with
+  `aria-atomic="true"`, hidden with `.visually-hidden`. Only this element speaks,
+  so the progress and copy flows report through one region instead of growing a
+  live region each.
+
+What it speaks:
+
+| Event | Announced |
+|---|---|
+| Background save start, and background save success | nothing |
+| Background save failure | `Progress not saved: <error>. Use Save progress to try again.` — first failure only, then quiet until saving works again |
+| A save that succeeds after a failure | `Progress saved` |
+| Manual save success | `Progress saved` |
+| Manual save failure | `Progress save failed: <error>` |
+| Copying a command block | `Command copied to clipboard.`, or the manual-copy fallback |
+
+Two carries are deliberate. A manual save marks both progress buttons
+`aria-busy="true"` instead of disabling them, because a disabled control cannot
+hold focus: the browser drops focus back to the document and announces
+"Unavailable" for each copy of the button, which tells the reader nothing about
+their save. The message also lands on the control the reader pressed, whose label
+flashes "Saved" the way the copy buttons flash "Copied", since a name change on
+the focused control is spoken even when the live region is missed.
+
+Every announcement clears the region before writing its message, because setting
+the same string a second time is not a change and would not be announced —
+[4.1.3 Status Messages](https://www.w3.org/WAI/WCAG22/Understanding/status-messages.html),
+Level AA.
+
+A live region has to stay in the accessibility tree, so these surfaces use
+`.visually-hidden`, which clips them, rather than `display: none`, which would
+silence them completely.
+
+The mirror image of that rule is `[hidden]{display:none !important}` in the base
+layer: a component that sets its own `display` (the live nudge is `display:flex`)
+otherwise beats the browser's `[hidden]` rule, so an element the page believes it
+has dismissed stays visible and keeps announcing itself to a screen reader.
+`#savedProgressMarker` had a local patch for this before the base rule existed.
+
+When adding a status surface, decide which channel it belongs to first: visible
+only, or announced as well. If it announces, add it to `#statusAnnouncer` (or a
+region like it) instead of making another element live, and ask whether the event
+is something the reader asked for. Unsolicited successes are what make a page
+noisy.
+
+## Heading ownership
+
+A reading page has exactly one `h1`, and it is the part title authored in the
+tutorial body's first `#` heading. The article header shows the tutorial name as
+`.article-title`, styled like a title but carrying no heading level: the name
+already appears in the top bar and the sidebar, and two `h1`s split the outline a
+reader navigates by. The body heading is the source of truth, because demoting it
+would either break the levels below it or make the renderer rewrite authored
+markdown, and hoisting the part title into the chrome would put the page's only
+`h1` outside the article it names.
+
+## Naming and repetition
+
+A screen reader speaks a string every time the page puts it in the reader's path,
+and the accessibility tree multiplies it. A labelled container announces its
+boundary, the label is read as its own node, and a control described by the same
+text reads it a further time. Tutorial blocks were `<figure>`/`<figcaption>`,
+which cost four readings of `Command · bash` before a reader reached one command:
+the figure boundary, the caption text, the copy button's description of that same
+caption, and the boundary again on the way out. Note the caption did not *name*
+the figure — `<figure>` takes no name from its content, and no screen reader
+treats a caption as the figure's accessible name (Roselli, "Brief Note on Figure
+and Figcaption Support"; MDN interactive-examples #2563 reports the same
+duplicate read). `renderer.go` carries the note.
+
+In browse mode no element gives a static block a spoken *end*. Block boundaries
+come only from roles that announce themselves — quote, figure, list, table,
+heading — and every one of them costs the reader a reading of the text it wraps.
+A long block needs that boundary anyway: a reader who wants out of a hundred lines
+should not have to arrow through them. So a non-command block longer than
+`longBlockLines` lines gets a one-item list wrapper. A list is the container every
+screen reader lets the reader leave with one keystroke — the reader who tested
+this could jump past a list and a blockquote with JAWS `>` and could not jump past
+a bare `<pre>` or a `<figure>`. Command blocks are excluded: the copy button at
+their end already answers the same question.
+
+The wrapper is a list rather than a blockquote because a blockquote would tell the
+reader the output is someone else's words, and would put machine output into quote
+navigation, where quotations from cited sources belong. It shows no visible
+marker, so the markup carries `role="list"` to keep the list in the accessibility
+tree.
+
+A figure was tried and dropped. A `<figure aria-label>` announces its name on
+entry and exit, but JAWS repeats the name on the way out and still refuses the
+skip, so it cost a second reading per block and bought nothing. The label stays a
+plain paragraph, read once, in the reader's path.
+
+Reach for a boundary cue only when the block is a stop a reader would jump to;
+otherwise let structure the reader already navigates (headings, list items) and
+the author's prose carry the end.
+
+Give a thing one name in one place and let adjacency do the associating. Reach for
+a container role only when the thing is a destination a reader would navigate to —
+code blocks, install snippets, and demo panels are not. Do not point
+`aria-describedby` at the text that already names the thing.
 
 ## How to add a new status or callout
 

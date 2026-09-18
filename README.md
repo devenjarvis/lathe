@@ -241,7 +241,7 @@ Status is one of `unverified` (the default after `lathe store`; renders no badge
 
 Every tutorial keeps the research trail behind it — the URLs the generation skill actually consulted while writing. This is distinct from the inline `## Sources` citations inside a part's markdown: it's a durable, tutorial-level record stored in the `sources` field of `metadata.json` and surfaced in the UI as provenance, so you can sanity-check where the material came from rather than taking the prose on faith.
 
-- `/lathe` captures them via `lathe store --source <url>` (repeatable), and `/lathe-extend` folds any newly-consulted URLs into the same trail (`lathe extend-commit --source`), de-duped against what's already there.
+- `/lathe` captures them via `lathe store --source <url>` (repeatable), and `/lathe-extend` folds any newly-consulted URLs into the same trail (`lathe extend-commit --source`), de-duped against what's already there. Pass a title in front of the URL — `--source "Architecture overview|https://example.com/arch"` — and the reading page uses it as the link text, falling back to the URL itself when no title is given.
 - On the **list page**, each card shows a `· N sources` count in its metadata line.
 - On the **reading page**, a *"Researched against N sources"* panel expands to the full list of links.
 

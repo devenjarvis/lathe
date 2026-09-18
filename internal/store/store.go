@@ -19,7 +19,7 @@ import (
 // they have and keeps call sites readable as the captured set grows.
 type StoreOptions struct {
 	Tags    []string // search tags (NormalizeTags)
-	Sources []string // research-trail URLs (NormalizeSources)
+	Sources []Source // research-trail entries (NormalizeSources)
 	Repo    string   // git remote the tutorial was written for (NormalizeRepo)
 	Branch  string   // branch the tutorial targets (only meaningful with Repo)
 	Tools   []Tool   // languages/tools + versions (NormalizeTools)
@@ -190,23 +190,32 @@ func NormalizeTags(tags []string) []string {
 	return out
 }
 
-// NormalizeSources cleans a source-URL list: trims surrounding whitespace,
-// drops empties, and removes duplicates while preserving first-seen order.
-// Unlike NormalizeTags it does NOT lowercase — URLs are case-sensitive (paths,
-// query strings, and fragments can all carry meaning). Returns nil for an
-// all-empty input so it stays omitempty in metadata.json.
-func NormalizeSources(sources []string) []string {
-	seen := make(map[string]struct{}, len(sources))
-	var out []string
+// NormalizeSources cleans a research trail: trims surrounding whitespace from
+// each title and URL, drops entries with no URL, and removes duplicate URLs
+// while preserving first-seen order. Unlike NormalizeTags it does NOT lowercase
+// — URLs are case-sensitive (paths, query strings, and fragments can all carry
+// meaning). Returns nil for an all-empty input so it stays omitempty in
+// metadata.json.
+//
+// A duplicate URL carrying a title fills in an earlier untitled entry instead
+// of being dropped: a source first recorded as a bare URL can be named later,
+// which is exactly what an extend does when it re-consults the same page.
+func NormalizeSources(sources []Source) []Source {
+	position := make(map[string]int, len(sources))
+	var out []Source
 	for _, s := range sources {
-		s = strings.TrimSpace(s)
-		if s == "" {
+		s.Title = strings.TrimSpace(s.Title)
+		s.URL = strings.TrimSpace(s.URL)
+		if s.URL == "" {
 			continue
 		}
-		if _, ok := seen[s]; ok {
+		if i, ok := position[s.URL]; ok {
+			if out[i].Title == "" {
+				out[i].Title = s.Title
+			}
 			continue
 		}
-		seen[s] = struct{}{}
+		position[s.URL] = len(out)
 		out = append(out, s)
 	}
 	return out

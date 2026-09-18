@@ -301,11 +301,25 @@ func isLastPart(tut *store.Tutorial, part string) bool {
 	return partIndex(tut, part) == len(tut.Parts)-1
 }
 
+// partTitle returns the title a part is listed under in the series TOC, the
+// part picker, and the prev/next part nav: the text of the part's first level-1
+// heading, which the design system names as the source of truth for a part's
+// title. A part with no h1, or an unreadable one, falls back to its filename so
+// the series still lists.
+func partTitle(tutDir, part string) string {
+	if src, err := os.ReadFile(filepath.Join(tutDir, part)); err == nil {
+		if title := PartTitle(src); title != "" {
+			return title
+		}
+	}
+	return store.SlugToTitle(strings.TrimSuffix(part, ".md"))
+}
+
 // partAfter returns the part immediately following part in the series as a
 // SeriesEntry (Slug/Title/Number), or ok=false when part is unknown or already
 // last. handleStatus uses it to point the "Part N is ready" link at the part an
 // extend just appended.
-func partAfter(tut *store.Tutorial, part string) (SeriesEntry, bool) {
+func partAfter(tut *store.Tutorial, tutDir, part string) (SeriesEntry, bool) {
 	idx := partIndex(tut, part)
 	if idx < 0 || idx+1 >= len(tut.Parts) {
 		return SeriesEntry{}, false
@@ -313,7 +327,7 @@ func partAfter(tut *store.Tutorial, part string) (SeriesEntry, bool) {
 	next := tut.Parts[idx+1]
 	return SeriesEntry{
 		Slug:   next,
-		Title:  store.SlugToTitle(strings.TrimSuffix(next, ".md")),
+		Title:  partTitle(tutDir, next),
 		Number: idx + 2,
 	}, true
 }
@@ -391,8 +405,8 @@ func (s *Server) handleDelete(w http.ResponseWriter, r *http.Request) {
 }
 
 // SeriesEntry is a row in the "In this series" list rendered at the bottom of
-// each series part. Title is precomputed from the part filename so the template
-// doesn't need to call into the store package.
+// each series part. Title comes from the part's first heading (see partTitle),
+// resolved here so the template doesn't need to call into the store package.
 type SeriesEntry struct {
 	Slug    string
 	Title   string
@@ -421,7 +435,7 @@ func (s *Server) renderPart(w http.ResponseWriter, tut *store.Tutorial, tutDir, 
 		for i, p := range tut.Parts {
 			seriesTOC = append(seriesTOC, SeriesEntry{
 				Slug:    p,
-				Title:   store.SlugToTitle(strings.TrimSuffix(p, ".md")),
+				Title:   partTitle(tutDir, p),
 				Number:  i + 1,
 				Current: p == part,
 			})
@@ -430,12 +444,12 @@ func (s *Server) renderPart(w http.ResponseWriter, tut *store.Tutorial, tutDir, 
 				isLast = i == len(tut.Parts)-1
 				if i > 0 {
 					prevPart = tut.Parts[i-1]
-					prevTitle = store.SlugToTitle(strings.TrimSuffix(prevPart, ".md"))
+					prevTitle = partTitle(tutDir, prevPart)
 					prevNumber = i
 				}
 				if i < len(tut.Parts)-1 {
 					nextPart = tut.Parts[i+1]
-					nextTitle = store.SlugToTitle(strings.TrimSuffix(nextPart, ".md"))
+					nextTitle = partTitle(tutDir, nextPart)
 					nextNumber = i + 2
 				}
 			}
@@ -459,10 +473,13 @@ func (s *Server) renderPart(w http.ResponseWriter, tut *store.Tutorial, tutDir, 
 	// still shows the name but renders no <details>. Pre-feature tutorials (empty
 	// Voice) get no reveal — the byline shows the model only, matching the old
 	// footer behavior.
+	// Headings are pushed down one level: the spec is a fragment embedded in a
+	// page whose article title is the h1, so its own "# Voice name" must not
+	// land in the page outline as a competing top-level heading.
 	var voiceSpec template.HTML
 	if tut.Voice != "" {
 		if v, err := voice.Resolve(tut.Voice); err == nil {
-			if rendered, rerr := RenderMarkdown([]byte(v.Body())); rerr == nil {
+			if rendered, rerr := RenderMarkdownShift([]byte(v.Body()), 1); rerr == nil {
 				voiceSpec = template.HTML(rendered)
 			}
 		}
@@ -590,7 +607,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	// so a verify poll on a middle part can never show a spurious link.
 	var justAdded any
 	if done && r.URL.Query().Get("from") == "extending" {
-		if next, ok := partAfter(tut, part); ok {
+		if next, ok := partAfter(tut, tutDir, part); ok {
 			justAdded = next
 		}
 	}

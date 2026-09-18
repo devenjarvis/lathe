@@ -100,6 +100,13 @@
 
 /* ---- 3. Base ------------------------------------------------------------- */
 *{box-sizing:border-box;margin:0;padding:0}
+/* The hidden attribute has to win. Components here set their own display (the
+   live nudge is display:flex, the progress marker is a fixed block), and an
+   author rule beats the UA's [hidden]{display:none}, which leaves a dismissed
+   element on screen and in the accessibility tree — a screen reader keeps
+   hearing it and its Dismiss button after they are supposed to be gone.
+   #savedProgressMarker carried a local patch for this; this covers everything. */
+[hidden]{display:none !important}
 html,body{overflow-x:hidden}
 /* In-page anchor clicks (section rail, ToC drawer, series links) glide to the
    target instead of jumping. Disabled for reduced-motion users below. */
@@ -117,7 +124,6 @@ body{
 #progressBar{position:fixed;top:0;left:0;right:0;height:3px;background:transparent;z-index:70;pointer-events:none}
 #progressBar > div{height:100%;background:var(--accent);transform:scaleX(0);transform-origin:left center;will-change:transform}
 #savedProgressMarker{position:absolute;top:50%;width:9px;height:9px;border:2px solid var(--surface);border-radius:9999px;background:var(--accent);box-shadow:0 0 0 1px var(--accent),var(--shadow-sm);transform:translate(-50%,-50%)}
-#savedProgressMarker[hidden]{display:none}
 
 /* Layout shell (reading page) */
 .layout{display:flex;min-height:100vh}
@@ -146,6 +152,11 @@ strong{font-weight:700;color:var(--text)}
 a{color:var(--accent);text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:2px;text-decoration-color:var(--accent);text-decoration-color:color-mix(in srgb,var(--accent) 45%,transparent)}
 a:hover{color:var(--accent-hover);text-decoration-color:currentColor}
 
+/* Skip link — off-screen until keyboard-focused, then slides in above the
+   sticky bar so keyboard/SR users can jump straight past it to content. */
+.skip-link{position:fixed;top:-4rem;left:1rem;z-index:120;padding:.5rem .9rem;background:var(--surface);color:var(--accent);border:1px solid var(--border-strong);border-radius:var(--radius-sm);text-decoration:none;font-family:var(--font-display);font-weight:600;font-size:.85rem;transition:top var(--transition)}
+.skip-link:focus{top:1rem}
+
 ul,ol{margin:.85rem 0 .85rem 1.5rem;color:var(--text-muted)}
 li{margin:.3rem 0}
 li::marker{color:var(--text-faint)}
@@ -173,6 +184,28 @@ pre.chroma{background:var(--code-bg)}
 pre[data-overflow="true"]{box-shadow:inset -18px 0 14px -12px rgba(40,30,20,.20)}
 [data-theme="dark"] pre[data-overflow="true"]{box-shadow:inset -18px 0 14px -12px rgba(0,0,0,.55)}
 
+/* Visually hidden, still announced. Live regions must stay in the accessibility
+   tree — display:none would silence them — so the page's one announcement
+   surface (#statusAnnouncer) uses this instead of hiding. */
+.visually-hidden{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
+
+/* Tutorial blocks — renderer.go wraps every fenced block in a labelled container:
+   a label, the block itself, and a copy button on command blocks only. The label
+   is a plain paragraph rather than a figcaption so a screen reader reads it once
+   (renderer.go records what the figure wrapper cost); the pre inside keeps its
+   existing look. */
+.tutorial-block{margin:1.4rem 0}
+.tutorial-block pre{margin:.4rem 0 0}
+.tutorial-block .tutorial-block-label{font-family:var(--font-display);font-size:.72rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text-faint);margin-bottom:.3rem}
+/* The wrapper exists for screen-reader navigation only: it gives a long block a
+   container the reader can leave with one keystroke. It carries no visible
+   marker, hence role="list" in the markup. */
+.tutorial-block-skip{list-style:none;margin:0;padding:0}
+.tutorial-block-command .copy-command{margin-top:.4rem}
+/* Output blocks mark their text with <samp>, which carries no styling of its
+   own here: match pre code so command and output blocks read as one artifact. */
+pre samp{background:none;padding:0;color:inherit;font-family:var(--font-mono);font-size:1em;white-space:pre;overflow-wrap:normal;word-wrap:normal}
+
 /* Callouts (emitted by renderer.go as <aside class="callout callout-TYPE">) */
 .callout{margin:1.6rem 0;padding:.9rem 1.1rem .95rem;border-left:3px solid;border-radius:var(--radius-md)}
 .callout > p{margin-bottom:.5rem;color:var(--text-muted)}
@@ -199,6 +232,13 @@ pre[data-overflow="true"]{box-shadow:inset -18px 0 14px -12px rgba(40,30,20,.20)
 .mermaid{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-md);padding:1rem;margin:1.4rem 0;text-align:center;overflow-x:auto;max-width:100%}
 .mermaid:not([data-processed]){font-family:var(--font-mono);font-size:.8rem;text-align:left;white-space:pre;color:var(--text-faint)}
 .mermaid svg{max-width:100%;height:auto}
+/* A diagram's source is not a fallback: hide the block while a render is in
+   flight or after it failed, and let the note below say what happened. The
+   no-script case keeps the source visible, which is the only path that cannot
+   run the loader at all. */
+.mermaid[data-mermaid-state="pending"]{visibility:hidden}
+.mermaid[data-mermaid-state="failed"]{display:none}
+.diagram-unavailable{margin:1.4rem 0;padding:.85rem 1rem;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface);color:var(--text-subtle)}
 
 /* ---- 4. Components ------------------------------------------------------- */
 
@@ -226,6 +266,9 @@ pre[data-overflow="true"]{box-shadow:inset -18px 0 14px -12px rgba(40,30,20,.20)
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;font-family:var(--font-display);font-weight:600;font-size:.9rem;line-height:1.1;padding:.55rem 1.1rem;border-radius:var(--radius-md);border:1px solid transparent;cursor:pointer;text-decoration:none;white-space:nowrap;transition:background var(--transition),border-color var(--transition),color var(--transition),transform 150ms ease-out}
 .btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .btn:disabled{opacity:.5;cursor:not-allowed}
+/* Pending state without disabling: a disabled control loses focus, so the
+   browser moves focus off the button the reader just pressed. */
+.btn[aria-busy="true"]{opacity:.5;cursor:progress}
 .btn-primary{background:var(--accent);color:var(--btn-on-accent);border-color:var(--accent)}
 .btn-primary:hover:not(:disabled){background:var(--accent-hover);border-color:var(--accent-hover)}
 .btn-ghost{background:transparent;color:var(--text-subtle);border-color:var(--border)}
@@ -246,7 +289,8 @@ pre[data-overflow="true"]{box-shadow:inset -18px 0 14px -12px rgba(40,30,20,.20)
    sources list. Holds the metadata that used to live in the left sidebar; reads
    well inline on narrow too. */
 .article-header{margin-bottom:1.8rem;padding-bottom:1.3rem;border-bottom:1px solid var(--border)}
-.article-header h2{font-family:var(--font-display);font-size:clamp(1.5rem,1.3rem + 1vw,1.9rem);font-weight:600;color:var(--text);margin:0 0 .55rem;line-height:1.2;letter-spacing:-.01em}
+/* Not a heading: the part body's own h1 owns the page outline. */
+.article-header .article-title{font-family:var(--font-display);font-size:clamp(1.5rem,1.3rem + 1vw,1.9rem);font-weight:600;color:var(--text);margin:0 0 .55rem;line-height:1.2;letter-spacing:-.01em}
 .article-header .badge{margin-bottom:.6rem}
 .article-header .provenance{font-size:.82rem;line-height:1.45;color:var(--text-subtle);margin:.3rem 0}
 .article-header .provenance.unverified-note{color:var(--callout-unverified-label)}
@@ -488,7 +532,7 @@ pre[data-overflow="true"]{box-shadow:inset -18px 0 14px -12px rgba(40,30,20,.20)
 /* #askSubmit / #askStop are .btn .btn-sm (primary / danger) in the markup. */
 /* List items that contain an exercise checkbox (tight or loose lists).*/
 #exercises + ul{counter-reset:exercise}
-#exercises + ul li:has(>.exercise-check),#exercises + ul li:has(>p>.exercise-check){--ex-pt:.3rem;--ex-lh:1.7;list-style:none;position:relative;counter-increment:exercise;padding:var(--ex-pt) 0 var(--ex-pt) 4.5rem;line-height:var(--ex-lh);text-decoration:line-through;text-decoration-color:transparent;background:transparent;box-shadow:inset 3px 0 0 transparent;transition:color var(--transition),opacity var(--transition),background var(--transition),box-shadow var(--transition),text-decoration-color var(--transition)}
+#exercises + ul li:has(>.exercise-check),#exercises + ul li:has(>p>.exercise-check){--ex-pt:.3rem;--ex-lh:1.7;list-style:none;position:relative;counter-increment:exercise;padding:var(--ex-pt) 0 var(--ex-pt) 4.5rem;line-height:var(--ex-lh);background:transparent;box-shadow:inset 3px 0 0 transparent;transition:color var(--transition),opacity var(--transition),background var(--transition),box-shadow var(--transition)}
 #exercises + ul li:has(.exercise-check)>p:first-of-type{margin-top:0}
 #exercises + ul li:has(.exercise-check)>p:last-of-type{margin-bottom:0}
 #exercises + ul li:has(>.exercise-check)::before,#exercises + ul li:has(>p>.exercise-check)::before{content:counter(exercise)".";position:absolute;left:.5rem;top:var(--ex-pt);line-height:var(--ex-lh);font-family:var(--font-display);font-weight:700;color:var(--text-subtle);text-decoration:none;transition:color var(--transition)}
@@ -498,7 +542,9 @@ pre[data-overflow="true"]{box-shadow:inset -18px 0 14px -12px rgba(40,30,20,.20)
 #exercises + ul .exercise-check:focus-visible{outline:2px solid color-mix(in srgb,var(--accent) 45%,transparent);outline-offset:2px}
 #exercises + ul .exercise-check:checked{background-color:var(--accent);border-color:var(--accent);box-shadow:inset 0 1px 0 rgba(0,0,0,.06);background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 10'><path d='M1 5.2 L4.2 8.4 L11 1.2' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' fill='none'/></svg>");background-repeat:no-repeat;background-position:center;background-size:62%;animation:ex-check-pop .26s ease}
 @keyframes ex-check-pop{0%{transform:scale(1)}45%{transform:scale(1.16)}100%{transform:scale(1)}}
-#exercises + ul li:has(.exercise-check:checked){opacity:.85;color:var(--text-faint);text-decoration-color:currentColor;background:color-mix(in srgb,var(--accent-soft) 10%,transparent);box-shadow:inset 3px 0 0 var(--accent)}
+/* line-through only on the checked state: an always-on line-through with a
+   transparent color reads as "strikethrough" to screen readers. */
+#exercises + ul li:has(.exercise-check:checked){opacity:.85;color:var(--text-faint);text-decoration:line-through;background:color-mix(in srgb,var(--accent-soft) 10%,transparent);box-shadow:inset 3px 0 0 var(--accent)}
 #exercises + ul li:has(.exercise-check:checked)::before{color:var(--accent)}
 @media (prefers-reduced-motion:reduce){#exercises + ul .exercise-check{animation:none;transition:none}}
 
@@ -609,4 +655,11 @@ body.list h1{font-family:var(--font-display);font-size:clamp(1.7rem,1.3rem + 1.4
 @media (max-width:419px){
   .tutorial{flex-direction:column;align-items:stretch}
   .tutorial-actions{justify-content:space-between}
+}
+
+/* Reduced motion: the drawer/sidebar slide and the live-nudge fade are the
+   remaining transform/opacity animations on interactive UI (backdrops are
+   display-toggled, so nothing to disable there). */
+@media (prefers-reduced-motion:reduce){
+  #askDrawer,#sidebar,.live-nudge{transition:none}
 }

@@ -27,7 +27,7 @@ var storeCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		tut, err := store.Store(args[0], store.StoreOptions{
 			Tags:    splitTags(append(storeTags, storeTagsList...)),
-			Sources: storeSources,
+			Sources: parseSources(storeSources),
 			Repo:    storeRepo,
 			Branch:  storeBranch,
 			Tools:   parseTools(storeTools),
@@ -79,11 +79,30 @@ func parseTools(raw []string) []store.Tool {
 	return out
 }
 
+// parseSources turns repeatable `--source` values into research-trail entries.
+// A value is either a bare URL or "Title|URL" — the title becomes the
+// provenance link text on the reading page, the URL stays the link target.
+// Values that already start with a scheme are never split, so a stray "|" in a
+// URL can't quietly turn half of it into a title.
+func parseSources(raw []string) []store.Source {
+	var out []store.Source
+	for _, r := range raw {
+		title, url := "", r
+		if !strings.HasPrefix(strings.TrimSpace(r), "http") {
+			if t, u, ok := strings.Cut(r, "|"); ok {
+				title, url = t, u
+			}
+		}
+		out = append(out, store.Source{Title: strings.TrimSpace(title), URL: strings.TrimSpace(url)})
+	}
+	return out
+}
+
 func init() {
 	storeCmd.Flags().BoolVar(&withVerify, "verify", false, "print the command to verify after storing")
 	storeCmd.Flags().StringArrayVar(&storeTags, "tag", nil, "tag to attach (repeatable; --tag also accepts comma-separated values)")
 	storeCmd.Flags().StringSliceVar(&storeTagsList, "tags", nil, "comma-separated tags (alias for repeated --tag)")
-	storeCmd.Flags().StringArrayVar(&storeSources, "source", nil, "URL consulted while researching the tutorial (repeatable; the research trail surfaced as provenance)")
+	storeCmd.Flags().StringArrayVar(&storeSources, "source", nil, "source consulted while researching the tutorial, as URL or \"Title|URL\" (repeatable; the research trail surfaced as provenance)")
 	storeCmd.Flags().StringVar(&storeRepo, "repo", "", "git remote the tutorial was written for (canonicalized to host/org/repo for grouping)")
 	storeCmd.Flags().StringVar(&storeBranch, "repo-branch", "", "branch the tutorial targets (only recorded when --repo is set)")
 	storeCmd.Flags().StringArrayVar(&storeTools, "tool", nil, "language/tool and version the tutorial targets, as name:version (repeatable)")
