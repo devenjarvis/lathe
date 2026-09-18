@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -348,23 +349,54 @@ func verifyMeta(tut *store.Tutorial, tutDir string) (*store.VerifyResult, string
 // curl, or a same-origin form POST that omits Origin) is allowed.
 func sameOrigin(r *http.Request) bool {
 	if origin := r.Header.Get("Origin"); origin != "" {
-		return isLocalOrigin(origin)
+		return isSameOriginURL(r, origin)
 	}
 	if ref := r.Header.Get("Referer"); ref != "" {
-		return isLocalOrigin(ref)
+		return isSameOriginURL(r, ref)
 	}
 	return true
 }
 
-// isLocalOrigin reports whether a URL's host is loopback. We match on host
-// rather than an exact port because the listen port is configurable (--port).
-func isLocalOrigin(raw string) bool {
+// isSameOriginURL reports whether a present Origin or Referer URL points back at
+// this page. Loopback covers the reader who opened the server's own localhost
+// URL. Matching the request's own host covers the reader who reached us through
+// a reverse proxy that publishes the server: their browser sends an Origin with
+// the public name while the proxy rewrites Host to loopback.
+func isSameOriginURL(r *http.Request, raw string) bool {
 	u, err := url.Parse(raw)
 	if err != nil {
 		return false
 	}
 	host := u.Hostname()
+	if host == "" {
+		return false
+	}
+	return isLoopbackHost(host) || host == requestHost(r)
+}
+
+// isLoopbackHost reports whether a hostname is loopback. We match on host rather
+// than an exact port because the listen port is configurable (--port).
+func isLoopbackHost(host string) bool {
 	return host == "localhost" || host == "127.0.0.1" || host == "::1"
+}
+
+// requestHost is the hostname the browser asked for, without the port: the
+// proxy's X-Forwarded-Host when one is in front, otherwise the Host it sent.
+// Caddy and the other common proxies set X-Forwarded-Host to the original Host
+// even while rewriting Host, so the published name survives only there.
+//
+// Trusting that header costs nothing here: browsers cannot set it, and serve
+// binds loopback, so anything able to forge it can already reach these endpoints
+// directly.
+func requestHost(r *http.Request) string {
+	raw := r.Header.Get("X-Forwarded-Host")
+	if raw == "" {
+		raw = r.Host
+	}
+	if host, _, err := net.SplitHostPort(raw); err == nil {
+		return host
+	}
+	return strings.Trim(raw, "[]")
 }
 
 func (s *Server) handleDelete(w http.ResponseWriter, r *http.Request) {

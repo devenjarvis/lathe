@@ -1307,6 +1307,59 @@ func TestProgressEndpointRejectsForeignOrigin(t *testing.T) {
 	}
 }
 
+// A reader on a published hostname sends an Origin carrying the public name while
+// the reverse proxy rewrites Host to loopback. That save has to land.
+func TestProgressEndpointAcceptsProxiedOrigin(t *testing.T) {
+	dir := t.TempDir()
+	tutDir := makeTestTutorial(t, dir, "test-series", true)
+
+	srv := serve.NewServer(dir)
+	req := httptest.NewRequest(http.MethodPost, "/-/progress/test-series/part-01.md", bytes.NewBufferString(`{"ratio":0.5}`))
+	req.Host = "127.0.0.1:4242"
+	req.Header.Set("Origin", "https://lathe.example.test")
+	req.Header.Set("X-Forwarded-Host", "lathe.example.test")
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("proxied-origin progress = %d, want %d; body=%s", w.Code, http.StatusOK, w.Body.String())
+	}
+	tut, err := store.ReadMetadata(tutDir)
+	if err != nil {
+		t.Fatalf("ReadMetadata: %v", err)
+	}
+	if tut.Progress == nil || tut.Progress.Ratio != 0.5 {
+		t.Errorf("proxied-origin progress = %+v, want ratio 0.5", tut.Progress)
+	}
+}
+
+// The published name is not a free pass: a page served from anywhere else still
+// sends an Origin of its own, which matches neither loopback nor the host the
+// browser asked for.
+func TestProgressEndpointRejectsForeignOriginBehindProxy(t *testing.T) {
+	dir := t.TempDir()
+	tutDir := makeTestTutorial(t, dir, "test-series", true)
+
+	srv := serve.NewServer(dir)
+	req := httptest.NewRequest(http.MethodPost, "/-/progress/test-series/part-01.md", bytes.NewBufferString(`{"ratio":0.5}`))
+	req.Host = "127.0.0.1:4242"
+	req.Header.Set("Origin", "http://evil.example.com")
+	req.Header.Set("X-Forwarded-Host", "lathe.example.test")
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Errorf("foreign-origin progress behind proxy = %d, want %d", w.Code, http.StatusForbidden)
+	}
+	tut, err := store.ReadMetadata(tutDir)
+	if err != nil {
+		t.Fatalf("ReadMetadata: %v", err)
+	}
+	if tut.Progress != nil {
+		t.Errorf("foreign-origin progress behind proxy wrote metadata: %+v", tut.Progress)
+	}
+}
+
 func TestProgressEndpointRejectsUnknownTutorial(t *testing.T) {
 	dir := t.TempDir()
 	srv := serve.NewServer(dir)
