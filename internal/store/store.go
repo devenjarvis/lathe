@@ -18,6 +18,7 @@ import (
 // struct (rather than a long positional signature) lets callers set only what
 // they have and keeps call sites readable as the captured set grows.
 type StoreOptions struct {
+	Title   string   // display title; defaults to the slug, title-cased
 	Tags    []string // search tags (NormalizeTags)
 	Sources []string // research-trail URLs (NormalizeSources)
 	Repo    string   // git remote the tutorial was written for (NormalizeRepo)
@@ -67,7 +68,7 @@ func Store(srcPath string, opts StoreOptions) (*Tutorial, error) {
 
 	t := &Tutorial{
 		Slug:       slug,
-		Title:      SlugToTitle(slug),
+		Title:      titleFor(slug, opts.Title),
 		Topic:      slug,
 		Created:    time.Now().UTC(),
 		Status:     StatusUnverified,
@@ -309,6 +310,16 @@ func NormalizeVoice(voice string) string {
 // reading-page byline).
 func NormalizeModel(model string) string {
 	return strings.TrimSpace(model)
+}
+
+// titleFor picks a tutorial's display name: the title given at store time when
+// there is one, else the slug, title-cased. A series whose name is more than its
+// slug, such as "Shuffling A Deck: Hands, Python, And C", sets it explicitly.
+func titleFor(slug, explicit string) string {
+	if title := strings.TrimSpace(explicit); title != "" {
+		return title
+	}
+	return SlugToTitle(slug)
 }
 
 func SlugToTitle(slug string) string {

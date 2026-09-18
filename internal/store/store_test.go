@@ -483,3 +483,36 @@ func TestPromoteIndexToPartFailsCleanly(t *testing.T) {
 		t.Error("PromoteIndexToPart() on missing dir should return error")
 	}
 }
+
+func TestStoreTitleUsesExplicitTitleOrSlug(t *testing.T) {
+	// A series whose name is more than its slug sets --title; without one the
+	// slug still decides, so nothing stored before the flag existed changes.
+	cases := []struct {
+		name     string
+		explicit string
+		want     string
+	}{
+		{"explicit", "Shuffling A Deck: Hands, Python, And C", "Shuffling A Deck: Hands, Python, And C"},
+		{"slug fallback", "", "Card Shuffle"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			src := filepath.Join(t.TempDir(), "lathe-card-shuffle")
+			if err := os.MkdirAll(src, 0755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(src, "part-01.md"), []byte("# Part\n"), 0644); err != nil {
+				t.Fatal(err)
+			}
+			t.Setenv("HOME", t.TempDir())
+
+			tut, err := store.Store(src, store.StoreOptions{Title: tc.explicit})
+			if err != nil {
+				t.Fatalf("Store() error = %v", err)
+			}
+			if tut.Title != tc.want {
+				t.Errorf("Store() Title = %q, want %q", tut.Title, tc.want)
+			}
+		})
+	}
+}

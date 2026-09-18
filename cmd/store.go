@@ -10,6 +10,7 @@ import (
 
 var (
 	withVerify    bool
+	storeTitle    string
 	storeTags     []string
 	storeTagsList []string
 	storeSources  []string
@@ -26,6 +27,7 @@ var storeCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		tut, err := store.Store(args[0], store.StoreOptions{
+			Title:   storeTitle,
 			Tags:    splitTags(append(storeTags, storeTagsList...)),
 			Sources: storeSources,
 			Repo:    storeRepo,
@@ -81,6 +83,7 @@ func parseTools(raw []string) []store.Tool {
 
 func init() {
 	storeCmd.Flags().BoolVar(&withVerify, "verify", false, "print the command to verify after storing")
+	storeCmd.Flags().StringVar(&storeTitle, "title", "", "display title; defaults to the slug, title-cased")
 	storeCmd.Flags().StringArrayVar(&storeTags, "tag", nil, "tag to attach (repeatable; --tag also accepts comma-separated values)")
 	storeCmd.Flags().StringSliceVar(&storeTagsList, "tags", nil, "comma-separated tags (alias for repeated --tag)")
 	storeCmd.Flags().StringArrayVar(&storeSources, "source", nil, "URL consulted while researching the tutorial (repeatable; the research trail surfaced as provenance)")
