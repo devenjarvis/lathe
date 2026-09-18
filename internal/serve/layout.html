@@ -634,7 +634,7 @@
       window.mermaid.run({nodes: divs}).catch(function(err){ console.warn('mermaid render failed', err); });
     }
     var s = document.createElement('script');
-    s.src = '/_static/mermaid.min.js';
+    s.src = '{{asset "mermaid.min.js"}}';
     s.onload = function(){
       render();
       document.addEventListener('lathe:themechange', render);
@@ -655,7 +655,7 @@
     if (!/\$|\\\(|\\\[/.test(article.textContent)) return;
     var css = document.createElement('link');
     css.rel = 'stylesheet';
-    css.href = '/_static/katex.min.css';
+    css.href = '{{asset "katex.min.css"}}';
     document.head.appendChild(css);
     function load(src, onload){
       var s = document.createElement('script');
@@ -664,8 +664,8 @@
       s.onerror = function(){ console.warn('katex bundle failed to load'); };
       document.body.appendChild(s);
     }
-    load('/_static/katex.min.js', function(){
-      load('/_static/katex-auto-render.min.js', function(){
+    load('{{asset "katex.min.js"}}', function(){
+      load('{{asset "katex-auto-render.min.js"}}', function(){
         window.renderMathInElement(article, {
           // $$ before $ so the longer delimiter wins; pre/code are excluded
           // by auto-render's default ignoredTags.

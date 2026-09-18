@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -1944,7 +1945,9 @@ func TestPartPageLoadsKatex(t *testing.T) {
 		t.Error("part page corrupted the TeX before it reached the browser")
 	}
 	// The KaTeX loader mirrors the mermaid one: inline script, local bundle.
-	if !strings.Contains(body, "/_static/katex.min.js") {
+	// html/template escapes the slashes inside a JS string context, so compare
+	// against the unescaped text the browser ends up with.
+	if !strings.Contains(strings.ReplaceAll(body, `\/`, "/"), "/_static/katex.min.js") {
 		t.Error("part page missing the KaTeX bundle loader")
 	}
 	if !strings.Contains(body, "renderMathInElement") {
@@ -2089,5 +2092,50 @@ func TestPartPageRendersSavedExercises(t *testing.T) {
 	}
 	if !strings.Contains(w.Body.String(), `data-saved-exercises="0,2"`) {
 		t.Errorf("part page missing restored data-saved-exercises; body excerpt:\n%s", w.Body.String())
+	}
+}
+
+func TestStaticAssetURLsCarryVersion(t *testing.T) {
+	// Static assets are cached immutably for a year, so the page must request
+	// them at a URL that changes when the bytes do, and the unversioned URL must
+	// not carry that promise.
+	dir := t.TempDir()
+	makeTestTutorial(t, dir, "asset-version", false)
+	srv := serve.NewServer(dir)
+
+	req := httptest.NewRequest(http.MethodGet, "/asset-version/", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("GET /asset-version/ = %d, want %d", w.Code, http.StatusOK)
+	}
+	page := strings.ReplaceAll(w.Body.String(), `\/`, "/")
+	matches := regexp.MustCompile(`/_static/[a-zA-Z0-9._-]+\?v=([0-9a-f]+)`).FindAllStringSubmatch(page, -1)
+	if len(matches) == 0 {
+		t.Fatal("served page has no versioned /_static/ URL")
+	}
+	version := matches[0][1]
+	for _, m := range matches {
+		if m[1] != version {
+			t.Errorf("mixed asset versions in one page: %s and %s", version, m[1])
+		}
+	}
+	// The loader must upload the version, not a bare reference to the bundle.
+	if !strings.Contains(page, "/_static/mermaid.min.js?v="+version) {
+		t.Errorf("mermaid loader missing its versioned URL")
+	}
+
+	// The current version is immutable; the bare URL revalidates.
+	req = httptest.NewRequest(http.MethodGet, "/_static/mermaid.min.js?v="+version, nil)
+	w = httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+	if cc := w.Header().Get("Cache-Control"); !strings.Contains(cc, "immutable") {
+		t.Errorf("versioned asset Cache-Control = %q, want immutable", cc)
+	}
+	req = httptest.NewRequest(http.MethodGet, "/_static/mermaid.min.js", nil)
+	w = httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+	if cc := w.Header().Get("Cache-Control"); strings.Contains(cc, "immutable") {
+		t.Errorf("unversioned asset Cache-Control = %q, want no immutable promise", cc)
 	}
 }

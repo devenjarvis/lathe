@@ -2,10 +2,13 @@ package serve
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"embed"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"io/fs"
 	"net/http"
 	"net/url"
 	"os"
@@ -13,6 +16,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/devenjarvis/lathe/internal/queue"
@@ -50,10 +54,49 @@ type Server struct {
 	queue *queue.Queue
 }
 
+// staticVersion fingerprints the embedded static assets so every page can ask
+// for them at a URL that changes when their content does. Without it the
+// immutable cache below pins whatever a reader fetched first for a year, and a
+// rebuilt bundle can never reach that reader.
+var (
+	staticVersionOnce  sync.Once
+	staticVersionValue string
+)
+
+func staticVersion() string {
+	staticVersionOnce.Do(func() {
+		sum := sha256.New()
+		// WalkDir visits the embedded files in lexical order, so the fingerprint
+		// is stable across rebuilds, and the path it hands back already carries
+		// the fonts/ subdirectory — no per-file special case.
+		_ = fs.WalkDir(staticFS, "static", func(path string, d fs.DirEntry, err error) error {
+			if err != nil || d.IsDir() {
+				return nil
+			}
+			data, rerr := staticFS.ReadFile(path)
+			if rerr != nil {
+				return nil
+			}
+			_, _ = fmt.Fprintf(sum, "%s\n", path)
+			_, _ = sum.Write(data)
+			return nil
+		})
+		staticVersionValue = hex.EncodeToString(sum.Sum(nil))[:12]
+	})
+	return staticVersionValue
+}
+
+// assetURL is the template helper behind every /_static/ reference: the path a
+// reader's browser should request, carrying the current asset version.
+func assetURL(name string) string {
+	return "/_static/" + name + "?v=" + staticVersion()
+}
+
 func NewServer(tutorialsDir string) *Server {
 	funcMap := template.FuncMap{
 		"add":          func(a, b int) int { return a + b },
 		"cardProgress": cardProgress,
+		"asset":        assetURL,
 	}
 	// components.html is parsed into both template sets so its shared partials
 	// ({{define "head"}}, "badge", "themeToggle") are available to each page.
@@ -150,7 +193,14 @@ func (s *Server) handleStatic(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", contentType)
-	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+	// The immutable promise holds only for the versioned URL. A request without
+	// the current version revalidates, so a reader who somehow holds an old
+	// reference cannot be pinned to a stale asset for a year.
+	if r.URL.Query().Get("v") == staticVersion() {
+		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+	} else {
+		w.Header().Set("Cache-Control", "no-cache")
+	}
 	_, _ = w.Write(data)
 }
 
