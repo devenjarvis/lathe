@@ -360,6 +360,9 @@ pre samp{background:none;padding:0;color:inherit;font-family:var(--font-mono);fo
 .article-header details.provenance ul{list-style:none;margin:.45rem 0 .15rem;padding:0;display:flex;flex-direction:column;gap:.25rem}
 .article-header details.provenance li{margin:0;padding:0}
 .article-header details.provenance a{font-size:.9375rem;word-break:break-word;line-height:1.4}
+.article-header details.code-snapshot p{margin:.45rem 0 .2rem}
+.article-header details.code-snapshot pre{margin:.2rem 0 .45rem;padding:.45rem .7rem;overflow-x:auto}
+.article-header details.code-snapshot pre code{font-size:.875rem}
 
 /* Voice reveal — the voice name is a disclosure; its spec opens as a panel
    under the whole About box. */

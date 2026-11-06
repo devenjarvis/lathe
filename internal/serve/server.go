@@ -566,6 +566,8 @@ func (s *Server) renderPart(w http.ResponseWriter, tut *store.Tutorial, tutDir, 
 
 	currentProgress := currentPartProgress(tut, part)
 
+	codeSnapshot := codeSnapshotFor(tutDir, tut, part)
+
 	// Per-part exercise checkbox state lives in its own sidecar (exercises.json),
 	// deliberately outside the monotonic progress record. Best-effort like
 	// progress: a read error just yields no restored checks. Only the current
@@ -595,6 +597,7 @@ func (s *Server) renderPart(w http.ResponseWriter, tut *store.Tutorial, tutDir, 
 		"VerifiedDate":      verifiedDate,
 		"UnverifiedCount":   unverifiedCount,
 		"VoiceSpec":         voiceSpec,
+		"CodeSnapshot":      codeSnapshot,
 		"CurrentPart":       part,
 		"CurrentProgress":   currentProgress,
 		"CheckedExercises":  checkedExercises,
@@ -729,4 +732,51 @@ func (s *Server) renderPartial(name string, data any) string {
 		return ""
 	}
 	return buf.String()
+}
+
+// CodeSnapshot describes the verify-saved code as of the part being read: the
+// snapshot repo's path (home shown as ~, so a published page doesn't leak the
+// user's home dir) plus this part's tag and, when one was saved, the previous
+// part's tag for a diff.
+type CodeSnapshot struct {
+	Path    string
+	Tag     string
+	PrevTag string
+}
+
+// codeSnapshotFor returns the snapshot for part, or nil when no verify run has
+// saved code for it (no snapshot, or the run failed before reaching this part).
+func codeSnapshotFor(tutDir string, tut *store.Tutorial, part string) *CodeSnapshot {
+	repo := filepath.Join(tutDir, store.CodeDirName)
+	tags := store.CodeTags(repo)
+	if len(tags) == 0 {
+		return nil
+	}
+	saved := make(map[string]bool, len(tags))
+	for _, t := range tags {
+		saved[t] = true
+	}
+	tag := store.PartTag(part)
+	if !saved[tag] {
+		return nil
+	}
+	snap := &CodeSnapshot{Path: displayPath(repo), Tag: tag}
+	if i := partIndex(tut, part); i > 0 {
+		if prev := store.PartTag(tut.Parts[i-1]); saved[prev] {
+			snap.PrevTag = prev
+		}
+	}
+	return snap
+}
+
+// displayPath abbreviates the user's home directory to ~.
+func displayPath(p string) string {
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		return p
+	}
+	if rel, err := filepath.Rel(home, p); err == nil && rel != "." && !strings.HasPrefix(rel, "..") {
+		return "~" + string(filepath.Separator) + rel
+	}
+	return p
 }

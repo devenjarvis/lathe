@@ -17,6 +17,7 @@ var (
 	verifyResultFailedStep int
 	verifyResultError      string
 	verifyResultCheckedAt  string
+	verifyResultCode       string
 )
 
 // verifyResultCmd is how the /lathe-verify skill records the outcome of a
@@ -38,6 +39,12 @@ var verifyResultCmd = &cobra.Command{
 		case store.StatusVerifying, store.StatusVerified, store.StatusFailed, store.StatusSkipped:
 		default:
 			return fmt.Errorf("invalid --status %q (want verifying, verified, failed, or skipped)", verifyResultStatus)
+		}
+		// A code snapshot only exists once the skill has followed the parts: a
+		// verified run covers every part, a failed one the parts before the
+		// failure. A skipped run never built anything.
+		if verifyResultCode != "" && status != store.StatusVerified && status != store.StatusFailed {
+			return fmt.Errorf("--code is only valid with --status verified or failed")
 		}
 
 		tutorialsDir, err := config.TutorialsDir()
@@ -81,6 +88,15 @@ var verifyResultCmd = &cobra.Command{
 			return fmt.Errorf("write metadata: %w", err)
 		}
 		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Recorded %s for %q\n", status, slug)
+
+		// Save the snapshot after the status is recorded, so a snapshot problem
+		// can never strand the badge at "verifying".
+		if verifyResultCode != "" {
+			if err := store.SaveCode(tutDir, verifyResultCode); err != nil {
+				return fmt.Errorf("recorded %s, but could not save the code snapshot: %w", status, err)
+			}
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Saved code snapshot to %s\n", filepath.Join(tutDir, store.CodeDirName))
+		}
 		return nil
 	},
 }
@@ -100,6 +116,7 @@ func init() {
 	verifyResultCmd.Flags().IntVar(&verifyResultFailedStep, "failed-step", 0, "1-indexed step number that failed")
 	verifyResultCmd.Flags().StringVar(&verifyResultError, "error", "", "error message or output to record")
 	verifyResultCmd.Flags().StringVar(&verifyResultCheckedAt, "checked-at", "", "RFC3339 timestamp (defaults to now)")
+	verifyResultCmd.Flags().StringVar(&verifyResultCode, "code", "", "git repo of the reconstructed code, one tagged commit per part (part-01, ...), to keep as the tutorial's code snapshot")
 	verifyResultCmd.MarkFlagRequired("status") //nolint:errcheck
 	rootCmd.AddCommand(verifyResultCmd)
 }

@@ -18,6 +18,7 @@ func resetVerifyResultFlags(t *testing.T) {
 		verifyResultFailedStep = 0
 		verifyResultError = ""
 		verifyResultCheckedAt = ""
+		verifyResultCode = ""
 	})
 }
 
@@ -121,5 +122,43 @@ func TestVerifyResultRejectsBadStatus(t *testing.T) {
 	verifyResultStatus = "bogus"
 	if err := verifyResultCmd.RunE(verifyResultCmd, []string{"test-slug"}); err == nil {
 		t.Error("verify-result should reject an unknown --status")
+	}
+}
+
+func TestVerifyResultCodeRequiresTerminalRun(t *testing.T) {
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+	writeTutorial(t, homeDir, "test-slug", store.StatusVerifying, []string{"part-01.md"})
+
+	for _, status := range []string{"verifying", "skipped"} {
+		resetVerifyResultFlags(t)
+		verifyResultStatus = status
+		verifyResultCode = t.TempDir()
+		if err := verifyResultCmd.RunE(verifyResultCmd, []string{"test-slug"}); err == nil {
+			t.Errorf("--code with --status %s should be rejected", status)
+		}
+	}
+}
+
+func TestVerifyResultCodeRecordsStatusEvenWhenSnapshotFails(t *testing.T) {
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+	tutDir := writeTutorial(t, homeDir, "test-slug", store.StatusVerifying, []string{"part-01.md"})
+
+	resetVerifyResultFlags(t)
+	verifyResultStatus = "verified"
+	verifyResultCode = t.TempDir() // not a git repo
+	if err := verifyResultCmd.RunE(verifyResultCmd, []string{"test-slug"}); err == nil {
+		t.Fatal("expected an error for a non-repo --code dir")
+	}
+	got, err := store.ReadMetadata(tutDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Status != store.StatusVerified {
+		t.Errorf("Status = %q, want verified even though the snapshot failed", got.Status)
+	}
+	if _, err := os.Stat(filepath.Join(tutDir, store.CodeDirName)); !os.IsNotExist(err) {
+		t.Errorf("no snapshot should exist (stat err = %v)", err)
 	}
 }

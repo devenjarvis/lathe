@@ -83,6 +83,18 @@
         </details>
         </dd></div>
         {{end}}
+        {{with .CodeSnapshot}}
+        <div class="tb-row"><dt class="visually-hidden">Code snapshot</dt><dd>
+        <details class="provenance code-snapshot">
+          <summary>Code saved by verification at <code>{{.Tag}}</code></summary>
+          <p>The verifier committed the code as of each part to a git repository at <code>{{.Path}}</code>.</p>
+          <p>Check out the code as of this part:</p>
+          <pre><code>git -C {{.Path}} checkout {{.Tag}}</code></pre>
+          {{if .PrevTag}}<p>See what this part changed:</p>
+          <pre><code>git -C {{.Path}} diff {{.PrevTag}} {{.Tag}}</code></pre>{{end}}
+        </details>
+        </dd></div>
+        {{end}}
       </dl>
     </header>
     {{.Content}}
