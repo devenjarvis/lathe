@@ -75,9 +75,10 @@ type Conn struct {
 	pending map[string]chan message
 	err     error // set once, when the read loop ends
 
-	done   chan struct{}
-	ctx    context.Context // cancelled on close, for in-flight handlers
-	cancel context.CancelFunc
+	done     chan struct{}
+	ctx      context.Context // cancelled on close, for in-flight handlers
+	cancel   context.CancelFunc
+	handlers sync.WaitGroup // requests being answered
 }
 
 // NewConn starts reading frames from r and returns a connection that writes
@@ -98,6 +99,14 @@ func NewConn(r io.Reader, w io.Writer, h Handler) *Conn {
 
 // Done is closed when the connection stops reading.
 func (c *Conn) Done() <-chan struct{} { return c.done }
+
+// Wait blocks until the connection stops reading and every request it had
+// received has been answered (or its answer failed to send). A server uses it
+// to finish in-flight work before exiting when its input closes.
+func (c *Conn) Wait() {
+	<-c.done
+	c.handlers.Wait()
+}
 
 // Err reports why the connection closed (nil while it is open).
 func (c *Conn) Err() error {
@@ -149,7 +158,11 @@ func (c *Conn) close(err error) {
 func (c *Conn) dispatch(m message) {
 	switch {
 	case m.Method != "" && len(m.ID) > 0:
-		go c.serveRequest(m)
+		c.handlers.Add(1)
+		go func() {
+			defer c.handlers.Done()
+			c.serveRequest(m)
+		}()
 	case m.Method != "":
 		if c.handler != nil {
 			c.handler.HandleNotification(m.Method, m.Params)

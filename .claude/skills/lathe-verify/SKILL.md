@@ -9,6 +9,8 @@ Follow a stored tutorial exactly as a reader would, in a throwaway directory, an
 
 This skill is **read-only with respect to the tutorial**: never edit the parts or the metadata. The only writes are status updates through `lathe verify-result`, which also saves the reconstructed code as a per-part git history (the **code snapshot**) so the reader can check out or diff the code at any part afterwards.
 
+**Lathe MCP tools.** If your session has the `lathe_verify_result` tool (`lathe serve` provides Lathe's MCP tools when it hosts you as its agent), record every status with it instead of running `lathe verify-result`. The flags map one-to-one onto its arguments: `--status` → `status`, `--part` → `part`, `--failed-step` → `failed_step`, `--error` → `error`, `--code` → `code` (an absolute path); the session's slug is the default. Without the tool, run the CLI commands below as written.
+
 **Opt-out:** if the user invoked `/lathe-verify <slug> --no-save`, skip every snapshot step below (no `git init`, no commits or tags, no `--code`). Everything else is unchanged.
 
 ## Protocol
@@ -65,7 +67,7 @@ This skill is **read-only with respect to the tutorial**: never edit the parts o
 
 ## Boundaries
 
-- **Read-only on the tutorial.** Never edit a `part-NN.md`, `metadata.json`, `verify-result.json`, or the `code/` snapshot directly — the only state writes are via `lathe verify-result`.
+- **Read-only on the tutorial.** Never edit a `part-NN.md`, `metadata.json`, `verify-result.json`, or the `code/` snapshot directly — the only state writes are via `lathe verify-result` (or the `lathe_verify_result` MCP tool).
 - **No OS sandboxing.** Isolation is the `mktemp -d` scratch dir plus instruction, under the user's normal permission model. Don't reach for sandbox-exec or Docker.
 - **Skipped ≠ failed.** A missing toolchain is `skipped`. Reserve `failed` for the tutorial being genuinely broken.
 - Status is always set by this skill, never by the handoff button.

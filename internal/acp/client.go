@@ -177,12 +177,39 @@ func (c *Client) Initialize(ctx context.Context) (*AgentInfo, error) {
 	return &info, nil
 }
 
-// NewSession opens a session rooted at cwd (an absolute path) and returns its id.
-func (c *Client) NewSession(ctx context.Context, cwd string) (string, error) {
+// EnvVariable is one environment variable for an MCP server process.
+type EnvVariable struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
+}
+
+// MCPServer is a stdio MCP server the agent should connect to for the
+// session. Every ACP agent supports the stdio transport.
+type MCPServer struct {
+	Name    string        `json:"name"`
+	Command string        `json:"command"` // absolute path
+	Args    []string      `json:"args"`
+	Env     []EnvVariable `json:"env"`
+}
+
+// NewSession opens a session rooted at cwd (an absolute path), with the
+// given MCP servers connected, and returns its id.
+func (c *Client) NewSession(ctx context.Context, cwd string, servers ...MCPServer) (string, error) {
 	var out struct {
 		SessionID string `json:"sessionId"`
 	}
-	params := map[string]any{"cwd": cwd, "mcpServers": []any{}}
+	list := make([]MCPServer, 0, len(servers))
+	for _, s := range servers {
+		// The schema requires both arrays, so never send null.
+		if s.Args == nil {
+			s.Args = []string{}
+		}
+		if s.Env == nil {
+			s.Env = []EnvVariable{}
+		}
+		list = append(list, s)
+	}
+	params := map[string]any{"cwd": cwd, "mcpServers": list}
 	if err := c.conn.Call(ctx, "session/new", params, &out); err != nil {
 		return "", err
 	}

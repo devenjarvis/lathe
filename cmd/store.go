@@ -60,13 +60,7 @@ var storeCmd = &cobra.Command{
 // splitTags flattens the repeatable --tag flag, also splitting any
 // comma-separated values so `--tags "a,b"` and `--tag a --tag b` both work.
 // Normalization (trim/lowercase/dedupe) happens in store.NormalizeTags.
-func splitTags(raw []string) []string {
-	var out []string
-	for _, r := range raw {
-		out = append(out, strings.Split(r, ",")...)
-	}
-	return out
-}
+func splitTags(raw []string) []string { return store.SplitTags(raw) }
 
 // parseTools turns repeatable `--tool name:version` values into store.Tools.
 // The split is on the first ":" only, so versions containing ":" survive; a

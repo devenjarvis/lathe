@@ -7,6 +7,8 @@ description: Write the next part of an existing Lathe tutorial, in session. Use 
 
 Add the next part to a stored tutorial. Triggered by `/lathe-extend <slug> [guidance…]`. The new part must continue *that* tutorial — its example, its numbers, its voice — not a fresh generic one. Everything about shape, research discipline, and callouts comes from the **`lathe`** skill; read it and apply it. The **voice** is whatever the tutorial was generated in — fetch it from the CLI (see step 1), don't guess or re-pick. This skill only adds what's different about extending: continuity and the `extend-start → write → extend-commit` handshake.
 
+**Lathe MCP tools.** If your session has the `lathe_extend_start` and `lathe_extend_commit` tools (`lathe serve` provides Lathe's MCP tools when it hosts you as its agent), use them instead of the `lathe extend-start` / `lathe extend-commit` commands below. `lathe_extend_start` returns the filename on its first line and the full path to write after it; `lathe_extend_commit` takes `part`, `sources` (a list of `{title, url}`) and `model`. Without the tools, run the CLI commands as written.
+
 ## Protocol
 
 1. **Absorb the existing tutorial.** Read every part in `~/.lathe/tutorials/<slug>/` (`part-NN.md`). You need the load-bearing context before you write a word:
@@ -46,7 +48,7 @@ Add the next part to a stored tutorial. Triggered by `/lathe-extend <slug> [guid
 
 ## Boundaries
 
-- The **only durable-state writes** are `lathe extend-start` and `lathe extend-commit`. Never edit `metadata.json` directly.
+- The **only durable-state writes** are `lathe extend-start` and `lathe extend-commit` (or their `lathe_extend_*` MCP tools). Never edit `metadata.json` directly.
 - Writing the reserved part-content file into the tutorial dir is the sole content write — and it's required (step 4).
 - Don't verify, don't write `index.md`, don't write multiple parts, don't edit existing parts.
 
