@@ -587,6 +587,24 @@ pre samp{background:none;padding:0;color:inherit;font-family:var(--font-mono);fo
 .ask-rich > :last-child{margin-bottom:0}
 .ask-rich pre{font-size:.85rem}
 .ask-rich h2::before{display:none}
+/* Agent answers are markdown at drawer width: headings step down to the
+   bubble's scale instead of the article's display sizes, and wide blocks
+   scroll inside the bubble rather than stretching it. */
+.ask-rich h1,.ask-rich h2,.ask-rich h3,.ask-rich h4,.ask-rich h5,.ask-rich h6{margin:1.1rem 0 .4rem;line-height:1.25;letter-spacing:-.01em;font-weight:850}
+.ask-rich h1{font-size:1.25rem}
+.ask-rich h2{font-size:1.15rem}
+.ask-rich h3{font-size:1.05rem}
+.ask-rich h4,.ask-rich h5,.ask-rich h6{font-size:1rem}
+.ask-rich p{margin:.55rem 0}
+.ask-rich ul,.ask-rich ol{margin:.5rem 0 .7rem 1.25rem;color:inherit}
+.ask-rich li{margin:.2rem 0}
+.ask-rich pre{margin:.7rem 0;padding:.7rem .85rem;max-width:100%}
+.ask-rich table{display:block;width:max-content;max-width:100%;overflow-x:auto;margin:.7rem 0;font-size:.875rem}
+.ask-rich blockquote{margin:.7rem 0}
+.ask-rich hr{margin:1rem 0}
+.ask-rich img{max-width:100%}
+/* With block content the caret sits on its own line after the last block. */
+.ask-rich.ask-streaming::after{display:block}
 .worker-status{font-size:.8125rem;font-weight:800;color:#1E5E1C;margin-left:auto;margin-right:.4rem;white-space:nowrap}
 /* The header is always yellow, so these inks are fixed rather than themed. */
 .worker-status[data-state="starting"]{color:#1C2140}

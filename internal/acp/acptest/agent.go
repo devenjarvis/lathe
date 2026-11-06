@@ -5,6 +5,8 @@
 //	[permission]  ask for permission first, then report the outcome
 //	[crash]       stream one chunk, then stop as if the process died
 //	[slow]        stream slowly, honouring session/cancel
+//	[tool]        send a short message and a tool call before the reply, the
+//	              way real agents split one turn into several messages
 //
 // Otherwise it streams Reply(prompt) in a few chunks and ends the turn.
 package acptest
@@ -234,6 +236,20 @@ func (a *Agent) prompt(f frame, crash func()) {
 		default:
 			a.chunk(p.SessionID, "(permission denied) ")
 		}
+	}
+
+	if strings.Contains(prompt, "[tool]") {
+		a.chunk(p.SessionID, "Let me check part 2.")
+		a.notify("session/update", map[string]any{
+			"sessionId": p.SessionID,
+			"update": map[string]any{
+				"sessionUpdate": "tool_call",
+				"toolCallId":    "call-read",
+				"title":         "Read part-02.md",
+				"kind":          "read",
+				"status":        "pending",
+			},
+		})
 	}
 
 	reply := "You asked about this part."

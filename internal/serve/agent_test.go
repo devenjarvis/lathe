@@ -375,3 +375,76 @@ func TestAgentEndpointsWithoutAgent(t *testing.T) {
 		t.Errorf("no-agent ask = %s", w.Body.String())
 	}
 }
+
+// Real agents split a turn into several messages around tool calls. Each
+// message must start its own markdown block, or "…part 2.## Heading" renders
+// as one paragraph.
+func TestAgentMessagesAroundToolCallsStaySeparate(t *testing.T) {
+	f := &fakeHost{}
+	_, ts, _ := newAgentServer(t, f, "## Short answer\n\nIt wraps the phase.")
+	_, out := askJSON(t, ts, "[tool] why?")
+	evs := eventStream(t, ts, out["runId"], nil)
+	done := last(evs)
+	if done.Type != "done" {
+		t.Fatalf("last = %+v", done)
+	}
+	for _, want := range []string{"<p>Let me check part 2.</p>", "<h2", "Short answer</h2>"} {
+		if !strings.Contains(done.HTML, want) {
+			t.Errorf("done html missing %q:\n%s", want, done.HTML)
+		}
+	}
+}
+
+// The drawer shows formatted markdown while the answer streams, not raw
+// asterisks until the end.
+func TestAgentStreamsRenderedHTML(t *testing.T) {
+	f := &fakeHost{}
+	srv, ts, _ := newAgentServer(t, f, "")
+	srv.agent.start = f.starter(func() *acptest.Agent {
+		return &acptest.Agent{
+			ChunkDelay: 30 * time.Millisecond,
+			Reply:      func(string) string { return "Look at **the modulo** first. " + strings.Repeat("Then more words. ", 20) },
+		}
+	})
+	_, out := askJSON(t, ts, "why?")
+	evs := eventStream(t, ts, out["runId"], nil)
+	var sawLive bool
+	for _, ev := range evs {
+		if ev.Type == "html" && strings.Contains(ev.HTML, "<strong>the modulo</strong>") {
+			sawLive = true
+			break
+		}
+	}
+	if !sawLive {
+		t.Error("no rendered html event before done")
+	}
+	if last(evs).Type != "done" {
+		t.Errorf("last = %+v", last(evs))
+	}
+}
+
+func TestAskRunSplitsOnMessageID(t *testing.T) {
+	r := &askRun{notify: make(chan struct{}), perms: map[string]chan string{}}
+	chunk := func(id, text string) {
+		raw, _ := json.Marshal(map[string]string{"type": "text", "text": text})
+		r.Update(acp.SessionUpdate{Kind: "agent_message_chunk", MessageID: id, Content: raw})
+	}
+	chunk("m1", "First ")
+	chunk("m1", "message.")
+	chunk("m2", "- a list item")
+	chunk("", " continues")
+	if got, want := r.answer(), "First message.\n\n- a list item continues"; got != want {
+		t.Errorf("answer = %q, want %q", got, want)
+	}
+}
+
+func TestStaleHTMLSnapshotsAreDropped(t *testing.T) {
+	r := &askRun{notify: make(chan struct{}), perms: map[string]chan string{}}
+	r.push(runEvent{Type: "html", HTML: "<p>a</p>"})
+	r.push(runEvent{Type: "chunk", Text: "b"})
+	r.push(runEvent{Type: "html", HTML: "<p>ab</p>"})
+	evs, _, _ := r.since(0)
+	if len(evs) != 3 || evs[0].Type != "html_stale" || evs[0].HTML != "" || evs[2].HTML != "<p>ab</p>" {
+		t.Errorf("events = %+v", evs)
+	}
+}

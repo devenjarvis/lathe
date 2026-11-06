@@ -37,6 +37,9 @@ const (
 	askRunTimeout = 15 * time.Minute
 	// runRetention is how long a finished run's events stay readable.
 	runRetention = 30 * time.Minute
+	// liveRenderEvery is how often a streaming answer is re-rendered to HTML
+	// for the drawer.
+	liveRenderEvery = 200 * time.Millisecond
 )
 
 // agentStarter launches and initializes an agent. Tests swap in a fake.
@@ -322,7 +325,12 @@ func (h *agentHost) run(id string) (*askRun, bool) {
 // final event.
 func (h *agentHost) drive(c *acp.Client, key, sid, prompt string, run *askRun) {
 	defer run.cancel()
+	stopRender := make(chan struct{})
+	rendered := make(chan struct{})
+	go run.renderLive(stopRender, rendered)
 	stop, err := c.Prompt(run.ctx, sid, prompt, run)
+	close(stopRender)
+	<-rendered
 
 	h.mu.Lock()
 	delete(h.active, key)
@@ -364,16 +372,17 @@ func (h *agentHost) drive(c *acp.Client, key, sid, prompt string, run *askRun) {
 // runEvent is one entry in an ask run's event stream (sent to the browser as
 // server-sent events).
 type runEvent struct {
-	Type string `json:"type"` // chunk, tool, permission, permission_resolved, done, error
+	Type string `json:"type"` // chunk, html, tool, permission, permission_resolved, done, error
 	Text string `json:"text,omitempty"`
+	// html (the answer so far, rendered) and done
 	// permission / permission_resolved
 	ID      string                 `json:"id,omitempty"`
 	Title   string                 `json:"title,omitempty"`
 	Options []acp.PermissionOption `json:"options,omitempty"`
 	Choice  string                 `json:"choice,omitempty"`
+	HTML    string                 `json:"html,omitempty"`
 	// done
 	StopReason string `json:"stopReason,omitempty"`
-	HTML       string `json:"html,omitempty"`
 	// error
 	Message string `json:"message,omitempty"`
 	Command string `json:"command,omitempty"`
@@ -394,9 +403,23 @@ type askRun struct {
 	text     strings.Builder
 	perms    map[string]chan string
 	permSeq  int
+	// newBlock is set when the agent ends a message (a tool call, a thought,
+	// a new messageId): the next text starts its own markdown block.
+	newBlock  bool
+	messageID string
+	// lastHTML is the index of the newest html event; older snapshots are
+	// emptied when a new one lands, so memory and replays stay small.
+	lastHTML int
+	textRev  int // bumped on every text append
 }
 
 func (r *askRun) appendLocked(ev runEvent) {
+	if ev.Type == "html" {
+		if r.lastHTML > 0 {
+			r.events[r.lastHTML-1].HTML = ""
+		}
+		r.lastHTML = len(r.events) + 1
+	}
 	r.events = append(r.events, ev)
 	close(r.notify)
 	r.notify = make(chan struct{})
@@ -439,10 +462,45 @@ func (r *askRun) since(i int) ([]runEvent, bool, <-chan struct{}) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	var out []runEvent
-	if i < len(r.events) {
-		out = append(out, r.events[i:]...)
+	for ; i < len(r.events); i++ {
+		ev := r.events[i]
+		if ev.Type == "html" && ev.HTML == "" {
+			// A superseded snapshot: keep its slot (SSE ids are indices) but
+			// send nothing heavy.
+			ev = runEvent{Type: "html_stale"}
+		}
+		out = append(out, ev)
 	}
 	return out, !r.finished.IsZero(), r.notify
+}
+
+// renderLive re-renders the answer so far every liveRenderEvery while the
+// prompt runs, so the drawer shows formatted markdown as it streams. It
+// closes done when it has stopped.
+func (r *askRun) renderLive(stop <-chan struct{}, done chan<- struct{}) {
+	defer close(done)
+	t := time.NewTicker(liveRenderEvery)
+	defer t.Stop()
+	seen := 0
+	for {
+		select {
+		case <-stop:
+			return
+		case <-t.C:
+		}
+		r.mu.Lock()
+		rev, text := r.textRev, r.text.String()
+		r.mu.Unlock()
+		if rev == seen || text == "" {
+			continue
+		}
+		seen = rev
+		html, err := RenderMarkdown([]byte(text))
+		if err != nil {
+			continue
+		}
+		r.push(runEvent{Type: "html", HTML: string(html)})
+	}
 }
 
 // Update relays the parts of the agent's stream the drawer shows: answer text,
@@ -455,14 +513,42 @@ func (r *askRun) Update(u acp.SessionUpdate) {
 			return
 		}
 		r.mu.Lock()
+		if u.MessageID != "" {
+			if r.messageID != "" && u.MessageID != r.messageID {
+				r.newBlock = true
+			}
+			r.messageID = u.MessageID
+		}
+		if r.newBlock && r.text.Len() > 0 {
+			// Separate this message from the last as its own paragraph.
+			sep := "\n\n"
+			cur := r.text.String()
+			if strings.HasSuffix(cur, "\n\n") {
+				sep = ""
+			} else if strings.HasSuffix(cur, "\n") {
+				sep = "\n"
+			}
+			t = sep + t
+		}
+		r.newBlock = false
 		r.text.WriteString(t)
+		r.textRev++
 		r.mu.Unlock()
 		r.push(runEvent{Type: "chunk", Text: t})
 	case "tool_call":
+		r.markNewBlock()
 		if u.Title != "" {
 			r.push(runEvent{Type: "tool", Title: u.Title})
 		}
+	case "agent_thought_chunk", "tool_call_update", "plan":
+		r.markNewBlock()
 	}
+}
+
+func (r *askRun) markNewBlock() {
+	r.mu.Lock()
+	r.newBlock = true
+	r.mu.Unlock()
 }
 
 // RequestPermission shows the agent's prompt in the drawer and waits for the

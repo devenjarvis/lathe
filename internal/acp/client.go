@@ -28,7 +28,10 @@ type SessionUpdate struct {
 	ToolCallID string          `json:"toolCallId,omitempty"`
 	Title      string          `json:"title,omitempty"`
 	Status     string          `json:"status,omitempty"`
-	Raw        json.RawMessage `json:"-"`
+	// MessageID, when the agent sends one, changes between the separate
+	// messages of one turn.
+	MessageID string          `json:"messageId,omitempty"`
+	Raw       json.RawMessage `json:"-"`
 }
 
 // Text returns the update's text when its content is a single text block (as

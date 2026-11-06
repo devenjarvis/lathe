@@ -1151,7 +1151,18 @@
               bubble.classList.remove('ask-thinking');
               bubble.classList.add('ask-streaming');
             }
-            bubble.appendChild(document.createTextNode(ev.text || ''));
+            // Raw text only until the first rendered snapshot arrives; after
+            // that the next snapshot (a few per second) carries the new text.
+            if (!bubble.classList.contains('ask-rich')) {
+              bubble.appendChild(document.createTextNode(ev.text || ''));
+            }
+          } else if (ev.type === 'html') {
+            // The server re-renders the answer so far as it streams, so the
+            // reader sees formatted markdown rather than raw asterisks.
+            started = true;
+            bubble.classList.remove('ask-thinking');
+            bubble.classList.add('ask-streaming', 'ask-rich');
+            bubble.innerHTML = ev.html || '';
           } else if (ev.type === 'tool') {
             if (!tool) tool = appendNote('');
             tool.textContent = 'Agent: ' + ev.title;
