@@ -87,10 +87,16 @@ homebrew_casks:
     # download. Strip the quarantine attribute on install so `lathe` runs without
     # a "cannot be opened" prompt. Casks only run on macOS, so /usr/bin/xattr is
     # always present -- no guard needed.
+    #
+    # `install_steps` (GoReleaser >= v2.19) renders Homebrew's declarative
+    # `postflight_steps` stanza. The older raw-Ruby `install` hook rendered a
+    # `postflight do ... end` block, which Homebrew now warns is deprecated on
+    # every brew command. `{{ .StagedPath }}` renders to Homebrew's
+    # `{{staged_path}}` placeholder.
     hooks:
       post:
-        install: |
-          system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/lathe"]
+        install_steps: |
+          run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{ .StagedPath }}/lathe"]
 
 release:
   draft: false
