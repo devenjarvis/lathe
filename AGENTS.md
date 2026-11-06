@@ -77,6 +77,10 @@ Tests are plain `go test` (no top-level runner script). The `/lathe` (`lathe`) b
 
 CI (`.github/workflows/ci.yml`) runs `mage check` on every PR and push to `main`: gofmt, `go vet`, `golangci-lint`, `go test -race ./...`, and `go build`. **Before opening or updating a PR, run `mage check` and make sure it's green** — don't push work that leaves CI red. `mage check` is the exact command CI runs, so local and CI cannot drift.
 
+### Visual proof — required for user-visible changes
+
+Any PR that changes what a user sees (pages, styles, templates, browser scripts, rendered tutorial content, CLI output) must show it in the PR description, following the "Visual proof" section of `.github/pull_request_template.md`. Capture the running app with the pre-installed Playwright (start `lathe serve` against a scratch `HOME` with a sample tutorial): light **and** dark, every state you touched (including error and interactive steps), a phone viewport for layout changes, and scripts off when the change adds browser behavior with a fallback. Commit the images to the `pr-media` branch under `pr-<number>/` and embed them by commit SHA (`https://github.com/devenjarvis/lathe/blob/<sha>/pr-<number>/<name>.png?raw=true`) with alt text. Look at every shot before posting it; they catch real bugs.
+
 `magefile.go` defines the targets (`mage fmt|fmtCheck|skills|skillsCheck|vet|lint|test|build`, and `mage check` for all of them; `mage` alone runs `check`). It's stdlib-only and build-tagged (`//go:build mage`), so it adds nothing to `go.mod`. Lint config lives in `.golangci.yml`. One-time tool install:
 
 ```bash
