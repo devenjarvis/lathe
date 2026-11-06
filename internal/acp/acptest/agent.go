@@ -7,7 +7,15 @@
 //	[slow]        stream slowly, honouring session/cancel
 //	[tool]        send a short message and a tool call before the reply, the
 //	              way real agents split one turn into several messages
+//	[read:PATH]   read PATH through the client's fs/read_text_file
+//	[write:PATH]  write PATH through the client's fs/write_text_file
+//	[run:CMD]     run CMD through the client's terminal/* methods
+//	[owntool]     report a completed read tool call without asking the
+//	              client, the way an agent using its own tools does
 //
+// A relative PATH is joined to the session's cwd. The outcome of each client
+// call is streamed before the reply, e.g. "(read ok: 12 bytes)" or
+// "(write refused: …)".
 // Otherwise it streams Reply(prompt) in a few chunks and ends the turn.
 package acptest
 
@@ -15,7 +23,10 @@ import (
 	"bufio"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
+	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -35,9 +46,10 @@ type Agent struct {
 	mu        sync.Mutex
 	w         io.Writer
 	nextID    int
-	waiting   map[string]chan json.RawMessage
+	waiting   map[string]chan frame
 	cancelled map[string]bool
 	sessions  int
+	cwds      map[string]string // sessionId → cwd
 	// Prompts records every prompt text received, in order.
 	Prompts []string
 	// Cwds records the cwd of every session/new.
@@ -60,7 +72,8 @@ type frame struct {
 func (a *Agent) Serve(r io.Reader, w io.Writer) error {
 	a.mu.Lock()
 	a.w = w
-	a.waiting = map[string]chan json.RawMessage{}
+	a.waiting = map[string]chan frame{}
+	a.cwds = map[string]string{}
 	a.cancelled = map[string]bool{}
 	a.mu.Unlock()
 
@@ -93,7 +106,7 @@ func (a *Agent) Serve(r io.Reader, w io.Writer) error {
 				delete(a.waiting, string(f.ID))
 				a.mu.Unlock()
 				if ch != nil {
-					ch <- f.Result
+					ch <- f
 				}
 				continue
 			}
@@ -121,15 +134,102 @@ func (a *Agent) notify(method string, v any) {
 }
 
 func (a *Agent) call(method string, v any) json.RawMessage {
+	res, _ := a.callErr(method, v)
+	return res
+}
+
+// callErr is call, returning the error message too ("" on success).
+func (a *Agent) callErr(method string, v any) (json.RawMessage, string) {
 	raw, _ := json.Marshal(v)
-	ch := make(chan json.RawMessage, 1)
+	ch := make(chan frame, 1)
 	a.mu.Lock()
 	a.nextID++
 	id := json.RawMessage(strconv.Itoa(1000 + a.nextID))
 	a.waiting[string(id)] = ch
 	a.mu.Unlock()
 	a.send(frame{ID: id, Method: method, Params: raw})
-	return <-ch
+	return a.await(ch)
+}
+
+func (a *Agent) await(ch chan frame) (json.RawMessage, string) {
+	f := <-ch
+	if len(f.Error) > 0 {
+		var e struct {
+			Message string `json:"message"`
+		}
+		_ = json.Unmarshal(f.Error, &e)
+		if e.Message == "" {
+			e.Message = "error"
+		}
+		return nil, e.Message
+	}
+	return f.Result, ""
+}
+
+var clientCallRe = regexp.MustCompile(`\[(read|write|run):([^\]]+)\]`)
+
+// clientCalls runs the [read:…], [write:…] and [run:…] markers in prompt
+// through the client and streams each outcome.
+func (a *Agent) clientCalls(session, prompt string) {
+	a.mu.Lock()
+	cwd := a.cwds[session]
+	a.mu.Unlock()
+	abs := func(p string) string {
+		if filepath.IsAbs(p) {
+			return p
+		}
+		return filepath.Join(cwd, p)
+	}
+	for _, m := range clientCallRe.FindAllStringSubmatch(prompt, -1) {
+		op, arg := m[1], strings.TrimSpace(m[2])
+		switch op {
+		case "read":
+			res, errMsg := a.callErr("fs/read_text_file", map[string]any{"sessionId": session, "path": abs(arg)})
+			if errMsg != "" {
+				a.chunk(session, "(read refused: "+errMsg+") ")
+				continue
+			}
+			var out struct {
+				Content string `json:"content"`
+			}
+			_ = json.Unmarshal(res, &out)
+			a.chunk(session, fmt.Sprintf("(read ok: %d bytes) ", len(out.Content)))
+		case "write":
+			_, errMsg := a.callErr("fs/write_text_file", map[string]any{"sessionId": session, "path": abs(arg), "content": "written by acptest\n"})
+			if errMsg != "" {
+				a.chunk(session, "(write refused: "+errMsg+") ")
+				continue
+			}
+			a.chunk(session, "(write ok) ")
+		case "run":
+			res, errMsg := a.callErr("terminal/create", map[string]any{"sessionId": session, "command": arg})
+			if errMsg != "" {
+				a.chunk(session, "(run refused: "+errMsg+") ")
+				continue
+			}
+			var t struct {
+				TerminalID string `json:"terminalId"`
+			}
+			_ = json.Unmarshal(res, &t)
+			ref := map[string]string{"sessionId": session, "terminalId": t.TerminalID}
+			res, _ = a.callErr("terminal/wait_for_exit", ref)
+			var st struct {
+				ExitCode *int `json:"exitCode"`
+			}
+			_ = json.Unmarshal(res, &st)
+			res, _ = a.callErr("terminal/output", ref)
+			var out struct {
+				Output string `json:"output"`
+			}
+			_ = json.Unmarshal(res, &out)
+			_, _ = a.callErr("terminal/release", ref)
+			code := -1
+			if st.ExitCode != nil {
+				code = *st.ExitCode
+			}
+			a.chunk(session, fmt.Sprintf("(run exit %d: %s) ", code, strings.TrimSpace(out.Output)))
+		}
+	}
 }
 
 func (a *Agent) chunk(session, text string) {
@@ -166,6 +266,7 @@ func (a *Agent) handle(f frame, crash func()) {
 		a.sessions++
 		id := "sess-" + strconv.Itoa(a.sessions)
 		a.Cwds = append(a.Cwds, p.Cwd)
+		a.cwds[id] = p.Cwd
 		a.MCPServers = append(a.MCPServers, p.MCPServers)
 		a.mu.Unlock()
 		a.respond(f.ID, map[string]string{"sessionId": id})
@@ -239,6 +340,22 @@ func (a *Agent) prompt(f frame, crash func()) {
 			a.chunk(p.SessionID, "(permission granted) ")
 		default:
 			a.chunk(p.SessionID, "(permission denied) ")
+		}
+	}
+
+	a.clientCalls(p.SessionID, prompt)
+
+	if strings.Contains(prompt, "[owntool]") {
+		for _, status := range []string{"pending", "completed"} {
+			upd := map[string]any{"toolCallId": "call-own", "status": status}
+			if status == "pending" {
+				upd["sessionUpdate"] = "tool_call"
+				upd["title"] = "Read part-01.md"
+				upd["kind"] = "read"
+			} else {
+				upd["sessionUpdate"] = "tool_call_update"
+			}
+			a.notify("session/update", map[string]any{"sessionId": p.SessionID, "update": upd})
 		}
 	}
 

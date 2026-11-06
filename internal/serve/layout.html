@@ -182,6 +182,7 @@
   <header>
     <h3 id="askTitle">Ask about "{{.Tutorial.Title}}"</h3>
     <span id="workerStatus" class="worker-status" hidden title="An agent running /lathe-work is connected — Ask, Verify, and Extend run there directly.">● agent connected</span>
+    <span id="agentIsolation" class="agent-isolation" hidden></span>
     <button type="button" id="askClose" aria-label="Close">×</button>
   </header>
   <div id="askLog" role="log" aria-live="polite"></div>
@@ -1040,6 +1041,42 @@
       return el;
     }
 
+    // Files the hosted agent read or wrote, and commands it ran, through
+    // Lathe's per-job policy — including requests the policy refused.
+    function shortPath(p){
+      var parts = String(p || '').split('/').filter(Boolean);
+      return parts.length > 2 ? '…/' + parts.slice(-2).join('/') : (p || '');
+    }
+    function appendActivity(a){
+      if (!a) return;
+      if (a.denied) {
+        var what = a.kind === 'terminal' ? 'run ' + (a.command || 'a command') : a.kind + ' ' + shortPath(a.path);
+        var n = appendNote('Blocked by Lathe: ' + what, 'ask-note-blocked');
+        n.title = a.error || '';
+        return;
+      }
+      if (a.kind === 'read') { appendNote('Read ' + shortPath(a.path)).title = a.path || ''; return; }
+      if (a.kind === 'write') { appendNote('Wrote ' + shortPath(a.path)).title = a.path || ''; return; }
+      if (a.kind === 'terminal') {
+        appendNote(a.error ? 'Could not run ' + a.command + ': ' + a.error : 'Running ' + a.command).title = a.path || '';
+        return;
+      }
+      if (a.kind === 'terminal_exit') {
+        var was = nearBottom();
+        var d = document.createElement('details');
+        d.className = 'ask-terminal';
+        var sum = document.createElement('summary');
+        var code = (a.exitCode === undefined || a.exitCode === null) ? 'was stopped' : 'exited ' + a.exitCode;
+        sum.textContent = a.command + ' ' + code;
+        d.appendChild(sum);
+        var pre = document.createElement('pre');
+        pre.textContent = a.output || '(no output)';
+        d.appendChild(pre);
+        log.appendChild(d);
+        if (was) pinBottom();
+      }
+    }
+
     function postJSON(url, body){
       return fetch(url, {
         method: 'POST',
@@ -1166,6 +1203,8 @@
           } else if (ev.type === 'tool') {
             if (!tool) tool = appendNote('');
             tool.textContent = 'Agent: ' + ev.title;
+          } else if (ev.type === 'activity') {
+            appendActivity(ev.activity);
           } else if (ev.type === 'permission') {
             appendPermission(runId, ev, started ? null : bubble);
           } else if (ev.type === 'permission_resolved') {
@@ -1271,10 +1310,23 @@
     var dot = document.getElementById('workerStatus');
     if (!dot) return;
     var workerTitle = dot.getAttribute('title');
+    var iso = document.getElementById('agentIsolation');
+    // Whether the hosted agent's file access goes through Lathe's per-job
+    // policy ("enforced") or its own tools ("soft").
+    function showIsolation(i){
+      if (!iso) return;
+      if (!i) { iso.hidden = true; return; }
+      iso.hidden = false;
+      iso.setAttribute('data-isolation', i.state);
+      iso.textContent = i.state === 'enforced' ? 'policy enforced'
+        : i.state === 'soft' ? 'soft isolation' : 'isolation untested';
+      iso.title = i.detail || '';
+    }
     // With a hosted agent (lathe serve --agent) the indicator reports that
     // agent's state; otherwise whether a /lathe-work worker is connected.
     function show(data){
       var a = data.agent;
+      showIsolation(a && a.isolation);
       if (a) {
         dot.hidden = false;
         dot.setAttribute('data-state', a.state);

@@ -9,6 +9,8 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -486,5 +488,74 @@ func TestAgentSessionWithoutMCPSendsEmptyList(t *testing.T) {
 	eventStream(t, ts, out["runId"], nil)
 	if got := string(f.agent(0).MCPServers[0]); got != "[]" {
 		t.Errorf("mcpServers = %s, want [] (the field is required)", got)
+	}
+}
+
+func workerAgentStatus(t *testing.T, ts *httptest.Server) agentStatus {
+	t.Helper()
+	resp, err := http.Get(ts.URL + "/-/worker")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	var out struct {
+		Agent agentStatus `json:"agent"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		t.Fatal(err)
+	}
+	return out.Agent
+}
+
+func TestAgentAskPolicyEnforced(t *testing.T) {
+	f := &fakeHost{}
+	srv, ts, tutDir := newAgentServer(t, f, "answer")
+	if _, err := srv.agent.ensure(); err != nil {
+		t.Fatal(err)
+	}
+	if iso := workerAgentStatus(t, ts).Isolation; iso == nil || iso.State != "unknown" {
+		t.Errorf("isolation before any file access = %+v, want unknown", iso)
+	}
+
+	outside := filepath.Join(filepath.Dir(tutDir), "outside.txt")
+	_, out := askJSON(t, ts, "[read:part-02.md] [write:"+outside+"] [run:touch pwned]")
+	evs := eventStream(t, ts, out["runId"], nil)
+	text := streamedText(evs)
+	for _, want := range []string{"(read ok:", "(write refused:", "(run refused:"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("reply %q lacks %q", text, want)
+		}
+	}
+	for _, p := range []string{outside, filepath.Join(tutDir, "pwned")} {
+		if _, err := os.Stat(p); err == nil {
+			t.Errorf("ask policy let the agent create %s", p)
+		}
+	}
+
+	var acts []acp.Activity
+	for _, ev := range evs {
+		if ev.Type == "activity" && ev.Activity != nil {
+			acts = append(acts, *ev.Activity)
+		}
+	}
+	if len(acts) != 3 || acts[0].Kind != "read" || acts[0].Denied ||
+		acts[1].Kind != "write" || !acts[1].Denied || acts[2].Kind != "terminal" || !acts[2].Denied {
+		t.Errorf("activity events = %+v", acts)
+	}
+	if !strings.Contains(f.agent(0).Prompts[0], "may not write files or run commands") {
+		t.Error("first prompt should tell the agent the Ask policy")
+	}
+	if iso := workerAgentStatus(t, ts).Isolation; iso == nil || iso.State != "enforced" {
+		t.Errorf("isolation = %+v, want enforced", iso)
+	}
+}
+
+func TestAgentOwnToolsReportSoftIsolation(t *testing.T) {
+	f := &fakeHost{}
+	_, ts, _ := newAgentServer(t, f, "answer")
+	_, out := askJSON(t, ts, "[owntool] what does part 1 say?")
+	eventStream(t, ts, out["runId"], nil)
+	if iso := workerAgentStatus(t, ts).Isolation; iso == nil || iso.State != "soft" {
+		t.Errorf("isolation = %+v, want soft", iso)
 	}
 }
