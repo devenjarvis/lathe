@@ -2,11 +2,11 @@
   <!--
     Lathe mark: concentric arcs "turning" toward a solid spindle dot.
     Color follows the OS theme (favicons can't read the in-page data-theme
-    toggle): brand terracotta in light, warm sand in dark.
+    toggle): the type-in red in light, masthead yellow in dark.
   -->
   <style>
-    svg { --accent: #B5451F; }
-    @media (prefers-color-scheme: dark) { svg { --accent: #E89A5C; } }
+    svg { --accent: #D63B22; }
+    @media (prefers-color-scheme: dark) { svg { --accent: #F5C33B; } }
     .arc { fill: none; stroke: var(--accent); stroke-width: 2.6; stroke-linecap: round; }
     .spindle { fill: var(--accent); }
   </style>

@@ -38,7 +38,7 @@ var stylesCSS string
 //go:embed static/mermaid.min.js
 //go:embed static/katex.min.js static/katex-auto-render.min.js static/katex.min.css
 //go:embed static/favicon.svg
-//go:embed static/fonts/fraunces.woff2 static/fonts/newsreader.woff2 static/fonts/newsreader-italic.woff2 static/fonts/jetbrains-mono.woff2
+//go:embed static/fonts/recursive.woff2
 //go:embed static/fonts/KaTeX_*.woff2
 var staticFS embed.FS
 
@@ -150,10 +150,7 @@ var staticAssets = map[string]string{
 	"katex-auto-render.min.js": "application/javascript; charset=utf-8",
 	"katex.min.css":            "text/css; charset=utf-8",
 	"favicon.svg":              "image/svg+xml",
-	"fraunces.woff2":           "font/woff2",
-	"newsreader.woff2":         "font/woff2",
-	"newsreader-italic.woff2":  "font/woff2",
-	"jetbrains-mono.woff2":     "font/woff2",
+	"recursive.woff2":          "font/woff2",
 }
 
 // The KaTeX math fonts join the whitelist from the embed FS itself rather than

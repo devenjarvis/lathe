@@ -1,12 +1,21 @@
-# Lathe design system — "Editorial textbook"
+# Lathe design system — "Type-in listing"
 
-The reading UI is a local web server for long, hands-on technical tutorials. The
-design goal is to make dense technical prose *and* code pleasant to read: a warm,
-low-fatigue "paper" palette, serif reading body, characterful display serif
-headings, and a single warm accent. Think *Crafting Interpreters* meets a
-literary magazine.
+Lathe is for learning by building: the reader types the code in themselves. The
+UI borrows from the 80s computer books and magazines where people learned
+exactly that way, by typing a program listing in from the page. Warm paper, navy
+ink, chunky rounded outlines, a yellow masthead, and three working colors with
+fixed jobs:
 
-Everything here lives in **one source of truth**: `internal/serve/styles.css`
+- **Red means "do this"**: commands to run, step numbers, the main button.
+- **Teal means "check this"**: expected output and labels.
+- **Yellow means "you are here"**: the masthead, the current part, the current
+  section, selected things.
+
+Code you write sits on **green-bar printout paper** with tractor-feed holes.
+Dark mode is the same book read off the screen at night: deep navy, cream text,
+and the yellow kept as the bright accent.
+
+Everything lives in **one source of truth**: `internal/serve/styles.css`
 (tokens + components) and `internal/serve/components.html` (shared Go template
 partials). Change a value once and every page picks it up.
 
@@ -18,70 +27,81 @@ partials). Change a value once and every page picks it up.
   `HighlightCSS`) means **no extra request and no flash of unstyled content**.
 - The theme (`data-theme="light|dark"`) is set by a pre-render `<script>` in the
   `head` partial *before* first paint, so there's no flash of the wrong theme.
-- Fonts are latin-subset `woff2`, `go:embed`'d and served locally from
-  `/_static/*.woff2` — the UI is **100% offline**, no external requests. They use
-  `font-display: swap` over serif fallbacks, so first paint never blocks on a
-  font download.
+- The one font is a latin-subset variable `woff2`, `go:embed`'d and served
+  locally from `/_static/recursive.woff2` — the UI is **100% offline**, no
+  external requests. It uses `font-display: swap` over system fallbacks.
+- `HighlightCSS` (renderer.go) emits the light Chroma palette, the dark one, and
+  the dark one again scoped to `.tutorial-block-command` in light mode, because
+  command blocks are a navy panel in both themes.
 
 ## Tokens
 
-All colors/spacing/type are CSS custom properties on `:root` (light "paper") and
-overridden under `[data-theme="dark"]` (dark "ember"). Components reference the
-tokens only — never raw hex.
+All colors/spacing/type are CSS custom properties on `:root` (light "paper")
+and overridden under `[data-theme="dark"]` (dark "night"). Components reference
+the tokens only — never raw hex — with one deliberate exception: the masthead,
+dock and Ask header are yellow with navy ink in both themes, so their ink is
+the literal `#1C2140`. Every text token clears WCAG AA (4.5:1) on `--bg`,
+`--surface` and `--accent-soft` in its theme; white on `--red` is 4.66:1.
 
 ### Color — surfaces & ink
 
-| Token | Light (paper) | Dark (ember) | Use |
+| Token | Light (paper) | Dark (night) | Use |
 |---|---|---|---|
-| `--bg` | `#FBF7F0` | `#16130F` | page background |
-| `--surface` | `#FFFDF8` | `#1E1A15` | cards, sidebar, drawer |
-| `--surface-sunken` | `#F3ECE0` | `#13100C` | hovers, table headers |
-| `--border` | `#E4DAC9` | `#332C23` | hairlines |
-| `--border-strong` | `#D6C9B4` | `#463D31` | blockquote rule, emphasis borders |
-| `--text` | `#1B1714` | `#E9E1D3` | primary ink |
-| `--text-muted` | `#4A4038` | `#C3B7A4` | body prose |
-| `--text-subtle` | `#6B5F53` | `#9C8F7C` | nav, secondary |
-| `--text-faint` | `#8A7C6C` | `#7C7060` | meta, labels |
-| `--accent` | `#B5451F` (rust) | `#E89A5C` (amber) | links, primary buttons, active state |
-| `--accent-hover` | `#9A3817` | `#F2AE73` | hover of accent |
-| `--accent-soft` | `#F6E7DC` | `#2A2017` | active/selected tints |
-| `--code-bg` | `#F3ECE0` | `#1B1712` | code block + inline code |
-| `--code-text` | `#2A2018` | `#E5DCCB` | code default ink |
+| `--bg` | `#FFFBF0` | `#14182E` | page background |
+| `--surface` | `#FFFFFF` | `#1D2240` | About box, cards, drawer bubbles |
+| `--surface-sunken` | `#F6EEDA` | `#0F1226` | chips, label pills |
+| `--border` | `#E9DFC6` | `#343A62` | hairlines, progress tracks |
+| `--border-strong` | `#C9BC98` | `#565C8A` | tag outlines, dashed panels |
+| `--rule` | `#1C2140` | `#DCD4BA` | the chunky 3px outline (`--line`) |
+| `--text` | `#1C2140` | `#F2EAD3` | primary ink |
+| `--text-muted` | `#33385A` | `#D9D2BC` | body prose |
+| `--text-subtle` | `#4F4A3A` | `#C8C1A6` | secondary |
+| `--text-faint` | `#6B6550` | `#A9A38B` | meta |
+| `--link` | `#C0331C` | `#FF8C75` | links |
+| `--red` | `#D63B22` | `#D63B22` | "do this": commands, step discs, primary buttons |
+| `--teal` / `--teal-fill` | `#17706D` / `#1E7C79` | `#6FD0C9` / `#1E7C79` | "check this": output, labels |
+| `--yellow` | `#F5C33B` | `#F5C33B` | "you are here": masthead, current, selected |
+| `--accent-soft` | `#FFE7A3` | `#3B3317` | hovers, pale highlights |
+| `--cmd-bg` / `--cmd-text` | `#1C2140` / `#FFF4D6` | `#0B0E21` / `#FFF4D6` | command panel |
+| `--code-bg` / `--code-band` | `#FFFFFF` / `#E2F0DF` | `#1D2240` / `#17291F` | green-bar listing |
+| `--cover-1..4` | red, teal, yellow, navy | same, navy darkened | bookshelf covers |
 
-### Color — status badges (`-bg` / `-text`)
+### Color — status badges and callouts
 
-Five rendered states (a sixth, `unverified`, renders no badge). Warm-retoned so
-nothing screams against the paper.
+Badges are a colored dot plus a label (`--badge-<status>-text` colors the dot;
+`-bg` tints the danger button and error toast). Five rendered states;
+`unverified` renders no badge — the About box says "Not verified" with a
+**Verify it** link instead.
 
-`--badge-verified-*` (olive green) · `--badge-verifying-*` (amber) ·
-`--badge-failed-*` (rust) · `--badge-extending-*` (dusty blue) ·
-`--badge-skipped-*` (neutral).
-
-### Color — callouts (`-bg` / `-border` / `-label`)
-
-Eight color groups (the `warning` and `headsup` classes share the warn triple):
-`note` (dusty blue), `tip` (olive green), `warn` (amber), `design` (violet-gray),
-`aside` (transparent, italic), `predict` (berry), `recall` (orange),
-`unverified` (rust — for `[!UNVERIFIED]`, a load-bearing claim the generator
-couldn't ground in a source).
+Callouts are rounded tinted panels with a Casual label and no left rule:
+`note` (teal), `tip` (green), `warn`/`headsup` (yellow), `design` and `recall`
+(periwinkle), `predict` (yellow with a yellow outline, the "guess first"
+prompt), `aside` (thin rule, italic), `unverified` (red, dashed outline).
 
 ### Typography
 
-| Role | Family stack | Notes |
-|---|---|---|
-| Display (headings) | `--font-display` = `'Fraunces', 'Iowan Old Style', Georgia, serif` | variable woff2, `font-optical-sizing: auto`, tight leading (~1.18), `-0.01em` tracking |
-| Body (prose) | `--font-body` = `'Newsreader', 'Iowan Old Style', Charter, Georgia, serif` | roman + italic woff2; emphasis uses real Newsreader italic |
-| Code | `--font-mono` = `'JetBrains Mono', 'Fira Code', ui-monospace, monospace` | regular + bold |
+One family, **Recursive** (SIL OFL), doing every job through its axes. The
+bundled file keeps `wght` 300–1000, `CASL` 0–1 and `MONO` 0–1; slant and cursive
+are pinned to keep it small, so italics are synthesized.
 
-Reading measure is `--measure: 66ch`; the reading column (`main`) is bound to it,
-body is **1.125rem / 1.7** line-height. Type scale (fluid `clamp`): h1 ~2.1rem,
-h2 ~1.5rem, h3 ~1.2rem, body 1.125rem, small/meta ~0.85rem. Links are accent-
-colored with a thin offset underline.
+| Role | Token | Setting |
+|---|---|---|
+| Prose + UI | `--font-sans` / `--font-body` | Linear (`CASL 0`), weight ~420, body 1.125rem / 1.65 |
+| Display | `--font-display` + `--casual` | Casual (`CASL 1`), weight 850–1000, tight tracking |
+| Code | `--font-mono` + `--mono` | `MONO 1`, `CASL 0.5` |
+
+The part's `h1` is the loudest type (≈3.75rem, weight 950). Each top-level `h2`
+in the part body is a **step** and gets a red numbered disc (CSS counter);
+the Exercises heading does not. Measure is `--measure: 68ch`.
 
 ### Spacing / radius / shadow / motion
 
-`--space-1..8` (0.25rem → 4rem) · `--radius-sm|md|lg` (4/8/12px) ·
-`--shadow-sm|md` · `--transition` (120ms ease-out).
+`--space-1..8` (0.25rem → 4rem) · `--shadow-sm|md` · `--transition` (120ms
+ease-out) · `--line` (3px, the chunky outline).
+
+Radius: `--radius-sm` 6px (chips, inline code, checkboxes), `--radius-md` 10px
+(code blocks, tables, menus), `--radius-lg` 16px (the About box, callouts,
+covers, the exercise card). Every button is a pill.
 
 ## Component catalog
 
@@ -92,17 +112,20 @@ Each component is a class in `styles.css`. Markup it expects:
 | Button | `.btn` + `.btn-primary`/`.btn-ghost`/`.btn-danger` (+ `.btn-pill`/`.btn-sm`) | layout.html action buttons |
 | Status badge | `.badge.<status>` | `{{template "badge" <Status>}}` (components.html) |
 | Theme toggle | `.theme-toggle[data-theme-toggle]` | `{{template "themeToggle" .}}` |
-| Sidebar nav | `nav`, `.back-link`, `.toc-label`, `ul.toc` | layout.html |
+| Masthead | `#topBar`, `.back-link`, `.crumb`, `.part-picker`, `.part-menu` | layout.html |
+| Sidebar nav | `#sidebar`, `.back-link`, `.toc-label`, `ul.toc` | layout.html |
 | Series TOC | `.series-toc`, `.current-row`, `.part-num` | layout.html |
 | Part nav | `.part-nav`, `.prev`/`.next`, `.label`, `.title` | layout.html |
 | Verify / extend | `.verify-section`, `.extend-section`, `#verifyForm`, `#extendForm` | layout.html |
-| Author byline | `.article-byline`, `.voice-reveal`, `.voice-reveal-body` (+ `code`) | layout.html (under the `.article-header` `.article-title`) |
+| About box | `.article-header`, `.article-title`, `dl.title-block` with one `div` per cell (`.tb-part`, `.tb-tools`, `.article-byline`, `.tb-voice`, `.tb-status`) and full-width `.tb-row`s; `.tb-big`, `.status-none`, `.status-jump` | layout.html + `statusHeader` (components.html) |
+| Voice reveal | `.voice-reveal`, `.voice-reveal-body` | layout.html (in the Voice cell) |
+| Section index | `#tocRail`, `.label`, `.tick`, `a.active` | layout.html |
 | Ask drawer | `#askDrawer`, `.ask-bubble`, `.ask-question`, `.ask-answer` | layout.html |
 | Reading progress bar | `#progressBar` | layout.html |
 | Progress toast | `.progress-status`, `#progressStatus` (`aria-hidden`) | layout.html |
 | Announced status region | `#statusAnnouncer` (`role="status"`, shared by the progress and copy flows) | layout.html |
 | Visually hidden utility | `.visually-hidden` | styles.css |
-| List cards | `body.list`, `.tutorial`, `.meta`, `.delete-btn`, `.empty` | list.html |
+| Bookshelf covers | `body.list`, `.tutorial-list`, `.tutorial` (+ `::before` cover), `.tutorial-body` (`display: contents`), `.meta`, `.tutorial-link`, `.chips` (wraps `.versions` + `.tags`), `.tutorial-actions`, `.delete-btn`, `.empty` | list.html |
 | List card progress | `.tutorial-progress`, `.tutorial-progress-track`, `.tutorial-progress-segments`, `.tutorial-progress-label` | list.html |
 | Callouts | `.callout.callout-<type>`, `.callout-label` | emitted by `renderer.go` |
 | Tutorial blocks | `.tutorial-block`, `.tutorial-block-command`/`-output`/`-code`, `.tutorial-block-label`, `.copy-command` | emitted by `renderer.go` |
@@ -111,52 +134,61 @@ Each component is a class in `styles.css`. Markup it expects:
 The `head`, `badge`, and `themeToggle` partials are parsed into **both** the
 layout and list template sets (see `NewServer` in `server.go`).
 
-The **author byline** (`.article-byline`) sits directly under the title as a
-quiet metadata line (`--text-subtle`, no new colors): it always names the LLM
-model that authored the tutorial ("Generated by `<model>`", falling back to
-a generic "an LLM" when none was recorded) and appends "· voice `<name>`" when the tutorial
-recorded one. When the voice resolves to a spec, the name becomes a clickable
-`.voice-reveal` (an inline `<details>` mirroring the Sources disclosure) that
-expands the voice spec body — rendered from markdown into a quiet sunken
-`.voice-reveal-body` panel with toned-down typography; otherwise the name renders
-as plain `<code>`. Markdown content is never touched — this is the only
-authorship-disclosure surface, and LLM authorship is always disclosed.
+### The About box (article header)
 
-### Buttons
+The article header is the "before you start" box from a type-in book: the
+tutorial name in Casual on top, then a `<dl class="title-block">` of
+`div`-wrapped `dt`/`dd` cells (teal labels), so a screen reader hears each label
+with its value. Cells, in order:
 
-There is one button primitive, `.btn`, plus variants — never restyle a button
-ad-hoc. Compose a class list in the markup:
+- **Part** — "N of M", series only, number set large.
+- **You'll need** (`.tb-tools`) — the tutorial's recorded tools and versions as
+  mono chips; only when some were recorded.
+- **Generated by** (`.article-byline`) — always present: the recorded model or
+  "an LLM". This is the only LLM-authorship disclosure surface.
+- **Voice** — only when one was recorded; a `.voice-reveal` disclosure whose
+  spec opens as a panel under the whole box.
+- **Verification** (`#badgeRegion`, re-rendered live by `/-/status`) — the
+  `statusHeader` partial: "Verified <date>" in the badge, or "Not verified" with
+  a **Verify it** link to `#verifyRegion`, or "Failed" with **See what failed**.
 
-- **Variants:** `.btn-primary` (accent fill — submits, Ask), `.btn-ghost`
-  (outline — secondary), `.btn-danger` (failed-tint — Stop).
-- **Modifiers:** `.btn-pill` (fully rounded — the floating/dock Ask buttons),
-  `.btn-sm` (compact — the ask-drawer controls).
+Full-width `.tb-row`s (dotted rule above) follow for the `[!UNVERIFIED]` count
+and the "Researched against N sources" disclosure.
 
-Accent buttons get their text color from `--btn-on-accent` (paper white in light,
-near-black in dark) so the label stays legible on the accent fill in both themes.
-Examples: `class="btn btn-primary"` (verify/extend submit),
-`class="btn btn-primary btn-pill"` (Ask), `class="btn btn-danger btn-sm"` (Stop).
-The prev/next **part-nav** links are intentionally *not* `.btn` — they're
-two-line nav cards (label + title) sized to content and pinned to each edge, not
-full-width bars.
+### Tutorial blocks, series TOC, and the section index
 
-### Syntax highlighting
+Each block kind looks like what the reader does with it:
 
-Code-block syntax hues come from Chroma styles **tango** (light) and **gruvbox**
-(dark), chosen to harmonize with the paper/ember palette (`lightStyle` /
-`darkStyle` consts in `renderer.go`). The block *container* (background, border,
-overflow fade) is owned by our `--code-bg` token: `HighlightCSS` in `renderer.go`
-strips Chroma's own PreWrapper `background-color`, so only its token colors show
-through.
+- **Command** (`.tutorial-block-command`) — "type this": red label pill, a navy
+  panel in both themes (with the dark syntax palette), Copy on the label row.
+- **Expected output** (`.tutorial-block-output`) — "you should see": teal label
+  pill, dashed teal outline, no fill. A reference, not an instruction.
+- **Code** (`.tutorial-block-code`) — "write this": the listing on green-bar
+  paper, bands every three lines, tractor-feed holes down both edges (all CSS
+  backgrounds on the `<pre>`, scrolling with the content).
 
-**Both palettes are theme-scoped.** `HighlightCSS` prefixes the light rules with
-`:root:not([data-theme="dark"])` and the dark rules with `[data-theme="dark"]`.
-This matters: if the light rules stayed global, any token the (less exhaustive)
-dark style leaves undefined would fall through to the light color — often
-near-black — and be **unreadable** on the dark code background. Scoping makes an
-undefined token fall back to its own style's readable default foreground instead.
-`renderer_test.go` spot-checks `#8f5902` (tango) and `#fe8019` (gruvbox); swapping
-either style means updating those assertions.
+Step discs, the series TOC and the exercises are real sequences, so they carry
+numbers. The current part (series TOC, part menu), the current section (wide
+index, drawer) and selected filters are yellow.
+
+`#tocRail` takes three forms by width: at ≥1240px a permanent "On this page"
+index in the right gutter; from 900–1239px the tick rail that expands on hover
+or focus; below 900px hidden, with the hamburger drawer (`#sidebar`) instead.
+The scroll-spy is position-based (last `h2[id]` above a line 30% down the
+viewport, else Top) and marks both the rail and the drawer.
+
+### List page — the bookshelf
+
+Each tutorial is a **book cover**: a colored top (red, teal, yellow, navy,
+cycled by position) with its size and date and the title in big Casual type,
+and a paper strip below with version + tag chips, saved progress, the status
+badge and the delete button. It is built with CSS grid over the existing
+markup: `.tutorial-body` is `display: contents`, so `.meta`, `.tutorial-link`,
+`.chips` and `.tutorial-progress` are grid items of the card, and `.tutorial::before`
+paints the cover behind the first two rows. With `subgrid`, covers in a row
+share row tracks, so their colored tops line up. The whole cover is one
+stretched link; the delete button sits above it and, on pointer devices, stays
+hidden until the cover is hovered or holds focus.
 
 ### Block labels and captions
 
@@ -177,7 +209,9 @@ place. The pre-render script in the `head` partial reads `localStorage`
 (`lathe-theme`) or the OS `prefers-color-scheme` and sets the attribute before
 paint. The `themeToggle` JS flips it and persists the choice; mermaid diagrams
 and the syntax CSS both react (the dark Chroma rules are scoped under
-`[data-theme="dark"] .chroma`).
+`[data-theme="dark"] .chroma`, and again under
+`:root:not([data-theme="dark"]) .tutorial-block-command` for the navy command
+panel in light mode).
 
 ## Status messaging and announcements
 
@@ -315,9 +349,17 @@ it from a component class:
 
 ## Fonts: re-fetching / updating
 
-The bundled `woff2` are latin subsets pulled from the Google Fonts CSS2 API
-(served pre-subset per `unicode-range`). To refresh, fetch the API CSS with a
-modern-browser User-Agent, grab the `latin` `woff2` URL from each `@font-face`
-block, and overwrite the files in `internal/serve/static/fonts/`. They're served
-flat at `/_static/<name>.woff2` (single-segment route + explicit whitelist in
-`server.go`), even though they live in the `fonts/` subdirectory on disk.
+The one bundled font, `recursive.woff2`, comes from the
+`@fontsource-variable/recursive` npm package's latin "full" file (all five
+axes), cut down with fontTools so only the axes the UI uses stay variable:
+
+```bash
+npm pack @fontsource-variable/recursive && tar xzf fontsource-variable-recursive-*.tgz
+python3 -c "from fontTools.ttLib import TTFont; from fontTools.varLib import instancer; \
+t=instancer.instantiateVariableFont(TTFont('package/files/recursive-latin-full-normal.woff2'), {'CRSV':0,'slnt':0}); \
+t.flavor='woff2'; t.save('recursive.woff2')"   # needs: pip install fonttools brotli
+```
+
+Copy the result to `internal/serve/static/fonts/`. It's served flat at
+`/_static/recursive.woff2` (single-segment route + explicit whitelist in
+`server.go`), even though it lives in the `fonts/` subdirectory on disk.
