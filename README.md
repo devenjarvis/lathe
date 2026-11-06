@@ -258,6 +258,17 @@ Verification is **opt-in** and runs in your interactive LLM session. Storing a t
 
 The `/lathe-verify` skill works through every step in the tutorial, creating files in a fresh `mktemp -d` scratch dir (never your repo), running commands, executing each `## Checkpoint` block and then calls `lathe verify-result` to record the outcome in the tutorial's `metadata.json`. It marks the run `verifying` when it starts and a terminal `verified` / `failed` / `skipped` when it finishes.
 
+### Code snapshots
+
+While it verifies, `/lathe-verify` commits the reconstructed code after each part's checkpoint passes and tags it `part-01`, `part-02`, … When the run finishes, `lathe verify-result --code` saves that history into `~/.lathe/tutorials/<slug>/code/` (a failed run keeps the parts that passed). That gives you the complete, runnable codebase at every step, including the "now you write one" pieces, so you can see exactly what a part changed:
+
+```bash
+git -C ~/.lathe/tutorials/<slug>/code checkout part-04
+git -C ~/.lathe/tutorials/<slug>/code diff part-03 part-04
+```
+
+The reading page shows those commands for the part you're on once a snapshot exists. Only committed source is kept (dependency and build-output dirs are excluded), re-verifying replaces the snapshot, and re-storing the tutorial drops it. Run `/lathe-verify <slug> --no-save` to verify without keeping the code.
+
 Verification only makes sense where the tutorial's toolchain is installed. If a required tool is missing (e.g. no `zig` binary), the run is reported as **skipped** (⚠️) rather than failed — "couldn't verify here" is not the same as "broken."
 
 Because verification now runs in your own interactive session, it executes under your normal LLM permission model, so you see and approve the tool calls. The scratch-dir convention keeps build artifacts out of your repo, but treat it as soft isolation at best, not a security boundary.

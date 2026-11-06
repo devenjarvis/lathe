@@ -334,6 +334,31 @@ func TestReStoreDropsStaleProgress(t *testing.T) {
 	}
 }
 
+func TestReStoreDropsStaleCodeSnapshot(t *testing.T) {
+	src := t.TempDir()
+	if err := os.WriteFile(filepath.Join(src, "index.md"), []byte("# Hello"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+
+	tut, err := store.Store(src, store.StoreOptions{})
+	if err != nil {
+		t.Fatalf("Store() error = %v", err)
+	}
+	tutDir := filepath.Join(homeDir, ".lathe", "tutorials", tut.Slug)
+	code := filepath.Join(tutDir, store.CodeDirName, ".git")
+	if err := os.MkdirAll(code, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Store(src, store.StoreOptions{}); err != nil {
+		t.Fatalf("re-Store() error = %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(tutDir, store.CodeDirName)); !os.IsNotExist(err) {
+		t.Errorf("code snapshot should be removed on re-store; stat err = %v", err)
+	}
+}
+
 func TestStoreDoesNotSpawnVerifier(t *testing.T) {
 	src := t.TempDir()
 	if err := os.WriteFile(filepath.Join(src, "index.md"), []byte("# Hello"), 0644); err != nil {

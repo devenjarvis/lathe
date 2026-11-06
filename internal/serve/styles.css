@@ -298,6 +298,9 @@ pre samp{background:none;padding:0;color:inherit;font-family:var(--font-mono);fo
 .article-header details.provenance ul{list-style:none;margin:.35rem 0 0;padding:0}
 .article-header details.provenance li{margin:.2rem 0}
 .article-header details.provenance a{display:inline-block;font-size:.78rem;padding:.15rem 0;color:var(--accent);word-break:break-all;line-height:1.4}
+.article-header details.code-snapshot p{margin:.35rem 0 .2rem;font-size:inherit;line-height:inherit}
+.article-header details.code-snapshot pre{margin:.2rem 0 .4rem;padding:.4rem .6rem;overflow-x:auto;background:var(--code-bg);border-radius:var(--radius-sm)}
+.article-header details.code-snapshot pre code{font-size:.78rem}
 
 /* Author byline — quiet authorship line under the title: always names the LLM
    model (falling back to "Claude"); appends the voice when one was recorded.

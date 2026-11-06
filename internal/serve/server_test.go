@@ -2408,3 +2408,64 @@ func TestStaticAssetURLsCarryVersion(t *testing.T) {
 		t.Errorf("unversioned asset Cache-Control = %q, want no immutable promise", cc)
 	}
 }
+
+func TestCodeSnapshotPanel(t *testing.T) {
+	dir := t.TempDir()
+	makeSeriesTutorialWithParts(t, dir, "test-series", 3)
+	// A verify run saved code through part 2, then failed on part 3.
+	tags := filepath.Join(dir, "test-series", store.CodeDirName, ".git", "refs", "tags")
+	if err := os.MkdirAll(tags, 0755); err != nil {
+		t.Fatal(err)
+	}
+	for _, tag := range []string{"part-01", "part-02"} {
+		if err := os.WriteFile(filepath.Join(tags, tag), []byte("abc\n"), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Setenv("HOME", dir)
+	srv := serve.NewServer(dir)
+
+	get := func(part string) string {
+		req := httptest.NewRequest(http.MethodGet, "/test-series/"+part, nil)
+		w := httptest.NewRecorder()
+		srv.Handler().ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("GET %s = %d", part, w.Code)
+		}
+		return articleHeader(t, w.Body.String())
+	}
+
+	repo := "~" + string(filepath.Separator) + filepath.Join("test-series", store.CodeDirName)
+
+	h1 := get("part-01.md")
+	if !strings.Contains(h1, `class="provenance code-snapshot"`) {
+		t.Fatalf("part-01 should show the code snapshot panel:\n%s", h1)
+	}
+	if !strings.Contains(h1, "git -C "+repo+" checkout part-01") {
+		t.Errorf("part-01 missing checkout command with home-abbreviated path:\n%s", h1)
+	}
+	if strings.Contains(h1, " diff ") {
+		t.Errorf("part-01 has no previous part, so no diff command:\n%s", h1)
+	}
+
+	h2 := get("part-02.md")
+	if !strings.Contains(h2, "git -C "+repo+" diff part-01 part-02") {
+		t.Errorf("part-02 missing diff command:\n%s", h2)
+	}
+
+	if h3 := get("part-03.md"); strings.Contains(h3, `class="provenance code-snapshot"`) {
+		t.Errorf("part-03 was never saved, so no panel:\n%s", h3)
+	}
+}
+
+func TestCodeSnapshotPanelAbsentWithoutSnapshot(t *testing.T) {
+	dir := t.TempDir()
+	makeSeriesTutorialWithParts(t, dir, "test-series", 2)
+	srv := serve.NewServer(dir)
+	req := httptest.NewRequest(http.MethodGet, "/test-series/part-01.md", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+	if strings.Contains(w.Body.String(), `class="provenance code-snapshot"`) {
+		t.Error("no snapshot saved, so no panel expected")
+	}
+}

@@ -56,6 +56,11 @@ func Store(srcPath string, opts StoreOptions) (*Tutorial, error) {
 	if err := os.Remove(filepath.Join(destDir, "progress.json")); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return nil, fmt.Errorf("clear stale progress: %w", err)
 	}
+	// Likewise a code snapshot from a prior verify describes the old content, not
+	// the regenerated parts; drop it so the page never offers stale code.
+	if err := os.RemoveAll(filepath.Join(destDir, CodeDirName)); err != nil {
+		return nil, fmt.Errorf("clear stale code snapshot: %w", err)
+	}
 
 	parts := detectParts(destDir)
 

@@ -73,6 +73,16 @@
         <ul>{{range .Tutorial.Sources}}<li><a href="{{.URL}}" rel="noopener noreferrer" target="_blank">{{.Label}}</a></li>{{end}}</ul>
       </details>
       {{end}}
+      {{with .CodeSnapshot}}
+      <details class="provenance code-snapshot">
+        <summary>Code saved by verification at <code>{{.Tag}}</code></summary>
+        <p>The verifier committed the code as of each part to a git repository at <code>{{.Path}}</code>.</p>
+        <p>Check out the code as of this part:</p>
+        <pre><code>git -C {{.Path}} checkout {{.Tag}}</code></pre>
+        {{if .PrevTag}}<p>See what this part changed:</p>
+        <pre><code>git -C {{.Path}} diff {{.PrevTag}} {{.Tag}}</code></pre>{{end}}
+      </details>
+      {{end}}
     </header>
     {{.Content}}
     <div id="verifyRegion" aria-live="polite">{{template "verifySection" .}}</div>
