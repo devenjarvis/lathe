@@ -292,6 +292,31 @@ flowchart LR
 ```
 ````
 
+## Jigs — interactive blocks
+
+A **jig** is an interactive block `lathe serve` renders from a fenced block, ```` ```jig <kind> ````: the reader commits to a guess before the reveal, and so on. Jigs are a library that grows over time, so don't work from memory — ask the CLI what exists:
+
+```bash
+lathe jig list            # every kind, with what it's good for
+lathe jig show <kind>     # one kind's syntax, rules, and a complete example
+```
+
+**Only use kinds `lathe jig list` prints**, and read `lathe jig show <kind>` before writing one. An unknown kind or a malformed body renders as an error note on the page.
+
+When to reach for one:
+
+- **Only where interacting teaches more than reading would.** A jig is for a moment the reader should *do* something: commit to a prediction, poke a parameter. Not decoration, and not a substitute for the explanation.
+- **At most one or two per part**, and never in place of a Checkpoint you can run. A part full of widgets is a quiz, not a tutorial.
+- **Introduce each jig with a sentence of prose**, the same as a code block, and let the prose after it build on it. The jig still works with scripts off, but the surrounding text should not depend on the reader having clicked anything.
+- **Jig content follows the same accuracy rules as prose.** An answer key, a plotted formula, or a traced value is a load-bearing claim: ground it in a source you read or output you actually produced. If you can't, don't build the jig; write the `[!UNVERIFIED]` prose instead.
+- `jig guess` is the multiple-choice form of `> [!PREDICT]`. Use it when the tempting wrong answers are real misconceptions worth naming; use the one-line callout when the prediction is open-ended.
+
+Before storing, check every jig you wrote (it prints file:line for anything that won't build, and exits non-zero):
+
+```bash
+lathe jig check /tmp/lathe-<slug>
+```
+
 ## Code
 
 - One sentence before every block, telling the reader what to look at first.
@@ -348,6 +373,9 @@ Decide the slug before writing. Never write `index.md` or multiple parts.
 >
 > Carry the repo/version values straight over from the upfront pinning step — if
 > you find you never pinned them, go back and do it now rather than storing blank.
+>
+> If the part has any ```` ```jig ```` blocks, `lathe jig check /tmp/lathe-<slug>`
+> must pass before you store (see "Jigs — interactive blocks").
 
 Run:
 

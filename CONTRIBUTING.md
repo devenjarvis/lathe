@@ -119,6 +119,12 @@ drift. Use `mage fmt` to auto-fix formatting (`mage check` is read-only on fmt).
 If your change touches behavior documented in `AGENTS.md`, `README.md`, or
 `docs/`, update those docs in the same PR.
 
+If users can see your change (the web UI, rendered tutorial content, or CLI
+output), include **visual proof** in the PR description: screenshots of the
+running app in light and dark mode, covering every state you touched, or the
+real terminal output for CLI changes. The PR template's "Visual proof" section
+says what to capture and how to host the images.
+
 ## Submitting your change
 
 Push your branch to your fork and open a pull request:

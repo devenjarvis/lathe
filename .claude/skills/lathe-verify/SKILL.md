@@ -34,6 +34,7 @@ This skill is **read-only with respect to the tutorial**: never edit the parts o
 
 3. **Follow each part in order.** Read `~/.lathe/tutorials/<slug>/part-NN.md` from `part-01` up. Install the prerequisites, create the files and paste the code blocks exactly as written, in order, then run the `## Checkpoint` command and compare against the stated expected output.
    - **Skip the pedagogical and provenance callouts** — `> [!PREDICT]`, `> [!RECALL]`, and `> [!UNVERIFIED]` are not verifiable steps. They prompt the reader or flag uncertainty; there's nothing to execute.
+   - **Don't execute ```` ```jig ```` blocks** — they are interactive reader aids, not steps. But a jig can assert a fact (a Guess first answer key, an expected value): if your run contradicts one, report it as a failure the same way you'd report wrong prose.
    - Treat the Checkpoint commands and code blocks as the executable surface.
    - **Reader exercises** ("Now you write one" and similar) still have to be written for later checkpoints to pass. Write a minimal, correct solution so the snapshot is the complete, runnable code at that part.
    - **After a part's checkpoint passes, snapshot it** (from `$SCRATCH`, tag = the part's filename without `.md`):

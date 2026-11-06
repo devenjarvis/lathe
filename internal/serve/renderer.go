@@ -12,7 +12,6 @@ import (
 	chromahtml "github.com/alecthomas/chroma/v2/formatters/html"
 	"github.com/alecthomas/chroma/v2/lexers"
 	"github.com/alecthomas/chroma/v2/styles"
-	"github.com/gohugoio/hugo-goldmark-extensions/passthrough"
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/extension"
@@ -133,16 +132,7 @@ func renderMarkdown(src []byte, headingLevels int) ([]byte, []TOCEntry, error) {
 			// layout.html picks up the same delimiters client-side. Parsing at
 			// the AST level (not a preprocess regex) means $ inside code spans
 			// and fenced blocks is naturally left alone.
-			passthrough.New(passthrough.Config{
-				InlineDelimiters: []passthrough.Delimiters{
-					{Open: "$", Close: "$"},
-					{Open: `\(`, Close: `\)`},
-				},
-				BlockDelimiters: []passthrough.Delimiters{
-					{Open: "$$", Close: "$$"},
-					{Open: `\[`, Close: `\]`},
-				},
-			}),
+			mathPassthrough(),
 		),
 		goldmark.WithParserOptions(
 			parser.WithAutoHeadingID(),
@@ -279,7 +269,12 @@ func classifyBlock(lang string) (cssClass, caption, tag string, copyable bool) {
 // sounding chatty, lower it if medium blocks still trap the reader.
 const longBlockLines = 15
 
-type tutorialBlockRenderer struct{}
+type tutorialBlockRenderer struct {
+	// jigs counts the jig fences rendered so far, so each gets a page-unique id.
+	// A renderer is built per document (renderMarkdown), so the count restarts
+	// with each part.
+	jigs int
+}
 
 func (r *tutorialBlockRenderer) RegisterFuncs(reg renderer.NodeRendererFuncRegisterer) {
 	reg.Register(ast.KindFencedCodeBlock, r.renderFencedBlock)
@@ -295,6 +290,9 @@ func (r *tutorialBlockRenderer) renderFencedBlock(w util.BufWriter, src []byte, 
 	}
 
 	lang := strings.ToLower(string(n.Language(src)))
+	if lang == "jig" {
+		return r.renderJig(w, src, n)
+	}
 	class, caption, tag, copyable := classifyBlock(lang)
 	text := string(n.Lines().Value(src))
 	skipWrapper := !copyable && strings.Count(text, "\n") >= longBlockLines

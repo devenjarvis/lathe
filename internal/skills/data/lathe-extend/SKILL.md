@@ -33,6 +33,7 @@ Add the next part to a stored tutorial. Triggered by `/lathe-extend <slug> [guid
    - **This is the one allowed content write.** The skill writes the part markdown directly into the tutorial dir at the reserved path — that is required and deliberate, because `lathe extend-commit` `os.Stat`s the file there before registering it. (Future reader: don't "fix" this by routing it through a CLI command. There is no such command; the binary owns *metadata*, the skill writes the *part body*.)
    - Follow the full **Tutorial shape** from the `lathe` skill — hook, `## What you'll build`, prerequisites, specific section titles, `## Checkpoint`, `## What's next`, `## Exercises`, `## Sources`. Each part stands alone and ends with a Checkpoint.
    - Because this is **Part N ≥ 2**, open with a `> [!RECALL]` spaced-retrieval beat: one question on a load-bearing concept from a prior part, phrased so the reader must reconstruct the answer (not just recognize it). See the `lathe` skill's recall before/after.
+   - Jigs (```` ```jig <kind> ```` interactive blocks) follow the `lathe` skill's "Jigs — interactive blocks" rules; if you wrote any, run `lathe jig check ~/.lathe/tutorials/<slug>/<printed-filename>` and fix what it reports before committing.
    - **One file, this part only.** Don't write `index.md`, don't touch earlier parts, don't write more than one part.
 
 5. **Commit the part.** Run:

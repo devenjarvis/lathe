@@ -734,6 +734,14 @@
     });
   })();
 </script>
+{{if .JigScript}}
+<script>
+  // Jigs: interactive blocks from ```jig <kind> fences (internal/jig). The
+  // server HTML already works with scripts off; this mounts each kind's
+  // enhancer on it. Inlined only when the part contains a jig.
+  {{.JigScript}}
+</script>
+{{end}}
 <script>
   // Render any ```mermaid fenced blocks the markdown renderer rewrote into
   // <div class="mermaid"> elements. The mermaid UMD bundle is served locally
