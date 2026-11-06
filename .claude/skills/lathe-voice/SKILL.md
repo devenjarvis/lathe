@@ -86,8 +86,9 @@ them is dead on arrival. Steer the user to an honest version of what they want.
    lathe voice add <name> --file -
    ```
    (The skill writes no files itself — the CLI owns `~/.lathe/voices/`. `--file -`
-   reads the spec from stdin.) If it errors on a built-in collision, pick another
-   name and retry.
+   reads the spec from stdin.) If your session has the `lathe_voice_add` MCP tool
+   (from `lathe mcp`), call it with `name` and the full `spec` instead. If either
+   errors on a built-in collision, pick another name and retry.
 
 6. **Tell the user how to use it:**
    - Generate in it now: `/lathe <topic>` and name the voice (*"…in the `<name>`

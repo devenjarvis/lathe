@@ -3,10 +3,7 @@ package cmd
 import (
 	"fmt"
 	"path/filepath"
-	"strings"
-	"time"
 
-	"github.com/devenjarvis/lathe/internal/config"
 	"github.com/devenjarvis/lathe/internal/store"
 	"github.com/spf13/cobra"
 )
@@ -22,70 +19,32 @@ var (
 
 // verifyResultCmd is how the /lathe-verify skill records the outcome of a
 // verification run. The skill runs in the user's interactive coding-agent
-// session and calls this command to mutate durable state — keeping the Go
-// binary the sole writer of metadata.json and verify-result.json.
+// session and calls this command (or the lathe_verify_result MCP tool, which
+// shares store.RecordVerify) to mutate durable state — keeping the Go binary
+// the sole writer of metadata.json and verify-result.json.
 var verifyResultCmd = &cobra.Command{
 	Use:   "verify-result <slug>",
 	Short: "Record the result of verifying a tutorial (used by the /lathe-verify skill)",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		slug := args[0]
-		if err := validateSlug(slug); err != nil {
+		tutDir, err := store.TutorialPath(slug)
+		if err != nil {
 			return err
 		}
-
 		status := store.Status(verifyResultStatus)
-		switch status {
-		case store.StatusVerifying, store.StatusVerified, store.StatusFailed, store.StatusSkipped:
-		default:
-			return fmt.Errorf("invalid --status %q (want verifying, verified, failed, or skipped)", verifyResultStatus)
-		}
-		// A code snapshot only exists once the skill has followed the parts: a
-		// verified run covers every part, a failed one the parts before the
-		// failure. A skipped run never built anything.
-		if verifyResultCode != "" && status != store.StatusVerified && status != store.StatusFailed {
-			return fmt.Errorf("--code is only valid with --status verified or failed")
-		}
-
-		tutorialsDir, err := config.TutorialsDir()
-		if err != nil {
-			return err
-		}
-		tutDir := filepath.Join(tutorialsDir, slug)
-		tut, err := store.ReadMetadata(tutDir)
-		if err != nil {
-			return fmt.Errorf("read metadata for %q: %w", slug, err)
-		}
-
-		// "verifying" is the in-flight marker the skill sets when it starts, so
-		// the web UI shows the spinner. Don't start a verify on top of an
-		// in-flight extend.
-		if status == store.StatusVerifying {
-			if tut.Status == store.StatusExtending {
-				return fmt.Errorf("cannot verify %q while it is extending", slug)
-			}
-			tut.Status = store.StatusVerifying
-			return store.WriteMetadata(tutDir, tut)
-		}
-
-		// Terminal status: write the result file, then flip metadata.
-		checkedAt := verifyResultCheckedAt
-		if checkedAt == "" {
-			checkedAt = time.Now().UTC().Format(time.RFC3339)
-		}
-		result := &store.VerifyResult{
+		if err := store.RecordVerify(tutDir, store.VerifyRecord{
 			Status:     status,
 			Part:       verifyResultPart,
 			FailedStep: verifyResultFailedStep,
 			Error:      verifyResultError,
-			CheckedAt:  checkedAt,
+			CheckedAt:  verifyResultCheckedAt,
+			Code:       verifyResultCode,
+		}); err != nil {
+			return err
 		}
-		if err := store.WriteVerifyResult(tutDir, result); err != nil {
-			return fmt.Errorf("write verify result: %w", err)
-		}
-		tut.Status = status
-		if err := store.WriteMetadata(tutDir, tut); err != nil {
-			return fmt.Errorf("write metadata: %w", err)
+		if status == store.StatusVerifying {
+			return nil
 		}
 		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Recorded %s for %q\n", status, slug)
 
@@ -103,12 +62,7 @@ var verifyResultCmd = &cobra.Command{
 
 // validateSlug guards against empty, dot, and path-separator slugs so a slug
 // can never escape ~/.lathe/tutorials/.
-func validateSlug(slug string) error {
-	if slug == "" || slug == "." || slug == ".." || strings.ContainsAny(slug, `/\`) {
-		return fmt.Errorf("invalid slug: %q", slug)
-	}
-	return nil
-}
+func validateSlug(slug string) error { return store.ValidateSlug(slug) }
 
 func init() {
 	verifyResultCmd.Flags().StringVar(&verifyResultStatus, "status", "", "verifying, verified, failed, or skipped (required)")

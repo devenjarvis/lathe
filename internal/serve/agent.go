@@ -49,6 +49,9 @@ type agentStarter func(ctx context.Context) (*acp.Client, error)
 type agentHost struct {
 	command string
 	start   agentStarter
+	// mcp lists the MCP servers to hand the agent in each session/new. nil
+	// sends none.
+	mcp func(slug string) []acp.MCPServer
 
 	startMu sync.Mutex // serializes (re)starts
 
@@ -90,11 +93,44 @@ func (s *Server) SetAgent(command string) {
 	if command == "" {
 		return
 	}
-	s.setAgentHost(newAgentHost(command, processStarter(command, s.tutorialsDir, os.Stderr)))
+	h := newAgentHost(command, processStarter(command, s.tutorialsDir, os.Stderr))
+	if exe, err := os.Executable(); err == nil {
+		h.mcp = latheMCP(exe)
+	} else {
+		fmt.Fprintf(os.Stderr, "warning: cannot locate the lathe binary, so the agent gets no Lathe MCP tools: %v\n", err)
+	}
+	s.setAgentHost(h)
 	go func() { _, _ = s.agent.ensure() }()
 }
 
 func (s *Server) setAgentHost(h *agentHost) { s.agent = h }
+
+// latheMCP serves Lathe's write commands to each agent session as MCP tools:
+// `<exe> mcp --slug <slug>`, a stdio server scoped to the session's tutorial.
+// The agent records results through it instead of shelling out to `lathe`.
+// HOME is passed through so the tools write to the same ~/.lathe this server
+// reads, whatever environment the agent gives its MCP servers.
+func latheMCP(exe string) func(slug string) []acp.MCPServer {
+	return func(slug string) []acp.MCPServer {
+		var env []acp.EnvVariable
+		if home, err := os.UserHomeDir(); err == nil {
+			env = append(env, acp.EnvVariable{Name: "HOME", Value: home})
+		}
+		return []acp.MCPServer{{
+			Name:    "lathe",
+			Command: exe,
+			Args:    []string{"mcp", "--slug", slug},
+			Env:     env,
+		}}
+	}
+}
+
+func (h *agentHost) mcpServers(slug string) []acp.MCPServer {
+	if h.mcp == nil {
+		return nil
+	}
+	return h.mcp(slug)
+}
 
 // Close stops the hosted agent, if any.
 func (s *Server) Close() {
@@ -270,7 +306,7 @@ func (h *agentHost) startAsk(tutDir, slug, part, question string) (*askRun, erro
 			abs = tutDir
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), agentStartTimeout)
-		sid, err = c.NewSession(ctx, abs)
+		sid, err = c.NewSession(ctx, abs, h.mcpServers(slug)...)
 		cancel()
 		if err != nil {
 			return nil, err

@@ -389,6 +389,11 @@ lathe store /tmp/lathe-<slug> \
   --model "<model you are running as>"
 ```
 
+If your session has the `lathe_store` MCP tool (from `lathe mcp`), call it
+instead with the same values: `path`, `tags`, `repo`, `repo_branch`, `tools`
+(a list of `{name, version}`), `sources` (a list of `{title, url}`), `voice` and
+`model`. Everything below about which values to pass applies to it unchanged.
+
 Choose **2–5** lowercase tags so the tutorial is findable in `lathe serve`'s
 search and tag filters. Cover, where they apply: the language/runtime (`zig`,
 `rust`, `go`), the domain (`audio`, `compilers`, `databases`), and the core

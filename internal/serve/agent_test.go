@@ -448,3 +448,43 @@ func TestStaleHTMLSnapshotsAreDropped(t *testing.T) {
 		t.Errorf("events = %+v", evs)
 	}
 }
+
+func TestAgentSessionGetsLatheMCPServer(t *testing.T) {
+	t.Setenv("HOME", "/home/reader")
+	f := &fakeHost{}
+	srv, ts, _ := newAgentServer(t, f, "ok")
+	srv.agent.mcp = latheMCP("/opt/bin/lathe")
+
+	_, out := askJSON(t, ts, "what is a phase accumulator?")
+	eventStream(t, ts, out["runId"], nil)
+
+	a := f.agent(0)
+	if len(a.MCPServers) != 1 {
+		t.Fatalf("session/new calls = %d, want 1", len(a.MCPServers))
+	}
+	var got []acp.MCPServer
+	if err := json.Unmarshal(a.MCPServers[0], &got); err != nil {
+		t.Fatalf("mcpServers = %s: %v", a.MCPServers[0], err)
+	}
+	want := acp.MCPServer{
+		Name:    "lathe",
+		Command: "/opt/bin/lathe",
+		Args:    []string{"mcp", "--slug", "series"},
+		Env:     []acp.EnvVariable{{Name: "HOME", Value: "/home/reader"}},
+	}
+	if len(got) != 1 || got[0].Name != want.Name || got[0].Command != want.Command ||
+		strings.Join(got[0].Args, " ") != strings.Join(want.Args, " ") ||
+		len(got[0].Env) != 1 || got[0].Env[0] != want.Env[0] {
+		t.Errorf("mcpServers = %+v, want [%+v]", got, want)
+	}
+}
+
+func TestAgentSessionWithoutMCPSendsEmptyList(t *testing.T) {
+	f := &fakeHost{}
+	_, ts, _ := newAgentServer(t, f, "ok")
+	_, out := askJSON(t, ts, "hi")
+	eventStream(t, ts, out["runId"], nil)
+	if got := string(f.agent(0).MCPServers[0]); got != "[]" {
+		t.Errorf("mcpServers = %s, want [] (the field is required)", got)
+	}
+}

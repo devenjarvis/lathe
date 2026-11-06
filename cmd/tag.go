@@ -2,10 +2,8 @@ package cmd
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
 
-	"github.com/devenjarvis/lathe/internal/config"
 	"github.com/devenjarvis/lathe/internal/store"
 	"github.com/spf13/cobra"
 )
@@ -18,8 +16,9 @@ var (
 
 // tagCmd mutates a tutorial's tags. Like verify-result and extend-commit, it is
 // a write-only state mutation: the /lathe-tag skill (or the user) chooses the
-// tags — the model work — and this command persists them, keeping the Go binary
-// the sole writer of metadata.json.
+// tags — the model work — and this command persists them via store.UpdateTags
+// (shared with the lathe_tag MCP tool), keeping the Go binary the sole writer
+// of metadata.json.
 var tagCmd = &cobra.Command{
 	Use:   "tag <slug>",
 	Short: "Set, add, or remove tags on a tutorial (used by the /lathe-tag skill)",
@@ -32,42 +31,13 @@ var tagCmd = &cobra.Command{
 		if len(tagSet) == 0 && len(tagAdd) == 0 && len(tagRemove) == 0 {
 			return fmt.Errorf("nothing to do: pass --set, --add, or --remove")
 		}
-
-		tutorialsDir, err := config.TutorialsDir()
+		tutDir, err := store.TutorialPath(slug)
 		if err != nil {
 			return err
 		}
-		tutDir := filepath.Join(tutorialsDir, slug)
-		tut, err := store.ReadMetadata(tutDir)
+		tags, err := store.UpdateTags(tutDir, tagSet, tagAdd, tagRemove)
 		if err != nil {
-			return fmt.Errorf("read metadata for %q: %w", slug, err)
-		}
-
-		// --set replaces the whole list; --add/--remove edit it in place.
-		tags := tut.Tags
-		if len(tagSet) > 0 {
-			tags = splitTags(tagSet)
-		}
-		tags = append(tags, splitTags(tagAdd)...)
-		tags = store.NormalizeTags(tags)
-
-		if remove := store.NormalizeTags(splitTags(tagRemove)); len(remove) > 0 {
-			drop := make(map[string]struct{}, len(remove))
-			for _, r := range remove {
-				drop[r] = struct{}{}
-			}
-			kept := tags[:0]
-			for _, t := range tags {
-				if _, ok := drop[t]; !ok {
-					kept = append(kept, t)
-				}
-			}
-			tags = kept
-		}
-
-		tut.Tags = tags
-		if err := store.WriteMetadata(tutDir, tut); err != nil {
-			return fmt.Errorf("write metadata: %w", err)
+			return err
 		}
 		if len(tags) == 0 {
 			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Cleared tags for %q\n", slug)

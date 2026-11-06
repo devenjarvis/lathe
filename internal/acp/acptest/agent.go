@@ -42,6 +42,8 @@ type Agent struct {
 	Prompts []string
 	// Cwds records the cwd of every session/new.
 	Cwds []string
+	// MCPServers records the mcpServers of every session/new, as sent.
+	MCPServers []json.RawMessage
 }
 
 type frame struct {
@@ -156,13 +158,15 @@ func (a *Agent) handle(f frame, crash func()) {
 		})
 	case "session/new":
 		var p struct {
-			Cwd string `json:"cwd"`
+			Cwd        string          `json:"cwd"`
+			MCPServers json.RawMessage `json:"mcpServers"`
 		}
 		_ = json.Unmarshal(f.Params, &p)
 		a.mu.Lock()
 		a.sessions++
 		id := "sess-" + strconv.Itoa(a.sessions)
 		a.Cwds = append(a.Cwds, p.Cwd)
+		a.MCPServers = append(a.MCPServers, p.MCPServers)
 		a.mu.Unlock()
 		a.respond(f.ID, map[string]string{"sessionId": id})
 	case "session/cancel":

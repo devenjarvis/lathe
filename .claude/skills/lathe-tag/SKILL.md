@@ -7,6 +7,8 @@ description: Pick or backfill the search tags on a stored Lathe tutorial, in ses
 
 Choose the tags that make a stored tutorial findable in `lathe serve`'s search and tag filters. Triggered by `/lathe-tag <slug>`.
 
+**Lathe MCP tools.** If your session has the `lathe_tag` tool (`lathe serve` provides Lathe's MCP tools when it hosts you as its agent), persist tags with it — `set`, `add` and `remove` lists, same meaning as the flags — instead of running `lathe tag`. Without it, run the CLI as written below.
+
 ## Protocol
 
 1. **Read the tutorial** at `~/.lathe/tutorials/<slug>/` to understand what it actually teaches.
@@ -33,5 +35,5 @@ Choose the tags that make a stored tutorial findable in `lathe serve`'s search a
 
 ## Boundaries
 
-- Only touches tags, and only via `lathe tag`. Never edit `metadata.json` directly.
+- Only touches tags, and only via `lathe tag` (or the `lathe_tag` MCP tool). Never edit `metadata.json` directly.
 - No generation, verification, or extension — just tags.
