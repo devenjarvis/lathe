@@ -57,6 +57,10 @@ type Server struct {
 	// they fall back to the copy-paste handoff), and a /lathe-work loop long-polls
 	// /-/work to claim and run it. The binary still never drives a model.
 	queue *queue.Queue
+	// agent, when set (lathe serve --agent), is the user's own coding agent
+	// hosted over the Agent Client Protocol. Ask streams from it directly; the
+	// queue and the handoff stay as fallbacks.
+	agent *agentHost
 }
 
 // staticVersion fingerprints the embedded static assets so every page can ask
@@ -138,6 +142,11 @@ func (s *Server) Handler() http.Handler {
 	// reports an ask answer via .../answer or a verify/extend completion via
 	// .../done, and the browser polls GET /-/work/{id} for an ask answer.
 	mux.HandleFunc("GET /-/work", s.handleWorkNext)
+	// Hosted agent (lathe serve --agent): the drawer streams an ask's events and
+	// answers the agent's permission prompts.
+	mux.HandleFunc("GET /-/acp/{id}/events", s.handleAgentEvents)
+	mux.HandleFunc("POST /-/acp/{id}/permission", s.handleAgentPermission)
+	mux.HandleFunc("POST /-/acp/{id}/cancel", s.handleAgentCancel)
 	mux.HandleFunc("GET /-/work/{id}", s.handleWorkGet)
 	mux.HandleFunc("POST /-/work/{id}/answer", s.handleWorkAnswer)
 	mux.HandleFunc("POST /-/work/{id}/done", s.handleWorkDone)

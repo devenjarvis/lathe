@@ -13,13 +13,12 @@ import (
 // expected to be short prose; anything bigger is almost certainly abuse.
 const maxQuestionBytes = 8 << 10 // 8 KiB
 
-// handleAsk hands the reader the command to paste into their interactive
-// coding-agent session, where the /lathe-ask skill answers questions about the
-// part they're reading. The binary never drives a model itself; routing
-// through the interactive session keeps the work on the user's subscription and
-// preserves the skill's read-only access to sibling parts. The handler still
-// validates the slug/part/question so the drawer can surface a clean error
-// before the user copies anything.
+// handleAsk routes a reader's question about the part they're reading to the
+// /lathe-ask skill running in the user's own agent: the agent `lathe serve
+// --agent` hosts over ACP when there is one, else a /lathe-work worker, else a
+// command to paste into their session. The binary never calls a model API
+// itself. The handler validates the slug/part/question first so the drawer can
+// surface a clean error before anything runs or is copied.
 func (s *Server) handleAsk(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -71,6 +70,11 @@ func (s *Server) handleAsk(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Order of preference: the agent lathe serve hosts (streams into the
+	// drawer), then a connected /lathe-work worker, then the paste-able handoff.
+	if s.askViaAgent(w, tutDir, slug, part, question) {
+		return
+	}
 	if s.queue.WorkerConnected() {
 		id := s.queue.Enqueue(queue.Job{Type: queue.JobAsk, Slug: slug, Part: part, Question: question})
 		writeQueued(w, id)

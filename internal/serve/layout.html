@@ -1028,6 +1028,175 @@
       }, 1500);
     }
 
+    // A short muted line in the log: tool use, a stopped answer, or why the
+    // hosted agent fell back to the handoff.
+    function appendNote(text, cls){
+      var was = nearBottom();
+      var el = document.createElement('p');
+      el.className = 'ask-note' + (cls ? ' ' + cls : '');
+      el.textContent = text;
+      log.appendChild(el);
+      if (was) pinBottom();
+      return el;
+    }
+
+    function postJSON(url, body){
+      return fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: body ? JSON.stringify(body) : '{}'
+      });
+    }
+
+    // The agent's permission prompt as a card with one button per option the
+    // agent offered (Allow / Deny, sometimes "always" variants). before, when
+    // given, is the not-yet-started answer bubble: the card goes above it so
+    // the answer reads after the permission it waited on.
+    function appendPermission(runId, ev, before){
+      var was = nearBottom();
+      var card = document.createElement('div');
+      card.className = 'ask-permission';
+      card.setAttribute('role', 'group');
+      card.setAttribute('data-permission', ev.id);
+      var label = document.createElement('p');
+      label.className = 'ask-permission-label';
+      label.textContent = 'The agent asks permission to:';
+      card.appendChild(label);
+      var title = document.createElement('p');
+      title.className = 'ask-permission-title';
+      title.textContent = ev.title || 'use a tool';
+      card.appendChild(title);
+      var row = document.createElement('div');
+      row.className = 'ask-permission-options';
+      (ev.options || []).forEach(function(opt){
+        var b = document.createElement('button');
+        b.type = 'button';
+        var allow = (opt.kind || '').indexOf('allow') === 0;
+        b.className = 'btn btn-sm ' + (allow ? 'btn-primary' : 'btn-ghost');
+        b.textContent = opt.name || opt.optionId;
+        b.setAttribute('data-option', opt.optionId);
+        b.setAttribute('data-kind', opt.kind || '');
+        b.addEventListener('click', function(){
+          row.querySelectorAll('button').forEach(function(x){ x.disabled = true; });
+          postJSON('/-/acp/' + encodeURIComponent(runId) + '/permission', { permissionId: ev.id, optionId: opt.optionId })
+            .then(function(r){
+              if (!r.ok) return r.text().then(function(t){ throw new Error(t || ('HTTP ' + r.status)); });
+            })
+            .catch(function(err){
+              row.querySelectorAll('button').forEach(function(x){ x.disabled = false; });
+              appendNote('Could not send your answer: ' + (err && err.message ? err.message : 'request failed'), 'ask-note-error');
+            });
+        });
+        row.appendChild(b);
+      });
+      card.appendChild(row);
+      if (before) log.insertBefore(card, before); else log.appendChild(card);
+      if (was) pinBottom();
+      var first = row.querySelector('button');
+      if (first) { try { first.focus(); } catch(e){} }
+    }
+
+    function resolvePermission(ev){
+      var card = log.querySelector('[data-permission="' + ev.id + '"]');
+      if (!card) return;
+      var picked = ev.choice ? card.querySelector('[data-option="' + ev.choice + '"]') : null;
+      var row = card.querySelector('.ask-permission-options');
+      var result = document.createElement('p');
+      result.className = 'ask-permission-result';
+      if (picked) {
+        var allowed = (picked.getAttribute('data-kind') || '').indexOf('allow') === 0;
+        result.textContent = (allowed ? 'Allowed' : 'Denied') + ' (' + picked.textContent + ')';
+      } else {
+        result.textContent = 'No answer — the agent skipped it.';
+      }
+      if (row) row.replaceWith(result);
+      card.classList.add('resolved');
+    }
+
+    // Stream an answer from the agent lathe serve hosts. Chunks append to one
+    // bubble as plain text; when the turn ends the server's rendered markdown
+    // replaces it. Resolves when the stream ends, so the form stays busy (the
+    // server takes one question per part at a time).
+    function streamAgent(runId){
+      return new Promise(function(resolve){
+        var bubble = appendThinking();
+        var started = false;
+        var tool = null;
+        var stop = document.createElement('button');
+        stop.type = 'button';
+        stop.className = 'btn btn-sm btn-ghost ask-stop';
+        stop.textContent = 'Stop';
+        stop.addEventListener('click', function(){
+          stop.disabled = true;
+          postJSON('/-/acp/' + encodeURIComponent(runId) + '/cancel').catch(function(){});
+        });
+        var controls = form.querySelector('.ask-controls');
+        controls.insertBefore(stop, controls.firstChild);
+
+        var es = new EventSource('/-/acp/' + encodeURIComponent(runId) + '/events');
+        function end(){
+          es.close();
+          stop.remove();
+          bubble.classList.remove('ask-streaming');
+          resolve();
+        }
+        es.onmessage = function(msg){
+          var ev;
+          try { ev = JSON.parse(msg.data); } catch (e) { return; }
+          var was = nearBottom();
+          if (ev.type === 'chunk') {
+            if (!started) {
+              started = true;
+              bubble.textContent = '';
+              bubble.classList.remove('ask-thinking');
+              bubble.classList.add('ask-streaming');
+            }
+            bubble.appendChild(document.createTextNode(ev.text || ''));
+          } else if (ev.type === 'tool') {
+            if (!tool) tool = appendNote('');
+            tool.textContent = 'Agent: ' + ev.title;
+          } else if (ev.type === 'permission') {
+            appendPermission(runId, ev, started ? null : bubble);
+          } else if (ev.type === 'permission_resolved') {
+            resolvePermission(ev);
+          } else if (ev.type === 'done') {
+            bubble.classList.remove('ask-thinking');
+            if (ev.html) {
+              bubble.classList.add('ask-rich');
+              bubble.innerHTML = ev.html;
+            } else if (!started) {
+              bubble.textContent = ev.stopReason === 'cancelled' ? 'Stopped before any answer.' : '(no answer)';
+            }
+            if (ev.stopReason === 'cancelled' && started) appendNote('Stopped.');
+            else if (ev.stopReason === 'refusal') appendNote('The agent declined to answer.');
+            else if (ev.stopReason === 'max_tokens' || ev.stopReason === 'max_turn_requests') appendNote('The agent hit its limit, so the answer may be cut short.');
+            end();
+          } else if (ev.type === 'error') {
+            if (!started) bubble.remove();
+            else bubble.classList.remove('ask-thinking');
+            appendNote(ev.message || 'The agent stopped.', 'ask-note-error');
+            if (ev.command) appendHandoff(ev.command);
+            refreshAgentStatus();
+            end();
+          }
+          if (was) pinBottom();
+        };
+        es.onerror = function(){
+          // EventSource reconnects on its own (resuming via Last-Event-ID);
+          // only give up when it has closed for good.
+          if (es.readyState === EventSource.CLOSED) {
+            bubble.classList.remove('ask-thinking');
+            if (!started) bubble.textContent = 'Lost the connection to lathe serve.';
+            end();
+          }
+        };
+      });
+    }
+
+    function refreshAgentStatus(){
+      if (typeof window.latheRefreshWorker === 'function') window.latheRefreshWorker();
+    }
+
     input.addEventListener('keydown', function(ev){
       if (ev.key === 'Enter' && !ev.shiftKey) {
         ev.preventDefault();
@@ -1057,11 +1226,19 @@
           });
         }
         return response.json().then(function(data){
-          // A connected worker answers in the user's session and posts the answer
-          // back — poll for it. With no worker, fall back to the paste-able handoff.
-          if (data.mode === 'queued') {
+          // The agent lathe serve hosts streams its answer here. A connected
+          // worker answers in the user's session and posts the answer back —
+          // poll for it. Otherwise fall back to the paste-able handoff (with a
+          // note when a hosted agent could not take the question).
+          if (data.mode === 'agent') {
+            return streamAgent(data.runId);
+          } else if (data.mode === 'queued') {
             pollAskAnswer(data.jobId);
           } else {
+            if (data.notice) {
+              appendNote(data.notice, 'ask-note-error');
+              refreshAgentStatus();
+            }
             appendHandoff(data.command || '');
           }
         });
@@ -1082,13 +1259,39 @@
   (function(){
     var dot = document.getElementById('workerStatus');
     if (!dot) return;
+    var workerTitle = dot.getAttribute('title');
+    // With a hosted agent (lathe serve --agent) the indicator reports that
+    // agent's state; otherwise whether a /lathe-work worker is connected.
+    function show(data){
+      var a = data.agent;
+      if (a) {
+        dot.hidden = false;
+        dot.setAttribute('data-state', a.state);
+        if (a.state === 'ready') {
+          dot.textContent = '● agent ready';
+          dot.title = 'Ask runs in ' + a.command + ', hosted by lathe serve over ACP.';
+        } else if (a.state === 'starting') {
+          dot.textContent = '○ agent starting…';
+          dot.title = 'Starting ' + a.command + '…';
+        } else {
+          dot.textContent = '● agent down';
+          dot.title = (a.error || (a.command + ' is not running')) + ' — the next question restarts it, or hands you a command to paste.';
+        }
+        return;
+      }
+      dot.removeAttribute('data-state');
+      dot.textContent = '● agent connected';
+      dot.title = workerTitle;
+      dot.hidden = !data.connected;
+    }
     function refresh(){
       if (document.hidden) return;
       fetch('/-/worker', {headers: {'Accept': 'application/json'}})
         .then(function(r){ return r.ok ? r.json() : null; })
-        .then(function(data){ if (data) dot.hidden = !data.connected; })
+        .then(function(data){ if (data) show(data); })
         .catch(function(){ /* leave the last known state */ });
     }
+    window.latheRefreshWorker = refresh;
     refresh();
     setInterval(refresh, 30000);
   })();
