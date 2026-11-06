@@ -147,7 +147,10 @@
    element on screen and in the accessibility tree — a screen reader keeps
    hearing it and its Dismiss button after they are supposed to be gone. */
 [hidden]{display:none !important}
-html,body{overflow-x:hidden}
+/* clip, not hidden: overflow-x:hidden turns body into a scroll container, and
+   position:sticky on the masthead then never sticks. clip cuts the overflow
+   without making a scroller. */
+html,body{overflow-x:clip}
 /* In-page anchor clicks (section index, ToC drawer, series links) glide to the
    target instead of jumping. Disabled for reduced-motion users below. */
 html{scroll-behavior:smooth}
