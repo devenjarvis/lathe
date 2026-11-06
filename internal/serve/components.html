@@ -105,11 +105,15 @@
      finished verify/extend into place without a full-page reload. Keeping the
      markup here means the page and the endpoint share one source of truth. */}}
 
-{{/* statusHeader — the article-header status badge plus the "Verified <date>"
-     provenance line. */}}
+{{/* statusHeader — the Verification cell of the article-header title block.
+     With a recorded date the badge carries it ("Verified <date>") so the status
+     is read once; unverified and failed add a jump link to the verify panel at
+     the end of the article, where the action lives. */}}
 {{define "statusHeader"}}
-{{- template "badge" .Tutorial.Status}}
-{{- if .VerifiedDate}}<p class="provenance verified-date">{{if eq .Tutorial.Status "skipped"}}Skipped{{else}}Verified{{end}} {{.VerifiedDate}}</p>{{end}}
+{{- if .VerifiedDate}}<span class="badge {{.Tutorial.Status}}"><span class="badge-dot"></span><span class="verified-date">{{if eq .Tutorial.Status "skipped"}}Skipped{{else}}Verified{{end}} {{.VerifiedDate}}</span></span>
+{{- else if eq .Tutorial.Status "unverified"}}<span class="status-none">Not verified</span> <a class="status-jump" href="#verifyRegion">Verify it</a>
+{{- else}}{{template "badge" .Tutorial.Status}}{{if eq .Tutorial.Status "failed"}} <a class="status-jump" href="#verifyRegion">See what failed</a>{{end}}
+{{- end}}
 {{end}}
 
 {{/* verifySection — the failure callout plus the verifying-panel / verify-form. */}}

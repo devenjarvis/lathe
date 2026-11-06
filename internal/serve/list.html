@@ -9,7 +9,7 @@
 <div class="header">
   <div>
     <h1>Lathe</h1>
-    <p class="subtitle">Your generated tutorials</p>
+    <p class="subtitle">{{if .Tutorials}}{{len .Tutorials}} tutorial{{if ne (len .Tutorials) 1}}s{{end}} on your shelf. Want another? Type <code>/lathe</code> and a topic in your agent.{{else}}Hands-on tutorials you build yourself, written by your coding agent.{{end}}</p>
   </div>
   {{template "themeToggle" .}}
 </div>
@@ -66,8 +66,7 @@
       </div>
       {{end}}
       {{end}}
-      {{if .Tools}}<div class="versions">{{range .Tools}}<span class="version">{{.Name}}{{if .Version}} {{.Version}}{{end}}</span>{{end}}</div>{{end}}
-      {{if .Tags}}<div class="tags">{{range .Tags}}<span class="tag">{{.}}</span>{{end}}</div>{{end}}
+      {{if or .Tools .Tags}}<div class="chips">{{if .Tools}}<div class="versions">{{range .Tools}}<span class="version">{{.Name}}{{if .Version}} {{.Version}}{{end}}</span>{{end}}</div>{{end}}{{if .Tags}}<div class="tags">{{range .Tags}}<span class="tag">{{.}}</span>{{end}}</div>{{end}}</div>{{end}}
     </div>
     <div class="tutorial-actions">
       {{template "badge" .Status}}
@@ -80,7 +79,7 @@
 </div>
 <div class="no-results" id="noResults" aria-live="polite" hidden>No tutorials match your search.</div>
 {{else}}
-<div class="empty">No tutorials yet. Run <code>/lathe</code> in your coding agent to generate one.</div>
+<div class="empty"><strong>No tutorials yet</strong>Run <code>/lathe</code> with a topic in your coding agent, for example <code>/lathe build a digital synth in Zig</code>. It appears here when it's stored.</div>
 {{end}}
 <script>
   // Theme toggle — attaches to every [data-theme-toggle] (the shared partial),
