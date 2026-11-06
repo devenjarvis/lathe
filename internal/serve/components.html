@@ -58,7 +58,8 @@
 {{/* liveNudge — a one-time toast nudging the reader to start the /lathe-work
      loop for live mode. Included on both the list and reading pages (shared so
      "first boot" is once total, whichever page loads first). It only appears
-     when no worker is already connected and it has never been shown before
+     when no worker is connected, no agent is hosted (lathe serve --agent), and
+     it has never been shown before
      (localStorage), then fades after a few seconds. Self-contained markup +
      script so a single {{template "liveNudge"}} drops it into either page. */}}
 {{define "liveNudge"}}
@@ -85,10 +86,11 @@
     fetch('/-/worker', {headers: {'Accept': 'application/json'}})
       .then(function(r){ return r.ok ? r.json() : null; })
       .then(function(data){
-        // Mark seen regardless so it's a one-time nudge; skip showing it when a
-        // worker is already connected (they clearly know about live mode).
+        // Skip it when a worker is already connected or lathe serve hosts an
+        // agent (live mode is already on), without spending the one-time flag,
+        // so a later plain `lathe serve` can still show it once.
+        if (data && (data.connected || data.agent)) return;
         try { localStorage.setItem(KEY, '1'); } catch(e){}
-        if (data && data.connected) return;
         el.hidden = false;
         requestAnimationFrame(function(){ el.classList.add('show'); });
         hideTimer = setTimeout(dismiss, 7000);

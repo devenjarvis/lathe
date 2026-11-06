@@ -587,7 +587,41 @@ pre samp{background:none;padding:0;color:inherit;font-family:var(--font-mono);fo
 .ask-rich > :last-child{margin-bottom:0}
 .ask-rich pre{font-size:.85rem}
 .ask-rich h2::before{display:none}
+/* Agent answers are markdown at drawer width: headings step down to the
+   bubble's scale instead of the article's display sizes, and wide blocks
+   scroll inside the bubble rather than stretching it. */
+.ask-rich h1,.ask-rich h2,.ask-rich h3,.ask-rich h4,.ask-rich h5,.ask-rich h6{margin:1.1rem 0 .4rem;line-height:1.25;letter-spacing:-.01em;font-weight:850}
+.ask-rich h1{font-size:1.25rem}
+.ask-rich h2{font-size:1.15rem}
+.ask-rich h3{font-size:1.05rem}
+.ask-rich h4,.ask-rich h5,.ask-rich h6{font-size:1rem}
+.ask-rich p{margin:.55rem 0}
+.ask-rich ul,.ask-rich ol{margin:.5rem 0 .7rem 1.25rem;color:inherit}
+.ask-rich li{margin:.2rem 0}
+.ask-rich pre{margin:.7rem 0;padding:.7rem .85rem;max-width:100%}
+.ask-rich table{display:block;width:max-content;max-width:100%;overflow-x:auto;margin:.7rem 0;font-size:.875rem}
+.ask-rich blockquote{margin:.7rem 0}
+.ask-rich hr{margin:1rem 0}
+.ask-rich img{max-width:100%}
+/* With block content the caret sits on its own line after the last block. */
+.ask-rich.ask-streaming::after{display:block}
 .worker-status{font-size:.8125rem;font-weight:800;color:#1E5E1C;margin-left:auto;margin-right:.4rem;white-space:nowrap}
+/* The header is always yellow, so these inks are fixed rather than themed. */
+.worker-status[data-state="starting"]{color:#1C2140}
+.worker-status[data-state="down"]{color:#962512}
+/* Hosted agent (lathe serve --agent): a blinking caret while text streams, a
+   muted note line for tool use and fallbacks, and the permission card. */
+.ask-streaming::after{content:"▍";margin-left:.1rem;color:var(--text-subtle);animation:ask-caret 1s steps(1) infinite}
+@keyframes ask-caret{50%{opacity:0}}
+@media (prefers-reduced-motion:reduce){.ask-streaming::after{animation:none}}
+.ask-note{align-self:flex-start;margin:-.4rem 0 0 .2rem;font-size:.85rem;color:var(--text-subtle);font-style:italic}
+.ask-note-error{margin-top:0;font-style:normal;font-weight:700;color:var(--badge-failed-text)}
+.ask-permission{align-self:stretch;padding:.75rem .95rem;background:var(--callout-warn-bg);border:2px solid var(--callout-warn-border);border-radius:var(--radius-md);color:var(--text)}
+.ask-permission-label{margin:0;font-size:.8125rem;font-weight:800;color:var(--callout-warn-label);text-transform:uppercase;letter-spacing:.04em}
+.ask-permission-title{margin:.2rem 0 .6rem;font-family:var(--font-mono);font-variation-settings:var(--mono);font-size:.9rem;word-break:break-word}
+.ask-permission-options{display:flex;flex-wrap:wrap;gap:.5rem}
+.ask-permission-result{margin:0;font-size:.9rem;font-weight:700}
+.ask-permission.resolved{background:transparent;border-style:dashed}
 /* First-boot live-mode nudge: a bottom-center toast. */
 .live-nudge{position:fixed;left:50%;bottom:1.25rem;transform:translateX(-50%) translateY(.5rem);z-index:82;display:flex;align-items:center;gap:.6rem;max-width:min(92vw,38rem);padding:.75rem 1rem;background:var(--surface);color:var(--text);border:var(--line) solid var(--rule);border-radius:var(--radius-lg);box-shadow:var(--shadow-md);font-size:.9375rem;line-height:1.45;opacity:0;transition:opacity .35s ease,transform .35s ease}
 .live-nudge.show{opacity:1;transform:translateX(-50%) translateY(0)}

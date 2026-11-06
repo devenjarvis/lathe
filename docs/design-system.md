@@ -121,6 +121,7 @@ Each component is a class in `styles.css`. Markup it expects:
 | Voice reveal | `.voice-reveal`, `.voice-reveal-body` | layout.html (in the Voice cell) |
 | Section index | `#tocRail`, `.label`, `.tick`, `a.active` | layout.html |
 | Ask drawer | `#askDrawer`, `.ask-bubble`, `.ask-question`, `.ask-answer` | layout.html |
+| Ask drawer, hosted agent | `.ask-streaming` (caret), `.ask-note`/`.ask-note-error`, `.ask-permission` (+`-label`/`-title`/`-options`/`-result`, `.resolved`), `.worker-status[data-state]` | layout.html |
 | Reading progress bar | `#progressBar` | layout.html |
 | Progress toast | `.progress-status`, `#progressStatus` (`aria-hidden`) | layout.html |
 | Announced status region | `#statusAnnouncer` (`role="status"`, shared by the progress and copy flows) | layout.html |

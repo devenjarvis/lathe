@@ -106,10 +106,15 @@ func (s *Server) handleWorkDone(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// handleWorker reports whether a worker is currently connected, for the UI's
-// "agent connected" indicator and to tune button copy.
+// handleWorker reports whether a worker is currently connected and, when
+// lathe serve hosts an agent, that agent's state — for the drawer's status
+// indicator.
 func (s *Server) handleWorker(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, map[string]bool{"connected": s.queue.WorkerConnected()})
+	resp := map[string]any{"connected": s.queue.WorkerConnected()}
+	if s.agent != nil {
+		resp["agent"] = s.agent.status()
+	}
+	writeJSON(w, resp)
 }
 
 // writeJSON encodes v as a JSON response with the right content type.

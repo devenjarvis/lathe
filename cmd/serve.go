@@ -17,7 +17,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var servePort int
+var (
+	servePort  int
+	serveAgent string
+)
 
 var serveCmd = &cobra.Command{
 	Use:   "serve",
@@ -28,6 +31,10 @@ var serveCmd = &cobra.Command{
 			return err
 		}
 		srv := serve.NewServer(dir)
+		if serveAgent != "" {
+			srv.SetAgent(serveAgent)
+		}
+		defer srv.Close()
 		url := fmt.Sprintf("http://localhost:%d", servePort)
 
 		// Record the running server so the worker CLI (`lathe work ...`) can find
@@ -40,10 +47,14 @@ var serveCmd = &cobra.Command{
 		defer func() { _ = config.RemoveServeRuntime() }()
 
 		fmt.Printf("Serving tutorials at %s\n", url)
-		// Nudge toward live mode without spawning anything: starting the loop is
-		// the user's call (it can't be agent-agnostic or non-metered otherwise —
-		// see the worker-bridge note in AGENTS.md).
-		fmt.Println("Live mode: run /lathe-work in your coding agent to drive Ask/Verify/Extend here (otherwise the buttons hand you a command to paste).")
+		if serveAgent != "" {
+			fmt.Printf("Agent: Ask runs in %q over the Agent Client Protocol (its permission prompts appear in the Ask drawer).\n", serveAgent)
+			fmt.Println("Verify/Extend: run /lathe-work in your coding agent to drive them here (otherwise they hand you a command to paste).")
+		} else {
+			// Nudge toward live mode. Starting the loop, or naming an agent to
+			// host, is the user's call — see the boundary note in AGENTS.md.
+			fmt.Println("Live mode: run /lathe-work in your coding agent to drive Ask/Verify/Extend here, or restart with --agent <acp-command> to host one (otherwise the buttons hand you a command to paste).")
+		}
 		openBrowser(url)
 
 		// Bind to loopback only: the server is unauthenticated and exposes a
@@ -95,5 +106,6 @@ func openBrowser(url string) {
 
 func init() {
 	serveCmd.Flags().IntVar(&servePort, "port", 4242, "port to listen on")
+	serveCmd.Flags().StringVar(&serveAgent, "agent", "", "command that starts your coding agent's ACP server (e.g. \"claude-agent-acp\"); Ask then streams from it in the browser")
 	rootCmd.AddCommand(serveCmd)
 }
