@@ -67,6 +67,11 @@
   --callout-recall-bg:#E4E6F6; --callout-recall-border:#6C73B8; --callout-recall-label:#3F4690;
   --callout-unverified-bg:#FBD3CB; --callout-unverified-border:#C0331C; --callout-unverified-label:#962512;
 
+  /* Jigs — interactive blocks (internal/jig). Right/wrong are the reader's
+     verdicts on a Guess first; the frame itself uses the yellow masthead. */
+  --jig-right-bg:#DDEFEE; --jig-right-border:#1E7C79;
+  --jig-wrong-bg:#FBD3CB; --jig-wrong-border:#C0331C;
+
   /* Bookshelf cover colors, cycled through the list */
   --cover-1:#D63B22; --cover-1-ink:#FFFFFF;
   --cover-2:#1E7C79; --cover-2-ink:#FFFFFF;
@@ -125,6 +130,9 @@
   --callout-predict-bg:#3B3317; --callout-predict-border:#F5C33B; --callout-predict-label:#F5C33B;
   --callout-recall-bg:#272C52; --callout-recall-border:#8A90D0; --callout-recall-label:#BFC3F0;
   --callout-unverified-bg:#44211B; --callout-unverified-border:#FF8C75; --callout-unverified-label:#FF8C75;
+
+  --jig-right-bg:#133533; --jig-right-border:#6FD0C9;
+  --jig-wrong-bg:#44211B; --jig-wrong-border:#FF8C75;
 
   --cover-4:#0B0E21; --cover-4-ink:#FFF4D6;
 
@@ -299,6 +307,51 @@ pre samp{background:none;padding:0;color:inherit;font-family:var(--font-mono);fo
 .mermaid[data-mermaid-state="pending"]{visibility:hidden}
 .mermaid[data-mermaid-state="failed"]{display:none}
 .diagram-unavailable{margin:1.5rem 0;padding:.9rem 1.1rem;border:2px dashed var(--border-strong);border-radius:var(--radius-md);color:var(--text-subtle)}
+
+/* Jigs (emitted by internal/jig as a figure.jig.jig-KIND[data-jig]).
+   The shared frame: a chunky outlined card with the yellow masthead strip,
+   a navy kind pill ("Guess first") and a Casual title. Each kind styles only
+   its .jig-body. See docs/jigs.md. */
+.jig{margin:2rem 0;border:var(--line) solid var(--rule);border-radius:var(--radius-lg);background:var(--surface);overflow:hidden}
+.jig-head{display:flex;flex-wrap:wrap;align-items:center;gap:.4rem .75rem;padding:.7rem 1.1rem;border-bottom:var(--line) solid var(--rule);background:var(--yellow);color:var(--on-yellow)}
+.jig-kind{font-size:.8125rem;font-weight:800;line-height:1.5;padding:.1rem .7rem;border-radius:var(--radius-pill);background:var(--cmd-bg);color:var(--cmd-text)}
+.jig-title{font-family:var(--font-display);font-variation-settings:var(--casual);font-size:1.15rem;font-weight:850;line-height:1.3}
+.jig-body{padding:1.1rem}
+.jig-body > :last-child{margin-bottom:0}
+/* A jig whose source doesn't parse: name the problem, keep the source. */
+.jig-error{margin:1.75rem 0;padding:1rem 1.25rem;border:2px dashed var(--callout-unverified-border);border-radius:var(--radius-lg);background:var(--callout-unverified-bg)}
+.jig-error-label{font-family:var(--font-display);font-variation-settings:var(--casual);font-weight:900;color:var(--callout-unverified-label);margin:0 0 .3rem}
+.jig-error-msg{margin:0 0 .6rem;color:var(--text)}
+.jig-error pre{margin:0}
+
+/* Guess first. Fallback: a lettered list and a <details> answer. Enhanced
+   (guess.js): pressable choices, a Lock it in step, an in-place verdict. */
+.jig-guess{max-width:var(--measure)}
+.jig-guess .jig-body{background:var(--accent-soft)}
+.jig-guess-ask{font-family:var(--font-display);font-variation-settings:var(--casual);font-size:1.25rem;font-weight:850;line-height:1.35;margin:0 0 .9rem}
+.jig-guess-options{margin:0 0 .9rem;padding-left:1.6rem}
+.jig-guess-options li{margin:.3rem 0}
+.jig-guess-reveal{border:2px solid var(--rule);border-radius:var(--radius-md);background:var(--surface);padding:.6rem .9rem}
+.jig-guess-reveal summary{cursor:pointer;font-weight:800}
+.jig-guess-reveal[open] summary{margin-bottom:.5rem}
+.jig-guess-answer{margin:0 0 .4rem}
+.jig-guess-explain > :last-child{margin-bottom:0}
+[data-jig-ready].jig-guess .jig-guess-options{list-style:none;padding:0;display:flex;flex-direction:column;gap:.5rem}
+[data-jig-ready].jig-guess .jig-guess-options li{margin:0}
+.jig-guess-choice{display:flex;align-items:center;gap:.85rem;width:100%;min-height:3.25rem;padding:.55rem 1rem;text-align:left;font:inherit;font-weight:600;line-height:1.4;color:var(--text);background:var(--surface);border:2px solid var(--rule);border-radius:14px;cursor:pointer;transition:background var(--transition),border-color var(--transition),color var(--transition)}
+.jig-guess-choice:hover{background:var(--bg)}
+.jig-guess-key{flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;width:2rem;height:2rem;border-radius:var(--radius-pill);border:2px solid currentColor;font-weight:900}
+.jig-guess-choice.is-picked{background:var(--text);color:var(--bg);border-color:var(--text)}
+.jig-guess-choice.is-right{background:var(--jig-right-bg);border-color:var(--jig-right-border)}
+.jig-guess-choice.is-wrong{background:var(--jig-wrong-bg);border-color:var(--jig-wrong-border)}
+.jig-guess-choice[aria-disabled="true"]{cursor:default}
+.jig-guess-choice[aria-disabled="true"]:not(.is-right):not(.is-wrong){opacity:.7}
+.jig-guess-actions{display:flex;flex-wrap:wrap;align-items:center;gap:.75rem 1rem}
+.jig-guess-actions[hidden]{display:none}
+.jig-guess-hint{font-size:.9rem;color:var(--text-subtle)}
+.jig-guess-verdict:empty{display:none}
+.jig-guess-verdict{border:2px solid var(--rule);border-radius:var(--radius-md);background:var(--surface);padding:.75rem 1rem;line-height:1.55}
+.jig-guess-result{margin:0 0 .3rem}
 
 /* ---- 4. Components ------------------------------------------------------- */
 

@@ -130,6 +130,7 @@ Each component is a class in `styles.css`. Markup it expects:
 | Callouts | `.callout.callout-<type>`, `.callout-label` | emitted by `renderer.go` |
 | Tutorial blocks | `.tutorial-block`, `.tutorial-block-command`/`-output`/`-code`, `.tutorial-block-label`, `.copy-command` | emitted by `renderer.go` |
 | Code blocks | `pre`, `pre.chroma`, `code`, `samp` | goldmark + chroma |
+| Jigs | `.jig.jig-<kind>[data-jig]`, `.jig-head`, `.jig-kind`, `.jig-title`, `.jig-body`, `.jig-error`; per kind e.g. `.jig-guess-*`, enhanced state under `[data-jig-ready]` | emitted by `internal/jig` (see [jigs.md](jigs.md)) |
 
 The `head`, `badge`, and `themeToggle` partials are parsed into **both** the
 layout and list template sets (see `NewServer` in `server.go`).
@@ -176,6 +177,16 @@ index in the right gutter; from 900–1239px the tick rail that expands on hover
 or focus; below 900px hidden, with the hamburger drawer (`#sidebar`) instead.
 The scroll-spy is position-based (last `h2[id]` above a line 30% down the
 viewport, else Top) and marks both the rail and the drawer.
+
+### Jigs
+
+Interactive blocks (`internal/jig`, documented in [jigs.md](jigs.md)) share one
+frame: a `--line` outline, the yellow masthead strip as the header, a navy kind
+pill (`.jig-kind`, "Guess first") and a Casual title. Each kind styles only its
+`.jig-body`. Guess first sits on `--accent-soft` paper; its verdict colors are
+the `--jig-right-*` / `--jig-wrong-*` tokens. A jig whose source doesn't parse
+renders as `.jig-error`, a dashed panel in the unverified colors with the
+source underneath.
 
 ### List page — the bookshelf
 

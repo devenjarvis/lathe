@@ -20,6 +20,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/devenjarvis/lathe/internal/jig"
 	"github.com/devenjarvis/lathe/internal/queue"
 	"github.com/devenjarvis/lathe/internal/store"
 	"github.com/devenjarvis/lathe/internal/voice"
@@ -48,6 +49,9 @@ type Server struct {
 	listTmpl     *template.Template
 	highlightCSS template.CSS
 	designCSS    template.CSS
+	// jigScript is the jig library's browser bundle (runtime + every kind's
+	// enhancer), inlined by layout.html only on parts that contain a jig.
+	jigScript template.JS
 	// queue bridges the browser and an interactive coding-agent session: the
 	// ask/verify/extend buttons enqueue a job when a worker is connected (else
 	// they fall back to the copy-paste handoff), and a /lathe-work loop long-polls
@@ -113,6 +117,7 @@ func NewServer(tutorialsDir string) *Server {
 		listTmpl:     listTmpl,
 		highlightCSS: css,
 		designCSS:    template.CSS(stylesCSS),
+		jigScript:    template.JS(jig.Script()),
 		queue:        queue.New(),
 	}
 }
@@ -607,6 +612,7 @@ func (s *Server) renderPart(w http.ResponseWriter, tut *store.Tutorial, tutDir, 
 		"Content":           template.HTML(content),
 		"CSS":               s.designCSS,
 		"HighlightCSS":      s.highlightCSS,
+		"JigScript":         jigScriptFor(content, s.jigScript),
 		"PrevPart":          prevPart,
 		"NextPart":          nextPart,
 		"PrevTitle":         prevTitle,
@@ -628,6 +634,15 @@ func (s *Server) renderPart(w http.ResponseWriter, tut *store.Tutorial, tutDir, 
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_, _ = buf.WriteTo(w)
+}
+
+// jigScriptFor returns the jig bundle when the rendered part contains a jig, and
+// nothing otherwise, so a part without jigs ships no jig code.
+func jigScriptFor(content []byte, script template.JS) template.JS {
+	if jig.Present(content) {
+		return script
+	}
+	return ""
 }
 
 func pendingPartNumber(pendingPart string, fallback int) int {
