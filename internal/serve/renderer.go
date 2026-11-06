@@ -543,9 +543,16 @@ func preprocessMermaid(src []byte) []byte {
 			return match
 		}
 		var b bytes.Buffer
-		b.WriteString("\n<div class=\"mermaid\" data-note=\"" + html.EscapeString(diagramUnavailableNote) + "\">\n")
-		b.WriteString(html.EscapeString(string(sub[1])))
-		b.WriteString("\n</div>\n")
+		// The source has to survive CommonMark's HTML-block rules. A block ends at
+		// the first blank line — and a line of spaces counts as blank — so a
+		// diagram whose fence contains one was chopped there, with the rest
+		// parsed as markdown and handed to Mermaid as a syntax error. Keeping the
+		// block on one physical line, with newlines written as &#10;, leaves no
+		// blank line to end it, and textContent decodes the entity back to the
+		// newline, so Mermaid sees the source unchanged.
+		b.WriteString("\n<div class=\"mermaid\" data-note=\"" + html.EscapeString(diagramUnavailableNote) + "\">")
+		b.WriteString(strings.ReplaceAll(html.EscapeString(string(sub[1])), "\n", "&#10;"))
+		b.WriteString("</div>\n")
 		// Without scripting the block would show its own source, which is not a
 		// figure. The prose around every diagram already repeats its content (the
 		// diagram contract in AGENTS.md), so name the absence instead.
