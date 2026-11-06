@@ -30,8 +30,10 @@ type SessionUpdate struct {
 	Status     string          `json:"status,omitempty"`
 	// MessageID, when the agent sends one, changes between the separate
 	// messages of one turn.
-	MessageID string          `json:"messageId,omitempty"`
-	Raw       json.RawMessage `json:"-"`
+	MessageID string `json:"messageId,omitempty"`
+	// ToolKind is a tool call's kind (read, edit, execute, …).
+	ToolKind string          `json:"kind,omitempty"`
+	Raw      json.RawMessage `json:"-"`
 }
 
 // Text returns the update's text when its content is a single text block (as
@@ -88,8 +90,13 @@ type Client struct {
 	conn   *Conn
 	closer func() error
 
-	mu       sync.Mutex
-	sessions map[string]SessionHandler
+	mu        sync.Mutex
+	sessions  map[string]SessionHandler
+	policies  map[string]*Policy
+	terminals map[string]*terminal
+	termSeq   int64
+	closed    bool
+	iso       isolationCounts
 
 	// CancelGrace is how long Prompt keeps waiting for the agent's
 	// stopReason after sending session/cancel.
@@ -137,7 +144,13 @@ func Start(ctx context.Context, command, dir string, stderr io.Writer) (*Client,
 // NewClient wraps an already-connected stream. closer (optional) is run by
 // Close. Initialize is not called.
 func NewClient(r io.Reader, w io.Writer, closer func() error) *Client {
-	c := &Client{closer: closer, sessions: map[string]SessionHandler{}, CancelGrace: 5 * time.Second}
+	c := &Client{
+		closer:      closer,
+		sessions:    map[string]SessionHandler{},
+		policies:    map[string]*Policy{},
+		terminals:   map[string]*terminal{},
+		CancelGrace: 5 * time.Second,
+	}
 	c.conn = NewConn(r, w, c)
 	return c
 }
@@ -148,23 +161,26 @@ func (c *Client) Done() <-chan struct{} { return c.conn.Done() }
 // Err reports why the stream ended, or nil while it is open.
 func (c *Client) Err() error { return c.conn.Err() }
 
-// Close stops the agent.
+// Close stops the agent and any command it started.
 func (c *Client) Close() error {
+	c.killTerminals()
 	if c.closer != nil {
 		return c.closer()
 	}
 	return nil
 }
 
-// Initialize negotiates the protocol version. Lathe advertises no fs or
-// terminal capability: the agent works with its own tools.
+// Initialize negotiates the protocol version. Lathe advertises the fs and
+// terminal capabilities, and answers those requests within each session's
+// Policy (see SetPolicy); an agent that still uses its own tools shows up in
+// Isolation as "soft".
 func (c *Client) Initialize(ctx context.Context) (*AgentInfo, error) {
 	params := map[string]any{
 		"protocolVersion": ProtocolVersion,
 		"clientInfo":      map[string]string{"name": "lathe", "title": "Lathe"},
 		"clientCapabilities": map[string]any{
-			"fs":       map[string]bool{"readTextFile": false, "writeTextFile": false},
-			"terminal": false,
+			"fs":       map[string]bool{"readTextFile": true, "writeTextFile": true},
+			"terminal": true,
 		},
 	}
 	var info AgentInfo
@@ -292,21 +308,30 @@ func (c *Client) HandleNotification(method string, params json.RawMessage) {
 	if json.Unmarshal(params, &p) != nil {
 		return
 	}
-	h := c.handlerFor(p.SessionID)
-	if h == nil {
-		return
-	}
 	var u SessionUpdate
 	if json.Unmarshal(p.Update, &u) != nil {
 		return
 	}
+	h := c.handlerFor(p.SessionID)
+	if h == nil {
+		if u.Kind == "tool_call" || u.Kind == "tool_call_update" {
+			c.observeToolCall(u)
+		}
+		return
+	}
 	u.Raw = p.Update
+	if u.Kind == "tool_call" || u.Kind == "tool_call_update" {
+		c.observeToolCall(u)
+	}
 	h.Update(u)
 }
 
-// HandleRequest answers the agent's requests. Only permission requests are
-// supported; fs/* and terminal/* were not advertised, so they are refused.
+// HandleRequest answers the agent's requests: permission prompts, and the
+// fs/* and terminal/* methods within the session's Policy.
 func (c *Client) HandleRequest(ctx context.Context, method string, params json.RawMessage) (any, error) {
+	if res, ok, err := c.handleClientMethod(ctx, method, params); ok {
+		return res, err
+	}
 	if method != "session/request_permission" {
 		return nil, &RPCError{Code: codeMethodNotFound, Message: "method not supported by lathe: " + method}
 	}

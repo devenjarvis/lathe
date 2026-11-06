@@ -5,10 +5,10 @@
 //
 // The package speaks only the client half of the protocol Lathe needs —
 // initialize, session/new, session/prompt, session/cancel, the session/update
-// stream and session/request_permission. It advertises no filesystem or
-// terminal capabilities, so the agent uses its own tools (under its own
-// permission prompts, which surface here as permission requests). It never
-// calls a model API itself: the agent process does all model work.
+// stream and session/request_permission — plus the client methods fs/* and
+// terminal/*, which it answers only within a per-session Policy, so Lathe can
+// bound what a job reads, writes and runs. It never calls a model API itself:
+// the agent process does all model work.
 package acp
 
 import (

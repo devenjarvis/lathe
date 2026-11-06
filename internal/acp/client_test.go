@@ -228,7 +228,7 @@ func TestStartBadCommand(t *testing.T) {
 
 func TestUnsupportedRequestRefused(t *testing.T) {
 	c := acp.NewClient(strings.NewReader(""), io.Discard, nil)
-	_, err := c.HandleRequest(context.Background(), "fs/read_text_file", nil)
+	_, err := c.HandleRequest(context.Background(), "editor/open_file", nil)
 	var rpcErr *acp.RPCError
 	if !errors.As(err, &rpcErr) || rpcErr.Code != -32601 {
 		t.Errorf("err = %v, want method-not-found", err)

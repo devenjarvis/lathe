@@ -609,12 +609,21 @@ pre samp{background:none;padding:0;color:inherit;font-family:var(--font-mono);fo
 /* The header is always yellow, so these inks are fixed rather than themed. */
 .worker-status[data-state="starting"]{color:#1C2140}
 .worker-status[data-state="down"]{color:#962512}
+/* Hosted agent isolation: whether file access goes through Lathe's per-job
+   policy. Same fixed inks as the status on the yellow header. */
+.agent-isolation{font-size:.75rem;font-weight:700;color:#1C2140;margin-right:.4rem;padding:.05rem .45rem;border:1.5px solid currentColor;border-radius:999px;white-space:nowrap;cursor:help}
+.agent-isolation[data-isolation="enforced"]{color:#1E5E1C}
+.agent-isolation[data-isolation="soft"]{color:#962512;border-style:dashed}
 /* Hosted agent (lathe serve --agent): a blinking caret while text streams, a
    muted note line for tool use and fallbacks, and the permission card. */
 .ask-streaming::after{content:"▍";margin-left:.1rem;color:var(--text-subtle);animation:ask-caret 1s steps(1) infinite}
 @keyframes ask-caret{50%{opacity:0}}
 @media (prefers-reduced-motion:reduce){.ask-streaming::after{animation:none}}
 .ask-note{align-self:flex-start;margin:-.4rem 0 0 .2rem;font-size:.85rem;color:var(--text-subtle);font-style:italic}
+.ask-note-blocked{font-style:normal;font-weight:700;color:var(--badge-failed-text)}
+.ask-terminal{align-self:stretch;margin:-.2rem 0 0;font-size:.85rem}
+.ask-terminal summary{cursor:pointer;color:var(--text-subtle);font-family:var(--font-mono);font-variation-settings:var(--mono)}
+.ask-terminal pre{margin:.4rem 0 0;max-height:14rem;overflow:auto;font-size:.8rem}
 .ask-note-error{margin-top:0;font-style:normal;font-weight:700;color:var(--badge-failed-text)}
 .ask-permission{align-self:stretch;padding:.75rem .95rem;background:var(--callout-warn-bg);border:2px solid var(--callout-warn-border);border-radius:var(--radius-md);color:var(--text)}
 .ask-permission-label{margin:0;font-size:.8125rem;font-weight:800;color:var(--callout-warn-label);text-transform:uppercase;letter-spacing:.04em}
@@ -784,6 +793,11 @@ body.list h1{font-size:clamp(3rem,2rem + 4.5vw,5.25rem);font-weight:1000;margin:
   .filter-label{flex-basis:100%}
   .tutorial{min-height:15rem}
   .tutorial-link{font-size:1.45rem}
+  /* Narrow drawer: title and close on the first row, agent status below. */
+  #askDrawer header{flex-wrap:wrap;row-gap:.35rem}
+  #askDrawer header h3{flex:1 1 calc(100% - 3rem)}
+  #askClose{order:1}
+  #askDrawer .worker-status,#askDrawer .agent-isolation{order:2;margin-left:0}
 }
 
 /* Reduced motion: the drawer/sidebar slide, the live-nudge fade, and the

@@ -25,6 +25,11 @@ import (
 //
 // MVP scope: Ask only. Verify/Extend keep using the /lathe-work queue or the
 // copy-paste handoff.
+//
+// Each session gets a file/terminal policy (acp.AskPolicy: read the tutorial
+// dir, no writes, no commands) that Lathe enforces on the agent's fs/* and
+// terminal/* requests. Agents that use their own tools instead are reported
+// as "soft" isolation in the drawer.
 
 const (
 	// agentStartTimeout bounds initialize; adapters launched through npx can
@@ -234,6 +239,9 @@ type agentStatus struct {
 	// State is "starting", "ready" or "down".
 	State string `json:"state"`
 	Error string `json:"error,omitempty"`
+	// Isolation says whether the agent's file access goes through Lathe's
+	// per-job policy (only while the agent is running).
+	Isolation *acp.Isolation `json:"isolation,omitempty"`
 }
 
 func (h *agentHost) status() agentStatus {
@@ -245,6 +253,8 @@ func (h *agentHost) status() agentStatus {
 		st.State = "starting"
 	case alive(h.client):
 		st.State = "ready"
+		iso := h.client.Isolation()
+		st.Isolation = &iso
 	default:
 		st.State = "down"
 	}
@@ -266,7 +276,8 @@ func askPrompt(tutDir, slug, part, question string) string {
 	var b strings.Builder
 	b.WriteString("You are answering a reader's question from the Ask drawer of the Lathe web reader. ")
 	b.WriteString("Follow the /lathe-ask skill below. Your reply is shown to the reader as markdown, so reply with the answer itself — no preamble about the protocol.\n\n")
-	fmt.Fprintf(&b, "The tutorial is stored in %s (your working directory); the reader is on %s.\n\n", tutDir, part)
+	fmt.Fprintf(&b, "The tutorial is stored in %s (your working directory); the reader is on %s.\n", tutDir, part)
+	b.WriteString("Lathe lets this session read files under that directory only; it may not write files or run commands, and requests outside that are refused.\n\n")
 	b.WriteString("<skill name=\"lathe-ask\">\n")
 	b.WriteString(strings.TrimSpace(skill))
 	b.WriteString("\n</skill>\n\n")
@@ -311,6 +322,7 @@ func (h *agentHost) startAsk(tutDir, slug, part, question string) (*askRun, erro
 		if err != nil {
 			return nil, err
 		}
+		c.SetPolicy(sid, acp.AskPolicy(abs))
 	}
 
 	h.mu.Lock()
@@ -408,7 +420,7 @@ func (h *agentHost) drive(c *acp.Client, key, sid, prompt string, run *askRun) {
 // runEvent is one entry in an ask run's event stream (sent to the browser as
 // server-sent events).
 type runEvent struct {
-	Type string `json:"type"` // chunk, html, tool, permission, permission_resolved, done, error
+	Type string `json:"type"` // chunk, html, tool, activity, permission, permission_resolved, done, error
 	Text string `json:"text,omitempty"`
 	// html (the answer so far, rendered) and done
 	// permission / permission_resolved
@@ -419,6 +431,9 @@ type runEvent struct {
 	HTML    string                 `json:"html,omitempty"`
 	// done
 	StopReason string `json:"stopReason,omitempty"`
+	// activity: a file read/write or command Lathe ran (or refused) for the
+	// agent under the session's policy
+	Activity *acp.Activity `json:"activity,omitempty"`
 	// error
 	Message string `json:"message,omitempty"`
 	Command string `json:"command,omitempty"`
@@ -579,6 +594,12 @@ func (r *askRun) Update(u acp.SessionUpdate) {
 	case "agent_thought_chunk", "tool_call_update", "plan":
 		r.markNewBlock()
 	}
+}
+
+// Activity shows a file read/write or command Lathe handled for the agent —
+// including ones the policy refused — in the drawer.
+func (r *askRun) Activity(a acp.Activity) {
+	r.push(runEvent{Type: "activity", Activity: &a})
 }
 
 func (r *askRun) markNewBlock() {
