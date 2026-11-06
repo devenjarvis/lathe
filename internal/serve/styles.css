@@ -1,102 +1,143 @@
 /* ============================================================================
-   Lathe design system — "Editorial textbook"
+   Lathe design system — "Type-in listing"
    ----------------------------------------------------------------------------
    Single source of truth for the reading + list UI. Authored as a real .css
    file; embedded via go:embed and injected inline (like HighlightCSS) so first
    paint is never blocked on a stylesheet request. See docs/design-system.md.
 
+   The idea: the 80s computer books and magazines you learned from by typing a
+   program in yourself. Warm paper, navy ink, chunky rounded outlines, a yellow
+   masthead, red for "do this" (commands, step numbers, the main button), teal
+   for "check this" (expected output, labels). Code you write sits on green-bar
+   printout paper. Dark mode is the same book read off the screen at night:
+   deep navy, cream text, and the yellow kept as the bright accent.
+
+   One typeface, Recursive, does every job through its axes: Linear for prose,
+   Casual for headings, Mono for code.
+
    Structure:
-     1. Tokens        — :root (paper) + [data-theme="dark"] (ember)
-     2. Fonts         — @font-face, served locally from /_static/*.woff2
+     1. Tokens        — :root (paper) + [data-theme="dark"] (night)
+     2. Fonts         — @font-face, served locally from /_static/recursive.woff2
      3. Base          — reset, reading typography, links, code, callouts
-     4. Components     — persistent top bar, article-header block, right-edge
-                        section rail (minimap ToC) + scroll-spy, narrow ToC
-                        drawer, series TOC, part-nav, verify/extend, ask drawer,
-                        progress bar, list-page cards
-     5. Responsive     — wide rail vs narrow off-canvas drawer, bottom dock,
+     4. Components    — masthead, About box, section index, ToC drawer, series
+                        TOC, part-nav, verify/extend, ask drawer, progress,
+                        bookshelf covers
+     5. Responsive    — wide index vs tick rail vs narrow drawer, bottom dock,
                         ask bottom-sheet
    ============================================================================ */
 
 /* ---- 1. Tokens ----------------------------------------------------------- */
 :root{
   /* Surfaces & ink (paper) */
-  --bg:#FBF7F0; --surface:#FFFDF8; --surface-sunken:#F3ECE0;
-  --border:#E4DAC9; --border-strong:#D6C9B4;
-  --text:#1B1714; --text-muted:#4A4038; --text-subtle:#6B5F53; --text-faint:#8A7C6C;
-  --accent:#B5451F; --accent-hover:#9A3817; --accent-soft:#F6E7DC;
-  --btn-on-accent:#FFFDF8;
-  --code-bg:#F3ECE0; --code-text:#2A2018;
+  --bg:#FFFBF0; --surface:#FFFFFF; --surface-sunken:#F6EEDA;
+  --border:#E9DFC6; --border-strong:#C9BC98; --rule:#1C2140;
+  --text:#1C2140; --text-muted:#33385A; --text-subtle:#4F4A3A; --text-faint:#6B6550;
+  --link:#C0331C; --link-hover:#962512;
+  /* Red is the "do this" color: commands, step numbers, primary buttons. */
+  --red:#D63B22; --red-hover:#B32E18; --on-red:#FFFFFF;
+  /* Teal is the "check this" color: expected output, labels. */
+  --teal:#17706D; --teal-fill:#1E7C79; --on-teal:#FFFFFF;
+  --yellow:#F5C33B; --on-yellow:#1C2140;
+  --accent:var(--red); --accent-hover:var(--red-hover); --accent-soft:#FFE7A3;
+  --btn-on-accent:var(--on-red);
+  --focus:#1C6FE0;
+  /* Code: commands are a navy panel in both themes; written code sits on
+     green-bar paper; inline code on a pale yellow chip. */
+  --cmd-bg:#1C2140; --cmd-text:#FFF4D6;
+  --code-bg:#FFFFFF; --code-band:#E2F0DF; --code-text:#1C2140;
+  --code-feed:#EFE6CF; --code-feed-line:#B9AE90;
+  --inline-code-bg:#FFE7A3;
 
-  /* Status badges (light) — warm-retoned semantics */
-  --badge-verified-bg:#E4ECD9; --badge-verified-text:#55692A;
-  --badge-verifying-bg:#F7E9CE; --badge-verifying-text:#8A5A1B;
-  --badge-failed-bg:#F4DCD2; --badge-failed-text:#963517;
-  --badge-extending-bg:#DDE5E8; --badge-extending-text:#3F5A66;
-  --badge-skipped-bg:#ECE3D5; --badge-skipped-text:#6B5F53;
+  /* Status (light) — dot / text color is -text; -bg tints the danger button
+     and the error toast */
+  --badge-verified-bg:#DDEBD8; --badge-verified-text:#2F6B2C;
+  --badge-verifying-bg:#FFE7A3; --badge-verifying-text:#8A5300;
+  --badge-failed-bg:#FBD3CB; --badge-failed-text:#B02E17;
+  --badge-extending-bg:#DDEFEE; --badge-extending-text:#17706D;
+  --badge-skipped-bg:#F6EEDA; --badge-skipped-text:#6B6550;
 
-  /* Callouts (light) — bg / border / label */
-  --callout-note-bg:#E8EDF1; --callout-note-border:#6B8CAE; --callout-note-label:#3F5E80;
-  --callout-tip-bg:#E8EDDC; --callout-tip-border:#7E9A4E; --callout-tip-label:#56692A;
-  --callout-warn-bg:#F8ECD3; --callout-warn-border:#CE9A4A; --callout-warn-label:#8A5A1B;
-  --callout-design-bg:#ECE8F0; --callout-design-border:#8B7BA8; --callout-design-label:#5E4E7C;
-  --callout-aside-bg:transparent; --callout-aside-border:#D6C9B4; --callout-aside-label:#8A7C6C;
-  --callout-predict-bg:#F1E5EA; --callout-predict-border:#A86A86; --callout-predict-label:#7A4458;
-  --callout-recall-bg:#F7E7D6; --callout-recall-border:#D17A3F; --callout-recall-label:#A0501F;
-  --callout-unverified-bg:#F6E2DA; --callout-unverified-border:#C2603C; --callout-unverified-label:#8A3417;
+  /* Callouts (light) — bg / border / label. Rounded tinted panels; the border
+     token draws only the aside's thin rule and the unverified dash. */
+  --callout-note-bg:#DDEFEE; --callout-note-border:#1E7C79; --callout-note-label:#17706D;
+  --callout-tip-bg:#E3F0DC; --callout-tip-border:#4E8A45; --callout-tip-label:#2F6B2C;
+  --callout-warn-bg:#FFE7A3; --callout-warn-border:#C48A2C; --callout-warn-label:#7D4C00;
+  --callout-design-bg:#E4E6F6; --callout-design-border:#6C73B8; --callout-design-label:#3F4690;
+  --callout-aside-bg:transparent; --callout-aside-border:#C9BC98; --callout-aside-label:#4F4A3A;
+  --callout-predict-bg:#FFE7A3; --callout-predict-border:#F5C33B; --callout-predict-label:#1C2140;
+  --callout-recall-bg:#E4E6F6; --callout-recall-border:#6C73B8; --callout-recall-label:#3F4690;
+  --callout-unverified-bg:#FBD3CB; --callout-unverified-border:#C0331C; --callout-unverified-label:#962512;
 
-  /* Type */
-  --font-display:'Fraunces','Iowan Old Style',Georgia,serif;
-  --font-body:'Newsreader','Iowan Old Style',Charter,Georgia,serif;
-  --font-mono:'JetBrains Mono','Fira Code',ui-monospace,monospace;
-  --measure:66ch;
+  /* Bookshelf cover colors, cycled through the list */
+  --cover-1:#D63B22; --cover-1-ink:#FFFFFF;
+  --cover-2:#1E7C79; --cover-2-ink:#FFFFFF;
+  --cover-3:#F5C33B; --cover-3-ink:#1C2140;
+  --cover-4:#1C2140; --cover-4-ink:#FFF4D6;
+
+  /* Type — Recursive, one variable family. Linear (CASL 0) for prose and UI,
+     Casual (CASL 1) for display, Mono for code. */
+  --font-sans:'Recursive',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --font-display:var(--font-sans);
+  --font-body:var(--font-sans);
+  --font-mono:'Recursive',ui-monospace,'SF Mono',Menlo,Consolas,monospace;
+  --casual:"CASL" 1;
+  --mono:"MONO" 1,"CASL" 0.5;
+  --measure:68ch;
 
   /* Spacing */
   --space-1:.25rem; --space-2:.5rem; --space-3:.75rem; --space-4:1rem;
   --space-5:1.5rem; --space-6:2rem; --space-7:3rem; --space-8:4rem;
 
-  /* Radius / shadow / motion */
-  --radius-sm:4px; --radius-md:8px; --radius-lg:12px;
-  --shadow-sm:0 1px 2px rgba(40,30,20,.07);
-  --shadow-md:0 4px 14px rgba(40,30,20,.12);
+  /* Chunky outlines: the heavy line is 3px everywhere it frames something. */
+  --line:3px;
+  --radius-sm:6px; --radius-md:10px; --radius-lg:16px; --radius-pill:9999px;
+  --shadow-sm:0 1px 2px rgba(28,33,64,.10);
+  --shadow-md:0 10px 28px -10px rgba(28,33,64,.35);
   --transition:120ms ease-out;
-  --transition-slow:240ms ease;
+  --transition-slow:220ms ease;
 }
 
 [data-theme="dark"]{
-  --bg:#14110D; --surface:#231E18; --surface-sunken:#1A1611;
-  --border:#3D3429; --border-strong:#544838;
-  --text:#E9E1D3; --text-muted:#C3B7A4; --text-subtle:#9C8F7C; --text-faint:#7C7060;
-  --accent:#E89A5C; --accent-hover:#F2AE73; --accent-soft:#2A2017;
-  --btn-on-accent:#16130F;
-  --code-bg:#1B1712; --code-text:#E5DCCB;
+  --bg:#14182E; --surface:#1D2240; --surface-sunken:#0F1226;
+  --border:#343A62; --border-strong:#565C8A; --rule:#DCD4BA;
+  --text:#F2EAD3; --text-muted:#D9D2BC; --text-subtle:#C8C1A6; --text-faint:#A9A38B;
+  --link:#FF8C75; --link-hover:#FFB09F;
+  --red:#D63B22; --red-hover:#E85A40; --on-red:#FFFFFF;
+  --teal:#6FD0C9; --teal-fill:#1E7C79; --on-teal:#FFFFFF;
+  --yellow:#F5C33B; --on-yellow:#1C2140;
+  --accent-soft:#3B3317;
+  --focus:#7FB2FF;
+  --cmd-bg:#0B0E21; --cmd-text:#FFF4D6;
+  --code-bg:#1D2240; --code-band:#17291F; --code-text:#F2EAD3;
+  --code-feed:#262B4C; --code-feed-line:#4A4F78;
+  --inline-code-bg:#3B3317;
 
-  --badge-verified-bg:#2A3320; --badge-verified-text:#A8C07A;
-  --badge-verifying-bg:#3A2C14; --badge-verifying-text:#E0B069;
-  --badge-failed-bg:#3A241B; --badge-failed-text:#E89A7C;
-  --badge-extending-bg:#1E2B2C; --badge-extending-text:#79B0AE;
-  --badge-skipped-bg:#2A2218; --badge-skipped-text:#9C8F7C;
+  --badge-verified-bg:#1E2E1D; --badge-verified-text:#8CC788;
+  --badge-verifying-bg:#3B3317; --badge-verifying-text:#E3B15C;
+  --badge-failed-bg:#44211B; --badge-failed-text:#FF8C75;
+  --badge-extending-bg:#133533; --badge-extending-text:#6FD0C9;
+  --badge-skipped-bg:#262B4C; --badge-skipped-text:#A9A38B;
 
-  --callout-note-bg:#182430; --callout-note-border:#4E7090; --callout-note-label:#8DAFC9;
-  --callout-tip-bg:#1E2A18; --callout-tip-border:#6E8A42; --callout-tip-label:#A8C07A;
-  --callout-warn-bg:#2C2310; --callout-warn-border:#B58A3E; --callout-warn-label:#E0B069;
-  --callout-design-bg:#221E2E; --callout-design-border:#7A6A96; --callout-design-label:#BCAEDB;
-  --callout-aside-bg:transparent; --callout-aside-border:#463D31; --callout-aside-label:#7C7060;
-  --callout-predict-bg:#2A1E26; --callout-predict-border:#9A6076; --callout-predict-label:#D6A6BC;
-  --callout-recall-bg:#2C1E12; --callout-recall-border:#BE7038; --callout-recall-label:#E0A36A;
-  --callout-unverified-bg:#2E1810; --callout-unverified-border:#C2603C; --callout-unverified-label:#EC9272;
+  --callout-note-bg:#133533; --callout-note-border:#3FA8A2; --callout-note-label:#6FD0C9;
+  --callout-tip-bg:#18291A; --callout-tip-border:#5E9A55; --callout-tip-label:#8CC788;
+  --callout-warn-bg:#3B3317; --callout-warn-border:#C48A2C; --callout-warn-label:#E8B868;
+  --callout-design-bg:#272C52; --callout-design-border:#8A90D0; --callout-design-label:#BFC3F0;
+  --callout-aside-bg:transparent; --callout-aside-border:#565C8A; --callout-aside-label:#C8C1A6;
+  --callout-predict-bg:#3B3317; --callout-predict-border:#F5C33B; --callout-predict-label:#F5C33B;
+  --callout-recall-bg:#272C52; --callout-recall-border:#8A90D0; --callout-recall-label:#BFC3F0;
+  --callout-unverified-bg:#44211B; --callout-unverified-border:#FF8C75; --callout-unverified-label:#FF8C75;
 
-  --shadow-sm:0 1px 2px rgba(0,0,0,.30);
-  --shadow-md:0 4px 14px rgba(0,0,0,.45);
+  --cover-4:#0B0E21; --cover-4-ink:#FFF4D6;
+
+  --shadow-sm:0 1px 2px rgba(0,0,0,.4);
+  --shadow-md:0 12px 30px -10px rgba(0,0,0,.7);
 }
 
 /* ---- 2. Fonts ------------------------------------------------------------
-   Latin-subset woff2, served from /_static/ (flat names; the on-disk files
-   live under static/fonts/). font-display:swap so the serif fallbacks paint
-   immediately and the bundled faces swap in when ready. */
-@font-face{font-family:'Fraunces';font-style:normal;font-weight:300 700;font-display:swap;src:url('/_static/fraunces.woff2') format('woff2');}
-@font-face{font-family:'Newsreader';font-style:normal;font-weight:300 700;font-display:swap;src:url('/_static/newsreader.woff2') format('woff2');}
-@font-face{font-family:'Newsreader';font-style:italic;font-weight:300 700;font-display:swap;src:url('/_static/newsreader-italic.woff2') format('woff2');}
-@font-face{font-family:'JetBrains Mono';font-style:normal;font-weight:400 700;font-display:swap;src:url('/_static/jetbrains-mono.woff2') format('woff2');}
+   Recursive (SIL OFL), latin subset, variable in wght 300–1000, CASL 0–1 and
+   MONO 0–1 (slant and cursive pinned to keep the file small; italics are
+   synthesized). Served from /_static/; font-display:swap so the system
+   fallback paints immediately. */
+@font-face{font-family:'Recursive';font-style:normal;font-weight:300 1000;font-display:swap;src:url('/_static/recursive.woff2') format('woff2');}
 
 /* ---- 3. Base ------------------------------------------------------------- */
 *{box-sizing:border-box;margin:0;padding:0}
@@ -104,565 +145,564 @@
    live nudge is display:flex, the progress marker is a fixed block), and an
    author rule beats the UA's [hidden]{display:none}, which leaves a dismissed
    element on screen and in the accessibility tree — a screen reader keeps
-   hearing it and its Dismiss button after they are supposed to be gone.
-   #savedProgressMarker carried a local patch for this; this covers everything. */
+   hearing it and its Dismiss button after they are supposed to be gone. */
 [hidden]{display:none !important}
-html,body{overflow-x:hidden}
-/* In-page anchor clicks (section rail, ToC drawer, series links) glide to the
+/* clip, not hidden: overflow-x:hidden turns body into a scroll container, and
+   position:sticky on the masthead then never sticks. clip cuts the overflow
+   without making a scroller. */
+html,body{overflow-x:clip}
+/* In-page anchor clicks (section index, ToC drawer, series links) glide to the
    target instead of jumping. Disabled for reduced-motion users below. */
 html{scroll-behavior:smooth}
 body{
   font-family:var(--font-body);
   background:var(--bg);color:var(--text);
-  line-height:1.6;
-  font-size:clamp(1rem,.95rem + .2vw,1.0625rem);
+  line-height:1.6;font-size:1rem;font-weight:420;
   -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
-  font-optical-sizing:auto;
 }
+::selection{background:var(--accent-soft)}
+:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
 
 /* Reading-progress bar (fixed, above sticky header, below ask drawer) */
-#progressBar{position:fixed;top:0;left:0;right:0;height:3px;background:transparent;z-index:70;pointer-events:none}
-#progressBar > div{height:100%;background:var(--accent);transform:scaleX(0);transform-origin:left center;will-change:transform}
-#savedProgressMarker{position:absolute;top:50%;width:9px;height:9px;border:2px solid var(--surface);border-radius:9999px;background:var(--accent);box-shadow:0 0 0 1px var(--accent),var(--shadow-sm);transform:translate(-50%,-50%)}
+#progressBar{position:fixed;top:0;left:0;right:0;height:4px;background:transparent;z-index:70;pointer-events:none}
+#progressBar > div{height:100%;background:var(--red);transform:scaleX(0);transform-origin:left center;will-change:transform}
+#savedProgressMarker{position:absolute;top:0;width:3px;height:10px;background:var(--rule);border-radius:2px;transform:translateX(-50%)}
 
 /* Layout shell (reading page) */
 .layout{display:flex;min-height:100vh}
 
-/* Reading column — measure-bound for comfortable line length, centered in the
-   layout so the right-edge rail sits in clean gutter space rather than over text. */
+/* Reading column — measure-bound; centered so the wide section index sits in
+   the right gutter, clear of the text. */
 main{
-  flex:1;width:100%;max-width:calc(var(--measure) + 7rem);margin-inline:auto;
-  padding:clamp(1.75rem,1.2rem + 2vw,3rem) clamp(1.2rem,.7rem + 2.5vw,2.5rem);
-  font-size:1.125rem;line-height:1.7;
+  flex:1;width:100%;max-width:calc(var(--measure) + 5rem);margin-inline:auto;
+  padding:clamp(1.5rem,1rem + 2vw,3rem) clamp(1.1rem,.6rem + 2.5vw,2.5rem) 6rem;
+  font-size:1.125rem;line-height:1.65;
+  counter-reset:step;
 }
 main > p,main > ul,main > ol,main > blockquote,main > .callout{max-width:var(--measure)}
 
-/* Headings — Fraunces display, tighter leading, generous rhythm above */
-h1,h2,h3,h4,h5,h6{font-family:var(--font-display);color:var(--text);font-weight:600;line-height:1.18;letter-spacing:-.01em}
-h1{font-size:clamp(1.7rem,1.4rem + 1.4vw,2.1rem);margin-bottom:1.5rem}
-h2{font-size:clamp(1.3rem,1.15rem + .7vw,1.5rem);margin:2.5rem 0 .85rem;line-height:1.22}
-h3{font-size:clamp(1.1rem,1.03rem + .35vw,1.2rem);margin:1.9rem 0 .6rem;color:var(--text-muted);line-height:1.3}
-/* Anchor offset so a heading jumped to (rail / drawer link) clears the now-
-   persistent sticky #topBar (~2.75rem) instead of hiding beneath it. */
-h2[id],h3[id],#top{scroll-margin-top:3.5rem}
+/* Headings — Casual, heavy, tight. The part's h1 is the loudest type. */
+h1,h2,h3,h4,h5,h6{font-family:var(--font-display);font-variation-settings:var(--casual);color:var(--text);font-weight:850;line-height:1.15;letter-spacing:-.015em}
+h1{font-size:clamp(2.25rem,1.6rem + 2.8vw,3.75rem);font-weight:950;line-height:1;letter-spacing:-.035em;margin:2.5rem 0 1.25rem;text-wrap:balance}
+h2{font-size:clamp(1.45rem,1.25rem + .9vw,1.85rem);margin:3rem 0 .85rem;letter-spacing:-.02em;text-wrap:balance}
+h3{font-size:1.25rem;margin:2.1rem 0 .55rem}
+h4,h5,h6{font-size:1.05rem;margin:1.5rem 0 .4rem}
+/* Step numbers: a tutorial's sections are steps, so each top-level h2 in the
+   part body gets a red numbered disc. Exercises is not a step, so it gets none. */
+main > h2:not(#exercises){counter-increment:step;display:flex;align-items:flex-start;gap:.8rem}
+main > h2:not(#exercises)::before{content:counter(step);flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;width:2.6rem;height:2.6rem;margin-top:-.2rem;border-radius:var(--radius-pill);background:var(--red);color:var(--on-red);font-size:1.2rem;font-weight:900;letter-spacing:0;font-variant-numeric:tabular-nums}
+/* Anchor offset so a heading jumped to clears the sticky masthead. */
+h1[id],h2[id],h3[id],#top{scroll-margin-top:5rem}
 
-p{margin-bottom:1.05rem;color:var(--text-muted)}
+p{margin-bottom:1.1rem;color:var(--text-muted)}
 em{font-style:italic}
-strong{font-weight:700;color:var(--text)}
-a{color:var(--accent);text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:2px;text-decoration-color:var(--accent);text-decoration-color:color-mix(in srgb,var(--accent) 45%,transparent)}
-a:hover{color:var(--accent-hover);text-decoration-color:currentColor}
+strong{font-weight:780;color:var(--text)}
+a{color:var(--link);text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:3px;text-decoration-color:color-mix(in srgb,var(--link) 45%,transparent)}
+a:hover{color:var(--link-hover);text-decoration-color:currentColor}
 
-/* Skip link — off-screen until keyboard-focused, then slides in above the
-   sticky bar so keyboard/SR users can jump straight past it to content. */
-.skip-link{position:fixed;top:-4rem;left:1rem;z-index:120;padding:.5rem .9rem;background:var(--surface);color:var(--accent);border:1px solid var(--border-strong);border-radius:var(--radius-sm);text-decoration:none;font-family:var(--font-display);font-weight:600;font-size:.85rem;transition:top var(--transition)}
+/* Skip link — off-screen until keyboard-focused. */
+.skip-link{position:fixed;top:-4rem;left:1rem;z-index:120;padding:.55rem 1rem;background:var(--surface);color:var(--text);border:var(--line) solid var(--rule);border-radius:var(--radius-pill);text-decoration:none;font-weight:800;font-size:.9rem;transition:top var(--transition)}
 .skip-link:focus{top:1rem}
 
-ul,ol{margin:.85rem 0 .85rem 1.5rem;color:var(--text-muted)}
-li{margin:.3rem 0}
-li::marker{color:var(--text-faint)}
-blockquote{border-left:3px solid var(--border-strong);padding:.5rem 1rem;margin:1.25rem 0;color:var(--text-subtle);font-style:italic}
+ul,ol{margin:.9rem 0 1.1rem 1.5rem;color:var(--text-muted)}
+li{margin:.35rem 0;padding-left:.2rem}
+li::marker{color:var(--red);font-weight:800}
+blockquote{border-left:var(--line) solid var(--border-strong);padding:.25rem 0 .25rem 1.1rem;margin:1.25rem 0;color:var(--text-subtle)}
 
-hr{border:none;border-top:1px solid var(--border);margin:2.5rem 0}
+hr{border:none;border-top:2px dotted var(--rule);margin:2.5rem 0}
 
 img{max-width:100%;height:auto;border-radius:var(--radius-md)}
 
-table{border-collapse:collapse;margin:1.25rem 0;font-size:.95em;max-width:var(--measure)}
-th,td{border:1px solid var(--border);padding:.45rem .7rem;text-align:left}
-th{background:var(--surface-sunken);font-family:var(--font-display);font-weight:600;color:var(--text)}
+table{border-collapse:separate;border-spacing:0;margin:1.5rem 0;font-size:1rem;max-width:var(--measure);font-variant-numeric:tabular-nums;border:var(--line) solid var(--rule);border-radius:var(--radius-md);overflow:hidden;background:var(--surface)}
+th,td{padding:.5rem .85rem;text-align:left;vertical-align:top;border-bottom:2px dotted var(--border-strong)}
+tr:last-child td{border-bottom:none}
+th{background:var(--yellow);color:var(--on-yellow);font-weight:850;font-variation-settings:var(--casual);border-bottom:var(--line) solid var(--rule)}
+td{color:var(--text-muted)}
 
 /* Code */
-code{font-family:var(--font-mono);font-size:.84em;background:var(--code-bg);padding:.1rem .35rem;border-radius:var(--radius-sm);color:var(--code-text);overflow-wrap:anywhere;word-wrap:break-word}
-pre{border-radius:var(--radius-md);margin:1.4rem 0;padding:.95rem 1.1rem;overflow-x:auto;border:1px solid var(--border);background:var(--code-bg);color:var(--code-text);font-size:.9rem;line-height:1.55;transition:box-shadow var(--transition)}
+code{font-family:var(--font-mono);font-variation-settings:var(--mono);font-size:.88em;background:var(--inline-code-bg);padding:.08rem .38rem;border-radius:var(--radius-sm);color:var(--code-text);overflow-wrap:anywhere;word-wrap:break-word}
+pre{border-radius:var(--radius-md);margin:1.5rem 0;padding:1rem 1.15rem;overflow-x:auto;border:2px solid var(--rule);background:var(--code-bg);color:var(--code-text);font-family:var(--font-mono);font-variation-settings:var(--mono);font-size:.95rem;line-height:1.65;transition:box-shadow var(--transition)}
 pre code{background:none;padding:0;color:inherit;font-size:1em;overflow-wrap:normal;word-wrap:normal;white-space:pre}
 /* Chroma puts its style background on .chroma (the <pre>); a more-specific
-   selector keeps the warm --code-bg token in control of the container in both
-   themes, so only chroma's syntax-token hues come through. */
+   selector keeps the tokens in control of the container in both themes. */
 pre.chroma{background:var(--code-bg)}
 [data-theme="dark"] pre.chroma{background:var(--code-bg)}
-/* Subtle right-edge fade hints horizontal scrollability — inset shadow stays
-   pinned to the visible right edge regardless of scroll position. */
-pre[data-overflow="true"]{box-shadow:inset -18px 0 14px -12px rgba(40,30,20,.20)}
-[data-theme="dark"] pre[data-overflow="true"]{box-shadow:inset -18px 0 14px -12px rgba(0,0,0,.55)}
+/* tango underlines whitespace runs (.w); that reads as stray underscores. */
+.chroma .w{text-decoration:none}
+pre[data-overflow="true"]{box-shadow:inset -18px 0 14px -12px rgba(28,33,64,.25)}
+[data-theme="dark"] pre[data-overflow="true"]{box-shadow:inset -18px 0 14px -12px rgba(0,0,0,.6)}
 
-/* Visually hidden, still announced. Live regions must stay in the accessibility
-   tree — display:none would silence them — so the page's one announcement
-   surface (#statusAnnouncer) uses this instead of hiding. */
+/* Visually hidden, still announced. */
 .visually-hidden{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
 
-/* Tutorial blocks — renderer.go wraps every fenced block in a labelled container:
-   a label, the block itself, and a copy button on command blocks only. The label
-   is a plain paragraph rather than a figcaption so a screen reader reads it once
-   (renderer.go records what the figure wrapper cost); the pre inside keeps its
-   existing look. */
-.tutorial-block{margin:1.4rem 0}
-.tutorial-block pre{margin:.4rem 0 0}
-.tutorial-block .tutorial-block-label{font-family:var(--font-display);font-size:.72rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text-faint);margin-bottom:.3rem}
-/* The wrapper exists for screen-reader navigation only: it gives a long block a
-   container the reader can leave with one keystroke. It carries no visible
-   marker, hence role="list" in the markup. */
+/* Tutorial blocks — renderer.go wraps every fenced block in a labelled
+   container: a label, the block itself, and a copy button on command blocks.
+   Each kind reads as what the reader does with it:
+   - command: "type this" — red label pill, navy panel, Copy on the label row;
+   - output:  "you should see" — teal label pill, dashed teal outline, no fill;
+   - code:    "write this" — the listing on green-bar printout paper, with
+              tractor-feed holes down both edges. */
+.tutorial-block{margin:1.6rem 0;position:relative}
+.tutorial-block pre{margin:.45rem 0 0}
+.tutorial-block .tutorial-block-label{display:inline-block;font-size:.8125rem;font-weight:800;line-height:1.5;margin:0;padding:.15rem .8rem;border-radius:var(--radius-pill);background:var(--surface-sunken);color:var(--text);vertical-align:middle}
 .tutorial-block-skip{list-style:none;margin:0;padding:0}
-.tutorial-block-command .copy-command{margin-top:.4rem}
-/* Output blocks mark their text with <samp>, which carries no styling of its
-   own here: match pre code so command and output blocks read as one artifact. */
+.tutorial-block-skip > li{margin:0;padding:0}
+.tutorial-block-command .tutorial-block-label{background:var(--red);color:var(--on-red)}
+.tutorial-block-command{padding-top:0}
+.tutorial-block-command pre,.tutorial-block-command pre.chroma,[data-theme="dark"] .tutorial-block-command pre.chroma{background:var(--cmd-bg);color:var(--cmd-text);border-color:var(--cmd-bg)}
+[data-theme="dark"] .tutorial-block-command pre{border-color:var(--border-strong)}
+.tutorial-block-command .copy-command{position:absolute;top:-.3rem;right:0;margin:0}
+.tutorial-block-output .tutorial-block-label{background:var(--teal-fill);color:var(--on-teal)}
+.tutorial-block-output pre,.tutorial-block-output pre.chroma,[data-theme="dark"] .tutorial-block-output pre.chroma{background:transparent;border:2px dashed var(--teal)}
+.tutorial-block-code pre,.tutorial-block-code pre.chroma,[data-theme="dark"] .tutorial-block-code pre.chroma{
+  padding-inline:2.3rem;
+  background-color:var(--code-bg);
+  background-image:
+    radial-gradient(circle at center,var(--bg) 0 4px,transparent 4.6px),
+    radial-gradient(circle at center,var(--bg) 0 4px,transparent 4.6px),
+    linear-gradient(90deg,var(--code-feed) 0 1.35rem,transparent 1.35rem calc(100% - 1.35rem),var(--code-feed) calc(100% - 1.35rem)),
+    repeating-linear-gradient(180deg,var(--code-band) 0 4.95em,transparent 4.95em 9.9em);
+  background-size:1.35rem 1.4rem,1.35rem 1.4rem,100% 100%,100% 100%;
+  background-position:left top .3rem,right top .3rem,0 0,0 1rem;
+  background-repeat:repeat-y,repeat-y,no-repeat,no-repeat;
+  background-attachment:local;
+}
 pre samp{background:none;padding:0;color:inherit;font-family:var(--font-mono);font-size:1em;white-space:pre;overflow-wrap:normal;word-wrap:normal}
 
-/* Callouts (emitted by renderer.go as <aside class="callout callout-TYPE">) */
-.callout{margin:1.6rem 0;padding:.9rem 1.1rem .95rem;border-left:3px solid;border-radius:var(--radius-md)}
+/* Callouts (emitted by renderer.go as <aside class="callout callout-TYPE">).
+   Rounded tinted panels with a Casual label; no left rule. */
+.callout{margin:1.75rem 0;padding:1rem 1.25rem 1.05rem;border-radius:var(--radius-lg);border:none}
 .callout > p{margin-bottom:.5rem;color:var(--text-muted)}
 .callout > p:last-child{margin-bottom:0}
-.callout .callout-label{font-family:var(--font-display);font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;margin-bottom:.5rem}
-.callout-note{background:var(--callout-note-bg);border-color:var(--callout-note-border)}
+.callout .callout-label{font-family:var(--font-display);font-variation-settings:var(--casual);font-size:1.05rem;font-weight:900;margin-bottom:.3rem}
+.callout-note{background:var(--callout-note-bg)}
 .callout-note .callout-label{color:var(--callout-note-label)}
-.callout-tip{background:var(--callout-tip-bg);border-color:var(--callout-tip-border)}
+.callout-tip{background:var(--callout-tip-bg)}
 .callout-tip .callout-label{color:var(--callout-tip-label)}
-.callout-warning,.callout-headsup{background:var(--callout-warn-bg);border-color:var(--callout-warn-border)}
+.callout-warning,.callout-headsup{background:var(--callout-warn-bg)}
 .callout-warning .callout-label,.callout-headsup .callout-label{color:var(--callout-warn-label)}
-.callout-designnote{background:var(--callout-design-bg);border-color:var(--callout-design-border)}
+.callout-designnote{background:var(--callout-design-bg)}
 .callout-designnote .callout-label{color:var(--callout-design-label)}
-.callout-aside{background:var(--callout-aside-bg);border-color:var(--callout-aside-border);font-style:italic}
+.callout-aside{background:var(--callout-aside-bg);border-left:var(--line) solid var(--callout-aside-border);border-radius:0;font-style:italic;padding-block:.25rem}
 .callout-aside .callout-label{color:var(--callout-aside-label);font-style:normal}
-.callout-predict{background:var(--callout-predict-bg);border-color:var(--callout-predict-border)}
+.callout-predict{background:var(--callout-predict-bg);border:var(--line) solid var(--callout-predict-border)}
 .callout-predict .callout-label{color:var(--callout-predict-label)}
-.callout-recall{background:var(--callout-recall-bg);border-color:var(--callout-recall-border)}
+.callout-recall{background:var(--callout-recall-bg)}
 .callout-recall .callout-label{color:var(--callout-recall-label)}
-.callout-unverified{background:var(--callout-unverified-bg);border-color:var(--callout-unverified-border)}
+.callout-unverified{background:var(--callout-unverified-bg);border:2px dashed var(--callout-unverified-border)}
 .callout-unverified .callout-label{color:var(--callout-unverified-label)}
 
 /* Mermaid diagrams */
-.mermaid{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-md);padding:1rem;margin:1.4rem 0;text-align:center;overflow-x:auto;max-width:100%}
-.mermaid:not([data-processed]){font-family:var(--font-mono);font-size:.8rem;text-align:left;white-space:pre;color:var(--text-faint)}
+.mermaid{background:var(--surface);border:2px solid var(--rule);border-radius:var(--radius-md);padding:1rem;margin:1.5rem 0;text-align:center;overflow-x:auto;max-width:100%}
+.mermaid:not([data-processed]){font-family:var(--font-mono);font-variation-settings:var(--mono);font-size:.8rem;text-align:left;white-space:pre;color:var(--text-faint)}
 .mermaid svg{max-width:100%;height:auto}
-/* A diagram's source is not a fallback: hide the block while a render is in
-   flight or after it failed, and let the note below say what happened. The
-   no-script case keeps the source visible, which is the only path that cannot
-   run the loader at all. */
 .mermaid[data-mermaid-state="pending"]{visibility:hidden}
 .mermaid[data-mermaid-state="failed"]{display:none}
-.diagram-unavailable{margin:1.4rem 0;padding:.85rem 1rem;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface);color:var(--text-subtle)}
+.diagram-unavailable{margin:1.5rem 0;padding:.9rem 1.1rem;border:2px dashed var(--border-strong);border-radius:var(--radius-md);color:var(--text-subtle)}
 
 /* ---- 4. Components ------------------------------------------------------- */
 
-/* Status badge (shared: sidebar + list cards). Quiet by design — a colored dot
-   + a muted serif label, no filled pill. The dot carries the semantics via the
-   existing --badge-<status>-text tokens (contrast-correct in both themes); the
-   label stays --text-faint so it reads as calm metadata next to the title. The
-   --badge-*-bg tokens are intentionally left defined-but-unused. */
-.badge{display:inline-flex;align-items:center;gap:.4rem;font-family:var(--font-display);font-size:.7rem;font-weight:600;letter-spacing:.01em;line-height:1.4;color:var(--text-faint)}
-.badge-dot{width:.5rem;height:.5rem;border-radius:9999px;flex-shrink:0;background:var(--text-faint)}
+/* Status badge (shared: About box + covers). A colored dot + a plain label. */
+.badge{display:inline-flex;align-items:center;gap:.45rem;font-size:.875rem;font-weight:750;line-height:1.4;color:var(--text-subtle);white-space:nowrap}
+.badge-dot{width:.65rem;height:.65rem;border-radius:9999px;flex-shrink:0;background:var(--text-faint)}
 .badge.verified .badge-dot{background:var(--badge-verified-text)}
 .badge.verifying .badge-dot{background:var(--badge-verifying-text)}
 .badge.failed .badge-dot{background:var(--badge-failed-text)}
 .badge.extending .badge-dot{background:var(--badge-extending-text)}
-.badge.skipped .badge-dot{background:var(--badge-skipped-text)}
-/* In-flight states get a gentle pulse; stilled for reduced-motion users. */
+.badge.skipped .badge-dot{background:transparent;box-shadow:inset 0 0 0 2px var(--badge-skipped-text)}
+.badge.failed{color:var(--badge-failed-text)}
 .badge.verifying .badge-dot,.badge.extending .badge-dot{animation:badge-pulse 1.6s ease-in-out infinite}
-@keyframes badge-pulse{0%,100%{opacity:1}50%{opacity:.35}}
+@keyframes badge-pulse{0%,100%{opacity:1}50%{opacity:.3}}
 @media (prefers-reduced-motion:reduce){.badge.verifying .badge-dot,.badge.extending .badge-dot{animation:none}}
 
-/* Button — the one button primitive. Variants: primary (accent fill), ghost
-   (outline), danger (failed tint). Modifiers: pill (rounded), sm (compact).
-   Used by every action: verify/extend submit, ask send/stop, the floating &
-   dock Ask buttons. */
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;font-family:var(--font-display);font-weight:600;font-size:.9rem;line-height:1.1;padding:.55rem 1.1rem;border-radius:var(--radius-md);border:1px solid transparent;cursor:pointer;text-decoration:none;white-space:nowrap;transition:background var(--transition),border-color var(--transition),color var(--transition),transform 150ms ease-out}
-.btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+/* Button — pills with a chunky outline. Variants: primary (red fill), ghost
+   (outline), danger (failed tint). Modifiers: pill (kept for markup; every
+   button is round now), sm (compact). */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;font-family:var(--font-sans);font-weight:800;font-size:.95rem;line-height:1.1;padding:.6rem 1.2rem;min-height:2.75rem;border-radius:var(--radius-pill);border:2px solid var(--rule);background:var(--surface);color:var(--text);cursor:pointer;text-decoration:none;white-space:nowrap;transition:background var(--transition),border-color var(--transition),color var(--transition),transform 150ms ease-out}
+.btn:hover:not(:disabled){background:var(--accent-soft)}
 .btn:disabled{opacity:.5;cursor:not-allowed}
-/* Pending state without disabling: a disabled control loses focus, so the
-   browser moves focus off the button the reader just pressed. */
-.btn[aria-busy="true"]{opacity:.5;cursor:progress}
-.btn-primary{background:var(--accent);color:var(--btn-on-accent);border-color:var(--accent)}
-.btn-primary:hover:not(:disabled){background:var(--accent-hover);border-color:var(--accent-hover)}
-.btn-ghost{background:transparent;color:var(--text-subtle);border-color:var(--border)}
-.btn-ghost:hover:not(:disabled){background:var(--surface-sunken);color:var(--text)}
-.btn-danger{background:var(--badge-failed-bg);color:var(--badge-failed-text);border-color:transparent}
-.btn-danger:hover:not(:disabled){filter:brightness(.96)}
-.btn-pill{border-radius:9999px}
-.btn-sm{font-size:.82rem;padding:.42rem .85rem}
+.btn[aria-busy="true"]{opacity:.55;cursor:progress}
+.btn-primary{background:var(--red);color:var(--on-red);border-color:var(--red);font-variation-settings:var(--casual);font-weight:900}
+.btn-primary:hover:not(:disabled){background:var(--red-hover);border-color:var(--red-hover);color:var(--on-red)}
+.btn-ghost{background:var(--surface);color:var(--text);border-color:var(--rule)}
+.btn-ghost:hover:not(:disabled){background:var(--accent-soft);color:var(--text)}
+.btn-danger{background:var(--badge-failed-bg);color:var(--badge-failed-text);border-color:var(--badge-failed-text)}
+.btn-danger:hover:not(:disabled){background:var(--badge-failed-text);color:var(--bg)}
+.btn-pill{border-radius:var(--radius-pill)}
+.btn-sm{font-size:.85rem;padding:.35rem .85rem;min-height:2.1rem}
 
 /* Theme-toggle button (shared) */
-.theme-toggle{background:transparent;border:1px solid var(--border);color:var(--text-subtle);font-family:var(--font-display);font-size:.8rem;padding:.4rem .6rem;border-radius:var(--radius-sm);cursor:pointer;display:inline-flex;align-items:center;gap:.4rem;transition:background var(--transition),color var(--transition)}
-.theme-toggle:hover{background:var(--surface-sunken);color:var(--text)}
-.theme-toggle .icon{font-size:.95rem;line-height:1}
+.theme-toggle{background:var(--surface);border:2px solid var(--rule);color:var(--text);font-family:var(--font-sans);font-size:.875rem;font-weight:800;padding:.35rem .85rem;min-height:2.25rem;border-radius:var(--radius-pill);cursor:pointer;display:inline-flex;align-items:center;gap:.4rem;transition:background var(--transition)}
+.theme-toggle:hover{background:var(--accent-soft)}
+.theme-toggle .icon{font-size:1rem;line-height:1}
 [data-theme="dark"] .theme-toggle .icon-light,[data-theme="light"] .theme-toggle .icon-dark,:root:not([data-theme]) .theme-toggle .icon-dark{display:none}
 
-/* Article-header block — sits atop <main>: tutorial/series title, status badge,
-   provenance lines (verified date / unverified note), and the collapsible
-   sources list. Holds the metadata that used to live in the left sidebar; reads
-   well inline on narrow too. */
-.article-header{margin-bottom:1.8rem;padding-bottom:1.3rem;border-bottom:1px solid var(--border)}
+/* Article header — the "before you start" box. The tutorial's name on top in
+   Casual; below, a grid of label/value cells (part, what you'll need, author,
+   voice, tested) and full-width rows for flagged claims and sources. */
+.article-header{position:relative;margin:0;border:var(--line) solid var(--rule);border-radius:var(--radius-lg);background:var(--surface)}
 /* Not a heading: the part body's own h1 owns the page outline. */
-.article-header .article-title{font-family:var(--font-display);font-size:clamp(1.5rem,1.3rem + 1vw,1.9rem);font-weight:600;color:var(--text);margin:0 0 .55rem;line-height:1.2;letter-spacing:-.01em}
-.article-header .badge{margin-bottom:.6rem}
-.article-header .provenance{font-size:.82rem;line-height:1.45;color:var(--text-subtle);margin:.3rem 0}
-.article-header .provenance.unverified-note{color:var(--callout-unverified-label)}
-.article-header details.provenance summary{cursor:pointer;color:var(--text-subtle)}
-.article-header details.provenance ul{list-style:none;margin:.35rem 0 0;padding:0}
-.article-header details.provenance li{margin:.2rem 0}
-.article-header details.provenance a{display:inline-block;font-size:.78rem;padding:.15rem 0;color:var(--accent);word-break:break-all;line-height:1.4}
-.article-header details.code-snapshot p{margin:.35rem 0 .2rem;font-size:inherit;line-height:inherit}
-.article-header details.code-snapshot pre{margin:.2rem 0 .4rem;padding:.4rem .6rem;overflow-x:auto;background:var(--code-bg);border-radius:var(--radius-sm)}
-.article-header details.code-snapshot pre code{font-size:.78rem}
+.article-header .article-title{font-family:var(--font-display);font-variation-settings:var(--casual);font-size:clamp(1.15rem,1rem + .6vw,1.4rem);font-weight:900;color:var(--text);margin:0;padding:.9rem 1.2rem .8rem;line-height:1.2;letter-spacing:-.015em;border-bottom:2px dotted var(--rule)}
+.title-block{display:grid;grid-template-columns:repeat(auto-fit,minmax(10.5rem,1fr));gap:.9rem 1.5rem;margin:0;padding:.9rem 1.2rem 1rem}
+.title-block > .tb-row{grid-column:1/-1;border-top:2px dotted var(--rule);padding-top:.7rem;margin-top:-.1rem}
+.title-block dt{font-size:.8125rem;font-weight:800;color:var(--teal);line-height:1.3;margin-bottom:.15rem}
+.title-block dd{font-size:1rem;font-weight:700;color:var(--text);line-height:1.4;overflow-wrap:anywhere}
+.title-block .tb-big{font-family:var(--font-display);font-variation-settings:var(--casual);font-size:1.6rem;font-weight:950;letter-spacing:-.02em;line-height:1;font-variant-numeric:tabular-nums}
+.title-block .version{font-size:.875rem;font-weight:650;background:var(--surface-sunken);color:var(--text);border:none;margin-right:.15rem;white-space:nowrap}
+.title-block .badge{font-size:1rem;color:var(--text);white-space:normal}
+.title-block .badge.failed{color:var(--badge-failed-text)}
+.title-block .status-none{color:var(--text-subtle)}
+.title-block .status-jump{font-size:.875rem;font-weight:800;margin-left:.35rem;white-space:nowrap}
+.article-header .provenance{font-size:.9375rem;font-weight:500;line-height:1.45;color:var(--text-subtle)}
+.article-header .provenance.unverified-note{color:var(--callout-unverified-label);font-weight:750}
+.article-header details.provenance summary{cursor:pointer;color:var(--text);font-weight:750;width:max-content;max-width:100%}
+.article-header details.provenance summary:hover{color:var(--link)}
+.article-header details.provenance ul{list-style:none;margin:.45rem 0 .15rem;padding:0;display:flex;flex-direction:column;gap:.25rem}
+.article-header details.provenance li{margin:0;padding:0}
+.article-header details.provenance a{font-size:.9375rem;word-break:break-word;line-height:1.4}
+.article-header details.code-snapshot p{margin:.45rem 0 .2rem}
+.article-header details.code-snapshot pre{margin:.2rem 0 .45rem;padding:.45rem .7rem;overflow-x:auto}
+.article-header details.code-snapshot pre code{font-size:.875rem}
 
-/* Author byline — quiet authorship line under the title: always names the LLM
-   model (falling back to "Claude"); appends the voice when one was recorded.
-   Muted so it reads as metadata, not body copy; tokens only, no new colors. */
-.article-byline{font-size:.82rem;line-height:1.5;color:var(--text-subtle);margin:.2rem 0 .7rem}
-.article-byline code{font-size:.95em;color:var(--text-subtle)}
-/* voice-reveal — inline <details> letting a reader expand the voice spec from
-   the byline (mirrors the Sources disclosure). Summary is a clickable voice chip;
-   the expanded body is the spec rendered as markdown in a quiet, scrollable
-   sunken panel. Inner typography is toned down from the full article scale so the
-   spec reads as a compact quoted document, not a second article. */
+/* Voice reveal — the voice name is a disclosure; its spec opens as a panel
+   under the whole About box. */
 .voice-reveal{display:inline}
-.voice-reveal summary{display:inline;cursor:pointer;list-style:none}
+.voice-reveal summary{display:inline;cursor:pointer;list-style:none;color:var(--link);text-decoration:underline;text-decoration-thickness:2px;text-decoration-style:dotted;text-underline-offset:3px}
 .voice-reveal summary::-webkit-details-marker{display:none}
-.voice-reveal summary code{color:var(--accent)}
-.voice-reveal[open] summary{margin-bottom:.4rem}
-.voice-reveal-body{margin:.4rem 0 0;padding:.85rem 1.1rem;background:var(--surface-sunken);border:1px solid var(--border);border-radius:var(--radius-md);font-size:.86rem;line-height:1.55;color:var(--text-subtle);max-height:26rem;overflow:auto}
+.voice-reveal summary:hover{color:var(--link-hover)}
+.voice-reveal-body{position:absolute;left:-3px;right:-3px;top:calc(100% + .5rem);z-index:30;padding:1.1rem 1.3rem;background:var(--surface);border:var(--line) solid var(--rule);border-radius:var(--radius-lg);box-shadow:var(--shadow-md);font-size:.9375rem;font-weight:420;line-height:1.55;color:var(--text-subtle);max-height:26rem;overflow:auto}
 .voice-reveal-body > :first-child{margin-top:0}
 .voice-reveal-body > :last-child{margin-bottom:0}
-.voice-reveal-body h1,.voice-reveal-body h2,.voice-reveal-body h3,.voice-reveal-body h4{font-size:.95rem;margin:1.1rem 0 .4rem;color:var(--text);line-height:1.3}
-.voice-reveal-body p,.voice-reveal-body li{font-size:.86rem;color:var(--text-subtle);margin-bottom:.5rem}
+.voice-reveal-body h1,.voice-reveal-body h2,.voice-reveal-body h3,.voice-reveal-body h4{font-size:1rem;font-weight:850;letter-spacing:0;margin:1.1rem 0 .35rem;color:var(--text);line-height:1.3}
+.voice-reveal-body h2::before{display:none}
+.voice-reveal-body p,.voice-reveal-body li{font-size:.9375rem;color:var(--text-subtle);margin-bottom:.5rem}
 .voice-reveal-body ul,.voice-reveal-body ol{margin:.5rem 0 .5rem 1.25rem}
 .voice-reveal-body li{margin:.2rem 0}
-.voice-reveal-body code{font-size:.82em}
+.voice-reveal-body code{font-size:.85em}
 
-/* Right-edge section rail (minimap ToC). Collapsed: a stack of ticks pinned to
-   the right gutter, one per h2, the current section's tick wider + accent-colored
-   (scroll-spy via IntersectionObserver). Hover / keyboard :focus-within expands
-   it into a labeled panel on --surface; the CSS reveal works with JS off. A
-   transparent border in the collapsed state reserves space so expanding doesn't
-   shift the ticks. Wide-only — hidden on narrow (the hamburger drawer takes
-   over). */
-#tocRail{position:fixed;top:50%;right:.4rem;transform:translateY(-50%);z-index:45;display:flex;flex-direction:column;gap:.15rem;max-height:80vh;overflow-y:auto;padding:.5rem .35rem;border:1px solid transparent;border-radius:var(--radius-md);transition:background var(--transition-slow),border-color var(--transition-slow),box-shadow var(--transition-slow),padding var(--transition-slow)}
-#tocRail a{display:flex;align-items:center;justify-content:flex-end;gap:.5rem;padding:.18rem .15rem;text-decoration:none;border-radius:var(--radius-sm)}
-/* The label is laid out at its final size the instant the rail expands (width is
-   deliberately NOT transitioned) and only fades in. Animating width/max-width
-   here makes the reveal stutter, because the easing tracks the 17rem cap rather
-   than the actual (shorter) text length. */
-#tocRail .label{width:0;max-width:17rem;overflow:hidden;white-space:nowrap;opacity:0;font-family:var(--font-display);font-size:.82rem;line-height:1.35;color:var(--text-subtle);transition:opacity var(--transition-slow)}
-#tocRail .tick{flex-shrink:0;width:1rem;height:2px;border-radius:1px;background:var(--border-strong);transition:width var(--transition),background var(--transition)}
-#tocRail a.active .tick{width:1.5rem;background:var(--accent)}
-#tocRail a.active .label{color:var(--accent);font-weight:600}
-/* Expanded panel (hover / keyboard focus) reads as a clean text-only mini-ToC.
-   The ONLY motion is a gentle opacity fade of the panel surface and the labels,
-   both already at their final size — no width easing to stutter. The ticks are
-   dropped instantly (display:none), so the dashes that would otherwise sit right
-   after each title never animate away (that retraction was the jarring bit).
-   Long section names wrap rather than truncate; each row gets a hover surface
-   for affordance. */
-#tocRail:hover,#tocRail:focus-within{background:var(--surface);border-color:var(--border);box-shadow:var(--shadow-md);padding:.5rem .5rem}
-#tocRail:hover a,#tocRail:focus-within a{justify-content:flex-start;padding:.3rem .55rem;border-radius:var(--radius-sm)}
+/* Section index (#tocRail). Wide: an "On this page" list in the right gutter.
+   Medium: ticks that expand on hover/focus. Narrow: hidden (drawer instead).
+   The scroll-spy toggles a.active; the current entry gets a red marker. */
+#tocRail{position:fixed;top:50%;right:.4rem;transform:translateY(-50%);z-index:45;display:flex;flex-direction:column;gap:.1rem;max-height:80vh;overflow-y:auto;padding:.5rem .35rem;border:2px solid transparent;border-radius:var(--radius-md);transition:background var(--transition-slow),border-color var(--transition-slow),box-shadow var(--transition-slow)}
+#tocRail a{display:flex;align-items:center;justify-content:flex-end;gap:.5rem;padding:.2rem .15rem;text-decoration:none;border-radius:var(--radius-sm)}
+#tocRail .label{width:0;max-width:17rem;overflow:hidden;white-space:nowrap;opacity:0;font-size:.875rem;font-weight:600;line-height:1.35;color:var(--text-subtle);transition:opacity var(--transition-slow)}
+#tocRail .tick{flex-shrink:0;width:.9rem;height:3px;border-radius:2px;background:var(--border-strong);transition:width var(--transition),background var(--transition)}
+#tocRail a.active .tick{width:1.5rem;background:var(--red)}
+#tocRail a.active .label{color:var(--text);font-weight:850}
+#tocRail:hover,#tocRail:focus-within{background:var(--surface);border-color:var(--rule);box-shadow:var(--shadow-md);padding:.5rem}
+#tocRail:hover a,#tocRail:focus-within a{justify-content:flex-start;padding:.3rem .55rem}
 #tocRail:hover .tick,#tocRail:focus-within .tick{display:none}
 #tocRail:hover .label,#tocRail:focus-within .label{width:auto;opacity:1;white-space:normal;overflow-wrap:break-word}
-#tocRail:hover a:hover,#tocRail:focus-within a:hover{background:var(--surface-sunken)}
-#tocRail:hover a:hover .label,#tocRail:focus-within a:hover .label{color:var(--text)}
-#tocRail a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+#tocRail:hover a:hover,#tocRail:focus-within a:hover{background:var(--accent-soft)}
 @media (prefers-reduced-motion:reduce){
   html{scroll-behavior:auto}
   #tocRail,#tocRail .tick,#tocRail .label{transition:none}
 }
 
-/* Back-link — persistent top bar (wide) and the ToC drawer (narrow). */
-.back-link{display:inline-flex;align-items:center;gap:.3rem;font-size:.78rem;color:var(--text-faint);text-decoration:none;padding:.2rem .25rem;border-radius:var(--radius-sm);flex-shrink:0}
-.back-link:hover{color:var(--accent);background:transparent}
+/* Back-link — in the masthead (wide) and the ToC drawer (narrow). */
+.back-link{display:inline-flex;align-items:center;gap:.35rem;font-size:.875rem;font-weight:800;color:inherit;text-decoration:none;padding:.35rem .8rem;border-radius:var(--radius-pill);border:2px solid currentColor;flex-shrink:0}
+.back-link:hover{background:rgba(255,255,255,.45)}
 
-/* Narrow-only ToC drawer. Hidden on wide (the rail replaces it); the off-canvas
-   fixed/transform positioning lives in the responsive block. Scoped to #sidebar,
-   NOT a bare `nav` selector — the part-nav and the rail are also <nav>. */
-#sidebar{display:none;flex-direction:column;background:var(--surface);border-right:1px solid var(--border);padding:1.6rem 1.4rem;overflow-y:auto;z-index:80}
-#sidebar .back-link{margin:-.2rem 0 .9rem}
-#sidebar .toc-label{font-family:var(--font-display);font-size:.7rem;font-weight:700;color:var(--text-faint);text-transform:uppercase;letter-spacing:.07em;margin:.4rem .4rem .35rem;line-height:1.3}
+/* Narrow-only ToC drawer. Scoped to #sidebar, NOT a bare `nav` selector. */
+#sidebar{display:none;flex-direction:column;background:var(--bg);border-right:var(--line) solid var(--rule);padding:1.25rem 1rem;overflow-y:auto;z-index:80}
+#sidebar .back-link{margin:0 0 1rem;align-self:flex-start;color:var(--text)}
+#sidebar .back-link:hover{background:var(--accent-soft)}
+#sidebar .toc-label{font-size:.8125rem;font-weight:800;color:var(--teal);margin:.25rem .6rem .4rem;line-height:1.3}
 #sidebar ul.toc{list-style:none;margin:0;padding:0}
-#sidebar ul.toc li{margin:.1rem 0}
-#sidebar ul.toc a{display:block;font-size:.85rem;line-height:1.4;padding:.35rem .6rem;color:var(--text-subtle);text-decoration:none;border-radius:var(--radius-sm);transition:background var(--transition),color var(--transition)}
-#sidebar ul.toc a:hover{background:var(--surface-sunken);color:var(--text)}
-#sidebar ul.toc a.active{background:var(--accent-soft);color:var(--accent);font-weight:600}
+#sidebar ul.toc li{margin:0;padding:0}
+#sidebar ul.toc a{display:block;font-size:.95rem;font-weight:600;line-height:1.4;padding:.5rem .75rem;color:var(--text-subtle);text-decoration:none;border-radius:var(--radius-md);transition:color var(--transition),background var(--transition)}
+#sidebar ul.toc a:hover{color:var(--text);background:var(--surface)}
+#sidebar ul.toc a.active{color:var(--on-yellow);font-weight:850;background:var(--yellow)}
 
-/* Off-canvas sidebar backdrop (narrow only) */
-#sidebarBackdrop{position:fixed;inset:0;background:rgba(27,23,20,.30);z-index:75;display:none}
-[data-theme="dark"] #sidebarBackdrop{background:rgba(0,0,0,.55)}
+#sidebarBackdrop{position:fixed;inset:0;background:rgba(28,33,64,.45);z-index:75;display:none}
+[data-theme="dark"] #sidebarBackdrop{background:rgba(0,0,0,.6)}
 
-/* Persistent top bar — back-link + breadcrumb (left), theme toggle (right);
-   shown on every width. On narrow the hamburger replaces the back-link/toggle
-   (see the responsive block) and toggles the ToC drawer. */
-#topBar{display:flex;position:sticky;top:0;background:var(--surface);border-bottom:1px solid var(--border);padding:.55rem .85rem;z-index:50;align-items:center;gap:.7rem}
-#topBar .theme-toggle{margin-left:auto;flex-shrink:0}
-.progress-button{color:var(--accent);border-color:var(--border-strong)}
-.progress-button:hover:not(:disabled){background:var(--accent-soft);color:var(--accent);border-color:var(--accent)}
-#hamburger{display:none;background:transparent;border:1px solid var(--border);color:var(--text-subtle);font:inherit;cursor:pointer;padding:.3rem .55rem;border-radius:var(--radius-sm);line-height:1;font-size:1.15rem;flex-shrink:0}
-#hamburger:hover{background:var(--surface-sunken);color:var(--text)}
-/* The crumb is a flex row (overflow:visible) so the part-picker dropdown isn't
-   clipped; the ellipsis moves onto the title <strong> so the title still
-   truncates while the picker stays fully visible beside it. */
-#topBar .crumb{display:flex;align-items:center;gap:.15rem;font-size:.85rem;color:var(--text-subtle);overflow:visible;flex:1;min-width:0}
-#topBar .crumb strong{color:var(--text);font-weight:600;font-family:var(--font-display);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
-#topBar .crumb .sep{margin:0 .35rem;color:var(--text-faint);flex-shrink:0}
+/* Masthead (#topBar) — the yellow band across the top, in both themes, with
+   navy ink and a heavy bottom rule. */
+#topBar{display:flex;position:sticky;top:0;background:var(--yellow);color:var(--on-yellow);border-bottom:var(--line) solid #1C2140;padding:.55rem clamp(.75rem,.5rem + 1vw,1.5rem);min-height:3.4rem;z-index:50;align-items:center;gap:.75rem}
+#topBar .topbar-rule{display:none}
+#topBar .theme-toggle{margin-left:auto;flex-shrink:0;background:var(--bg);color:var(--text);border-color:#1C2140}
+#topBar :focus-visible{outline-color:#1C2140}
+.progress-button{color:var(--text);border-color:var(--rule)}
+#hamburger{display:none;align-items:center;justify-content:center;background:transparent;border:2px solid currentColor;color:inherit;font:inherit;cursor:pointer;width:2.5rem;height:2.5rem;border-radius:var(--radius-pill);line-height:1;font-size:1.2rem;flex-shrink:0}
+#hamburger:hover{background:rgba(255,255,255,.45)}
+#topBar .crumb{display:flex;align-items:center;gap:.15rem;font-size:.95rem;color:inherit;overflow:visible;flex:1;min-width:0}
+#topBar .crumb strong{color:inherit;font-weight:850;font-variation-settings:var(--casual);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+#topBar .crumb .sep{margin:0 .4rem;opacity:.7;flex-shrink:0}
 
-/* Part picker — the sticky breadcrumb "Part N" becomes a native <details>
-   disclosure listing every part of the series. The default summary triangle is
-   removed (::-webkit-details-marker:none); a ▾ caret rotates on open. The
-   menu is an absolutely-positioned panel on the .series-toc / part-num vocabulary
-   for brand consistency, lifted above the #topBar content and scrollable for
-   long series. */
+/* Part picker — the masthead "Part N" is a native <details> listing every
+   part of the series. */
 .part-picker{position:relative;flex-shrink:0}
-.part-picker > summary{display:inline-flex;align-items:center;gap:.25rem;list-style:none;cursor:pointer;color:var(--text-subtle);padding:.1rem .15rem;border-radius:var(--radius-sm);white-space:nowrap}
+.part-picker > summary{display:inline-flex;align-items:center;gap:.35rem;list-style:none;cursor:pointer;color:var(--text);background:var(--bg);font-weight:800;padding:.3rem .8rem;border:2px solid #1C2140;border-radius:var(--radius-pill);white-space:nowrap;font-variant-numeric:tabular-nums}
 .part-picker > summary::-webkit-details-marker{display:none}
-.part-picker > summary:hover{color:var(--text)}
-.part-picker > summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.part-picker .caret{font-size:.7rem;color:var(--text-faint);transition:transform var(--transition)}
+.part-picker > summary:hover{background:var(--surface)}
+.part-picker .caret{font-size:.7rem;transition:transform var(--transition)}
 .part-picker[open] > summary .caret{transform:rotate(180deg)}
-.part-menu{position:absolute;top:calc(100% + .35rem);left:0;z-index:60;min-width:14rem;max-width:min(22rem,90vw);max-height:min(70vh,24rem);overflow-y:auto;margin:0;padding:.35rem;list-style:none;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-md);box-shadow:var(--shadow-md)}
-.part-menu li{margin:0}
-.part-menu a,.part-menu .part-menu-current{display:flex;gap:.55rem;align-items:baseline;padding:.45rem .6rem;border-radius:var(--radius-sm);text-decoration:none;color:var(--text-subtle);font-size:.85rem;line-height:1.35;transition:color var(--transition),background var(--transition)}
-.part-menu a:hover{color:var(--accent);background:var(--surface-sunken)}
-.part-menu .part-menu-current{color:var(--accent);background:var(--accent-soft);font-weight:600}
-.part-menu .part-num{font-family:var(--font-display);font-size:.68rem;font-weight:700;letter-spacing:.05em;color:var(--text-faint);text-transform:uppercase;flex-shrink:0;min-width:3.2rem}
-.part-menu .part-menu-current .part-num{color:var(--accent)}
+.part-menu{position:absolute;top:calc(100% + .5rem);left:0;z-index:60;min-width:17rem;max-width:min(24rem,90vw);max-height:min(70vh,26rem);overflow-y:auto;margin:0;padding:.4rem;list-style:none;background:var(--surface);border:var(--line) solid var(--rule);border-radius:var(--radius-lg);box-shadow:var(--shadow-md)}
+.part-menu li{margin:0;padding:0}
+.part-menu a,.part-menu .part-menu-current{display:flex;gap:.6rem;align-items:baseline;padding:.55rem .7rem;border-radius:var(--radius-md);text-decoration:none;color:var(--text-subtle);font-size:.9375rem;line-height:1.35;transition:color var(--transition),background var(--transition)}
+.part-menu a:hover{color:var(--text);background:var(--accent-soft)}
+.part-menu .part-menu-current{color:var(--on-yellow);background:var(--yellow);font-weight:850}
+.part-menu .part-num{font-size:.8125rem;font-weight:850;color:var(--red);flex-shrink:0;min-width:3rem;font-variant-numeric:tabular-nums}
+.part-menu .part-menu-current .part-num{color:var(--on-yellow)}
 .part-menu .title{min-width:0}
 
-/* Series TOC at bottom of part */
-/* The bordered sections that stack below the article (series TOC, part nav,
-   verify, extend) all share one top rhythm — margin-top:2rem + padding-top:1.6rem
-   — so their divider rules are evenly distributed rather than bunched. */
-.series-toc{margin-top:2rem;padding-top:1.6rem;border-top:1px solid var(--border)}
-.series-toc > h2{font-family:var(--font-display);font-size:1.05rem;font-weight:600;margin:0 0 .8rem;color:var(--text);line-height:1.3;letter-spacing:-.01em}
-.series-toc ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.45rem}
-.series-toc li{margin:0}
-.series-toc a,.series-toc .current-row{display:flex;gap:.65rem;align-items:baseline;padding:.6rem .9rem;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface);color:var(--text-subtle);text-decoration:none;font-size:.95rem;line-height:1.35;transition:color var(--transition),border-color var(--transition),background var(--transition)}
-.series-toc a:hover{color:var(--accent);border-color:var(--border-strong);background:var(--surface-sunken)}
-.series-toc .current-row{color:var(--accent);border-color:var(--accent);background:var(--accent-soft);font-weight:600}
-.series-toc .part-num{font-family:var(--font-display);font-size:.7rem;font-weight:700;letter-spacing:.05em;color:var(--text-faint);text-transform:uppercase;flex-shrink:0;min-width:3.4rem}
-.series-toc .current-row .part-num{color:var(--accent)}
+/* Below-article sections share one top rhythm, separated by a dotted rule. */
+.series-toc,.part-nav,.extend-section,.verify-section{margin-top:2.75rem;padding-top:1.6rem;border-top:2px dotted var(--rule)}
 
-/* Inline prev/next part navigation — compact buttons pinned to each edge
-   (prev left, next right), sized to content rather than stretched full-width. */
-.part-nav{display:flex;justify-content:space-between;gap:.75rem;margin-top:2rem;padding-top:1.6rem;border-top:1px solid var(--border)}
-.part-nav a{min-width:0;max-width:min(46%,20rem);text-decoration:none;color:var(--text-subtle);background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-md);padding:.5rem .8rem;display:flex;flex-direction:column;gap:.1rem;transition:color var(--transition),border-color var(--transition),background var(--transition)}
-.part-nav a:hover{color:var(--accent);border-color:var(--border-strong);background:var(--surface-sunken)}
-.part-nav .label{font-family:var(--font-display);font-size:.72rem;font-weight:700;letter-spacing:.03em;color:var(--text-faint)}
-.part-nav .title{font-size:.92rem;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* Series TOC — the parts as a numbered sequence; the current part is a yellow
+   row. A real sequence, so numbers belong. */
+.series-toc > h2{font-size:1.2rem;margin:0 0 .9rem;line-height:1.3}
+.series-toc > h2::before{display:none}
+.series-toc ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.25rem}
+.series-toc li{margin:0;padding:0}
+.series-toc a,.series-toc .current-row{display:flex;gap:.9rem;align-items:baseline;padding:.6rem .8rem;border-radius:var(--radius-md);color:var(--text-subtle);text-decoration:none;font-size:1rem;font-weight:600;line-height:1.4;transition:color var(--transition),background var(--transition)}
+.series-toc a:hover{color:var(--text);background:var(--accent-soft)}
+.series-toc .current-row{color:var(--on-yellow);font-weight:850;background:var(--yellow)}
+.series-toc .part-num{font-size:.875rem;font-weight:900;color:var(--red);flex-shrink:0;min-width:3.6rem;font-variant-numeric:tabular-nums}
+.series-toc .current-row .part-num{color:var(--on-yellow)}
+
+/* Prev/next part navigation — next is the big red "On to part N" pill. */
+.part-nav{display:flex;justify-content:space-between;gap:.75rem;flex-wrap:wrap}
+.part-nav a{min-width:0;max-width:min(48%,22rem);text-decoration:none;color:var(--text);background:var(--surface);border:2px solid var(--rule);border-radius:var(--radius-lg);padding:.7rem 1.1rem;display:flex;flex-direction:column;gap:.15rem;transition:background var(--transition),transform 150ms ease-out}
+.part-nav a:hover{background:var(--accent-soft)}
+.part-nav .label{font-size:.8125rem;font-weight:800;color:var(--teal)}
+.part-nav .title{font-size:1rem;font-weight:850;font-variation-settings:var(--casual);color:inherit;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .part-nav .prev{align-items:flex-start}
-.part-nav .next{margin-left:auto;text-align:right;align-items:flex-end}
+.part-nav .next{margin-left:auto;text-align:right;align-items:flex-end;background:var(--red);border-color:var(--red);color:var(--on-red)}
+.part-nav .next .label{color:var(--on-red);opacity:.9}
+.part-nav .next:hover{background:var(--red-hover);border-color:var(--red-hover)}
 .part-nav .spacer{display:none}
 
 /* Extend / verify sections */
-.extend-section{margin-top:2rem;padding-top:1.6rem;border-top:1px solid var(--border)}
-.extend-section h3{font-family:var(--font-display);font-size:1.05rem;font-weight:600;margin:0 0 .8rem;color:var(--text)}
+.extend-section h3{font-size:1.1rem;margin:0 0 .75rem;color:var(--text)}
 #extendForm{display:flex;flex-direction:column;gap:.6rem}
-#extendForm textarea{width:100%;padding:.6rem .75rem;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface);color:var(--text);font-family:var(--font-body);font-size:.95rem;resize:vertical;min-height:4.5rem}
-#extendForm textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
-.extend-error{font-size:.85rem;color:var(--badge-failed-text);min-height:1.2em}
+#extendForm textarea{width:100%;padding:.7rem .9rem;border:2px solid var(--rule);border-radius:var(--radius-md);background:var(--surface);color:var(--text);font-family:var(--font-body);font-size:1rem;line-height:1.5;resize:vertical;min-height:4.5rem}
+#extendForm textarea::placeholder,#askInput::placeholder,.search-input::placeholder{color:var(--text-faint)}
+#extendForm textarea:focus{outline:3px solid var(--focus);outline-offset:1px}
+.extend-error{font-size:.9rem;color:var(--badge-failed-text);min-height:1.2em}
 .extending-panel{color:var(--text-muted)}
-.extending-panel .muted{font-size:.85rem;color:var(--text-faint);margin-top:.25rem}
-.verify-section{margin-top:2rem;padding-top:1.6rem;border-top:1px solid var(--border)}
-.verify-error{font-size:.85rem;color:var(--badge-failed-text);min-height:1.2em;margin-top:.5rem}
+.extending-panel .muted{font-size:.9rem;color:var(--text-faint);margin-top:.25rem}
+.verify-error{font-size:.9rem;color:var(--badge-failed-text);min-height:1.2em;margin-top:.5rem}
 .verifying-panel{color:var(--text-muted)}
-.verifying-panel .muted{font-size:.85rem;color:var(--text-faint);margin-top:.25rem}
-/* Zero the panels' default <p> margins so the spinner line and the "updates
-   automatically" note sit tight (the .muted margin-top above sets the gap) and
-   no stray 1.05rem trails before the series TOC below. */
+.verifying-panel .muted{font-size:.9rem;color:var(--text-faint);margin-top:.25rem}
 .verifying-panel p,.extending-panel p{margin:0}
+.verify-failure{margin-top:2.5rem}
 .verify-failure code{word-break:break-all}
-/* Loading spinner shared by the verifying / extending panels. Inline ring that
-   reuses the muted palette; the badge-pulse reduced-motion guard pattern applies. */
-.status-spinner{display:inline-block;width:.8em;height:.8em;margin-right:.45rem;vertical-align:-.08em;border:2px solid var(--border);border-top-color:var(--text-muted);border-radius:9999px;animation:status-spin .7s linear infinite}
+.status-spinner{display:inline-block;width:.9em;height:.9em;margin-right:.5rem;vertical-align:-.1em;border:3px solid var(--border);border-top-color:var(--red);border-radius:9999px;animation:status-spin .7s linear infinite}
 @keyframes status-spin{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion:reduce){.status-spinner{animation:none}}
-
-/* The extend submit sits in a flex-column form; keep it left-aligned. (Visual
-   style comes from .btn .btn-primary in the markup.) */
 #extendForm .btn{align-self:flex-start}
 
-/* Floating reader actions (wide screens) — progress + Ask stay available while
-   reading, matching the fixed affordance the Ask button already used. */
-#floatingActions{position:fixed;bottom:1.5rem;right:1.5rem;z-index:40;display:flex;align-items:center;gap:.55rem}
+/* Floating reader actions (wide screens) */
+#floatingActions{position:fixed;bottom:1.25rem;right:1.25rem;z-index:40;display:flex;align-items:center;gap:.5rem}
 #floatingActions .btn{box-shadow:var(--shadow-md)}
 #floatingActions .btn:hover{transform:translateY(-2px)}
-.progress-status{position:fixed;right:1.5rem;bottom:4.5rem;z-index:40;max-width:min(18rem,calc(100vw - 2rem));padding:.45rem .7rem;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface);box-shadow:var(--shadow-sm);color:var(--text-subtle);font-size:.82rem;line-height:1.35;opacity:0;pointer-events:none;transform:translateY(.35rem);transition:opacity var(--transition),transform var(--transition),color var(--transition),border-color var(--transition)}
+.progress-status{position:fixed;right:1.25rem;bottom:4.75rem;z-index:40;max-width:min(18rem,calc(100vw - 2rem));padding:.5rem .85rem;border:2px solid var(--rule);border-radius:var(--radius-md);background:var(--surface);box-shadow:var(--shadow-sm);color:var(--text);font-size:.875rem;font-weight:700;line-height:1.35;opacity:0;pointer-events:none;transform:translateY(.35rem);transition:opacity var(--transition),transform var(--transition)}
 .progress-status:not(:empty){opacity:1;transform:translateY(0)}
 .progress-status[data-state="error"]{color:var(--badge-failed-text);border-color:var(--badge-failed-text);background:var(--badge-failed-bg)}
 
 /* Bottom action dock (narrow only) */
-#bottomDock{display:none;position:fixed;left:0;right:0;bottom:0;background:var(--surface);border-top:1px solid var(--border);padding:.55rem .85rem;z-index:50;justify-content:space-between;align-items:center;gap:.7rem}
+#bottomDock{display:none;position:fixed;left:0;right:0;bottom:0;background:var(--yellow);color:var(--on-yellow);border-top:var(--line) solid #1C2140;padding:.55rem .85rem calc(.55rem + env(safe-area-inset-bottom));z-index:50;justify-content:space-between;align-items:center;gap:.6rem}
+#bottomDock .theme-toggle{min-height:2.75rem;padding-inline:.8rem;background:var(--bg);color:var(--text);border-color:#1C2140}
 #bottomDock .theme-toggle .label{display:none}
+#bottomDock .btn{min-height:2.75rem}
+#bottomDock .progress-button{background:var(--bg);border-color:#1C2140}
 
 /* Ask drawer (wide: right-side slide-in) */
-#askDrawer{position:fixed;top:0;right:0;bottom:0;width:min(420px,100vw);background:var(--surface);border-left:1px solid var(--border);transform:translateX(100%);transition:transform 200ms ease-out;z-index:90;display:flex;flex-direction:column}
-#askDrawer.open{transform:translateX(0)}
-#askDrawer header{display:flex;align-items:center;justify-content:space-between;gap:.5rem;padding:1rem 1.25rem;border-bottom:1px solid var(--border)}
-#askDrawer header h3{font-family:var(--font-display);font-size:1rem;font-weight:600;color:var(--text);margin:0;line-height:1.3;overflow:hidden;text-overflow:ellipsis}
-#askClose{background:transparent;border:none;color:var(--text-subtle);font-size:1.5rem;line-height:1;cursor:pointer;padding:.25rem .5rem;border-radius:var(--radius-sm)}
-#askClose:hover{background:var(--surface-sunken);color:var(--text)}
-#askBackdrop{position:fixed;inset:0;background:rgba(27,23,20,.30);z-index:85}
-[data-theme="dark"] #askBackdrop{background:rgba(0,0,0,.55)}
-#askLog{flex:1;overflow-y:auto;padding:1rem;display:flex;flex-direction:column;gap:.75rem}
-.ask-bubble{border-radius:var(--radius-md);padding:.6rem .8rem;max-width:92%;word-wrap:break-word;color:var(--text);font-size:.92rem;line-height:1.55}
-/* Question and answer bubbles use pre-wrap so multi-line text keeps its line
-   breaks. */
-.ask-question{align-self:flex-end;background:var(--accent-soft);color:var(--accent);white-space:pre-wrap}
-.ask-answer{align-self:flex-start;background:var(--surface-sunken);white-space:pre-wrap}
-/* Handoff panels: answering, verifying, and extending now run in the user's
-   interactive coding-agent session, so these surfaces hand back a slash-command
-   to paste rather than streaming a result. Shared styling for the Ask-drawer
-   bubble variant (.ask-handoff*) and the verify/extend form variant
-   (.handoff-*). */
+#askDrawer{position:fixed;top:0;right:0;bottom:0;width:min(460px,100vw);background:var(--bg);border-left:var(--line) solid var(--rule);transform:translateX(100%);transition:transform 200ms ease-out;z-index:90;display:flex;flex-direction:column}
+#askDrawer.open{transform:translateX(0);box-shadow:var(--shadow-md)}
+#askDrawer header{display:flex;align-items:center;justify-content:space-between;gap:.5rem;padding:.85rem 1rem .85rem 1.25rem;background:var(--yellow);color:var(--on-yellow);border-bottom:var(--line) solid #1C2140}
+#askDrawer header h3{font-size:1.05rem;color:inherit;margin:0;line-height:1.3;overflow:hidden;text-overflow:ellipsis}
+#askClose{background:transparent;border:2px solid currentColor;color:inherit;font-size:1.3rem;line-height:1;cursor:pointer;width:2.4rem;height:2.4rem;border-radius:var(--radius-pill);flex-shrink:0}
+#askClose:hover{background:rgba(255,255,255,.45)}
+#askBackdrop{position:fixed;inset:0;background:rgba(28,33,64,.45);z-index:85}
+[data-theme="dark"] #askBackdrop{background:rgba(0,0,0,.6)}
+#askLog{flex:1;overflow-y:auto;padding:1.1rem 1.25rem;display:flex;flex-direction:column;gap:.9rem}
+.ask-bubble{border-radius:var(--radius-lg);padding:.7rem .95rem;max-width:92%;word-wrap:break-word;color:var(--text);font-size:1rem;line-height:1.55}
+/* The question is the reader's own words: a navy speech bubble on the right.
+   The answer sits on the page as a white card. */
+.ask-question{align-self:flex-end;background:var(--cmd-bg);color:var(--cmd-text);white-space:pre-wrap;border-bottom-right-radius:var(--radius-sm)}
+.ask-answer{align-self:flex-start;background:var(--surface);border:2px solid var(--rule);white-space:pre-wrap;border-bottom-left-radius:var(--radius-sm)}
 .ask-handoff{white-space:normal}
-.ask-handoff-note,.handoff-note{font-size:.85rem;color:var(--text-muted);margin:0 0 .5rem}
-.ask-handoff-cmd,.handoff-cmd{margin:0 0 .6rem;white-space:pre-wrap;word-break:break-word;font-size:.85rem}
-.handoff-panel{margin-top:.5rem}
-/* Pending-answer bubble while a connected worker answers out-of-process. */
+.ask-handoff-note,.handoff-note{font-size:.9rem;color:var(--text-muted);margin:0 0 .5rem}
+.ask-handoff-cmd,.handoff-cmd{margin:0 0 .6rem;white-space:pre-wrap;word-break:break-word;font-size:.875rem}
+.handoff-panel{margin-top:.75rem;padding:.9rem 1.1rem;border:2px dashed var(--border-strong);border-radius:var(--radius-md)}
 .ask-thinking{opacity:.7;font-style:italic}
-/* A worker-answered bubble carries rendered markdown (block elements), so it
-   opts out of the plain-text pre-wrap and trims the outer block margins so the
-   answer sits flush inside the bubble. */
 .ask-rich{white-space:normal}
 .ask-rich > :first-child{margin-top:0}
 .ask-rich > :last-child{margin-bottom:0}
-/* The worker-connected indicator in the Ask drawer header: a small muted dot. */
-.worker-status{font-size:.78rem;color:var(--text-muted);margin-left:auto;margin-right:.6rem;white-space:nowrap}
-/* First-boot live-mode nudge: a bottom-center toast that fades in, then out.
-   z-index sits below the Ask drawer/backdrop (90/85) so opening Ask covers it. */
-.live-nudge{position:fixed;left:50%;bottom:1.25rem;transform:translateX(-50%) translateY(.5rem);z-index:82;display:flex;align-items:center;gap:.6rem;max-width:min(92vw,38rem);padding:.7rem .9rem;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:var(--radius-md);box-shadow:var(--shadow-md);font-size:.88rem;line-height:1.45;opacity:0;transition:opacity .35s ease,transform .35s ease}
+.ask-rich pre{font-size:.85rem}
+.ask-rich h2::before{display:none}
+.worker-status{font-size:.8125rem;font-weight:800;color:#1E5E1C;margin-left:auto;margin-right:.4rem;white-space:nowrap}
+/* First-boot live-mode nudge: a bottom-center toast. */
+.live-nudge{position:fixed;left:50%;bottom:1.25rem;transform:translateX(-50%) translateY(.5rem);z-index:82;display:flex;align-items:center;gap:.6rem;max-width:min(92vw,38rem);padding:.75rem 1rem;background:var(--surface);color:var(--text);border:var(--line) solid var(--rule);border-radius:var(--radius-lg);box-shadow:var(--shadow-md);font-size:.9375rem;line-height:1.45;opacity:0;transition:opacity .35s ease,transform .35s ease}
 .live-nudge.show{opacity:1;transform:translateX(-50%) translateY(0)}
 .live-nudge code{font-size:.85em}
-.live-nudge .live-nudge-dot{color:var(--accent);flex:none}
-.live-nudge .live-nudge-close{flex:none;background:none;border:none;color:var(--text-muted);font-size:1.15rem;line-height:1;cursor:pointer;padding:0 .15rem;margin-left:.2rem}
-.live-nudge .live-nudge-close:hover{color:var(--text)}
-#askForm{display:flex;flex-direction:column;gap:.6rem;padding:1rem;border-top:1px solid var(--border)}
-#askInput{width:100%;resize:vertical;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:var(--radius-md);padding:.55rem .7rem;font-family:var(--font-body);font-size:.92rem;line-height:1.4}
-#askInput:focus{outline:2px solid var(--accent);outline-offset:1px}
+.live-nudge .live-nudge-dot{color:var(--red);flex:none}
+.live-nudge .live-nudge-close{flex:none;background:none;border:none;color:var(--text-subtle);font-size:1.2rem;line-height:1;cursor:pointer;width:2.2rem;height:2.2rem;border-radius:var(--radius-pill);margin-left:.2rem}
+.live-nudge .live-nudge-close:hover{color:var(--text);background:var(--accent-soft)}
+#askForm{display:flex;flex-direction:column;gap:.6rem;padding:1rem 1.25rem;border-top:2px dotted var(--rule)}
+#askInput{width:100%;resize:vertical;background:var(--surface);color:var(--text);border:2px solid var(--rule);border-radius:var(--radius-md);padding:.65rem .8rem;font-family:var(--font-body);font-size:1rem;line-height:1.45}
+#askInput:focus{outline:3px solid var(--focus);outline-offset:1px}
 .ask-controls{display:flex;gap:.5rem;justify-content:flex-end}
-/* #askSubmit / #askStop are .btn .btn-sm (primary / danger) in the markup. */
-/* List items that contain an exercise checkbox (tight or loose lists).*/
-#exercises + ul{counter-reset:exercise}
-#exercises + ul li:has(>.exercise-check),#exercises + ul li:has(>p>.exercise-check){--ex-pt:.3rem;--ex-lh:1.7;list-style:none;position:relative;counter-increment:exercise;padding:var(--ex-pt) 0 var(--ex-pt) 4.5rem;line-height:var(--ex-lh);background:transparent;box-shadow:inset 3px 0 0 transparent;transition:color var(--transition),opacity var(--transition),background var(--transition),box-shadow var(--transition)}
+
+/* Exercises — "Try it yourself": the list after the Exercises heading becomes
+   one outlined card, each exercise a numbered row with a chunky checkbox. */
+#exercises + ul{counter-reset:exercise;margin-left:0;padding:.35rem 1.1rem;border:var(--line) solid var(--rule);border-radius:var(--radius-lg);background:var(--surface);list-style:none}
+#exercises + ul li:has(>.exercise-check),#exercises + ul li:has(>p>.exercise-check){--ex-pt:.7rem;--ex-lh:1.55;list-style:none;position:relative;counter-increment:exercise;padding:var(--ex-pt) .25rem var(--ex-pt) 4.4rem;margin:0;line-height:var(--ex-lh);border-top:2px dotted var(--rule);transition:color var(--transition)}
+#exercises + ul li:has(.exercise-check):first-child{border-top:none}
 #exercises + ul li:has(.exercise-check)>p:first-of-type{margin-top:0}
 #exercises + ul li:has(.exercise-check)>p:last-of-type{margin-bottom:0}
-#exercises + ul li:has(>.exercise-check)::before,#exercises + ul li:has(>p>.exercise-check)::before{content:counter(exercise)".";position:absolute;left:.5rem;top:var(--ex-pt);line-height:var(--ex-lh);font-family:var(--font-display);font-weight:700;color:var(--text-subtle);text-decoration:none;transition:color var(--transition)}
-#exercises + ul .exercise-check{-webkit-appearance:none;appearance:none;box-sizing:border-box;font:inherit;width:1.4rem;height:1.4rem;border-radius:8px;border:1.5px solid var(--border);background:var(--surface);position:absolute;left:2.1rem;top:calc(var(--ex-pt) + (var(--ex-lh)*1em - 1.4rem)/2);margin:0;cursor:pointer;transition:background var(--transition),border-color var(--transition),box-shadow var(--transition),transform 120ms ease}
-#exercises + ul .exercise-check:hover{border-color:color-mix(in srgb,var(--accent) 55%,var(--border));background:color-mix(in srgb,var(--accent) 8%,var(--surface))}
+#exercises + ul li:has(>.exercise-check)::before,#exercises + ul li:has(>p>.exercise-check)::before{content:counter(exercise);position:absolute;left:.2rem;top:var(--ex-pt);line-height:var(--ex-lh);font-weight:950;font-variation-settings:var(--casual);font-variant-numeric:tabular-nums;color:var(--red);text-decoration:none;transition:color var(--transition)}
+#exercises + ul .exercise-check{-webkit-appearance:none;appearance:none;box-sizing:border-box;font:inherit;width:1.5rem;height:1.5rem;border-radius:var(--radius-sm);border:var(--line) solid var(--rule);background:var(--bg);position:absolute;left:1.9rem;top:calc(var(--ex-pt) + (var(--ex-lh)*1em - 1.5rem)/2);margin:0;cursor:pointer;transition:background var(--transition),border-color var(--transition),transform 120ms ease}
+#exercises + ul .exercise-check:hover{background:var(--accent-soft)}
 #exercises + ul .exercise-check:active{transform:scale(.9)}
-#exercises + ul .exercise-check:focus-visible{outline:2px solid color-mix(in srgb,var(--accent) 45%,transparent);outline-offset:2px}
-#exercises + ul .exercise-check:checked{background-color:var(--accent);border-color:var(--accent);box-shadow:inset 0 1px 0 rgba(0,0,0,.06);background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 10'><path d='M1 5.2 L4.2 8.4 L11 1.2' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' fill='none'/></svg>");background-repeat:no-repeat;background-position:center;background-size:62%;animation:ex-check-pop .26s ease}
-@keyframes ex-check-pop{0%{transform:scale(1)}45%{transform:scale(1.16)}100%{transform:scale(1)}}
-/* line-through only on the checked state: an always-on line-through with a
-   transparent color reads as "strikethrough" to screen readers. */
-#exercises + ul li:has(.exercise-check:checked){opacity:.85;color:var(--text-faint);text-decoration:line-through;background:color-mix(in srgb,var(--accent-soft) 10%,transparent);box-shadow:inset 3px 0 0 var(--accent)}
-#exercises + ul li:has(.exercise-check:checked)::before{color:var(--accent)}
+#exercises + ul .exercise-check:checked{background-color:var(--red);border-color:var(--red);background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 10'><path d='M1 5.2 L4.2 8.4 L11 1.2' stroke='white' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round' fill='none'/></svg>");background-repeat:no-repeat;background-position:center;background-size:64%;animation:ex-check-pop .24s ease}
+@keyframes ex-check-pop{0%{transform:scale(1)}45%{transform:scale(1.15)}100%{transform:scale(1)}}
+#exercises + ul li:has(.exercise-check:checked){color:var(--text-faint);text-decoration:line-through;text-decoration-thickness:2px;text-decoration-color:var(--border-strong)}
+#exercises + ul li:has(.exercise-check:checked)::before{color:var(--text-faint)}
 @media (prefers-reduced-motion:reduce){#exercises + ul .exercise-check{animation:none;transition:none}}
 
-/* ---- List page (body.list) ---------------------------------------------- */
-body.list{max-width:46rem;margin:clamp(1.5rem,.9rem + 2vw,3rem) auto;padding:0 clamp(.9rem,.4rem + 2vw,1.5rem)}
-body.list .header{display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;flex-wrap:wrap}
-body.list .header > div{min-width:0;flex:1 1 auto}
-body.list h1{font-family:var(--font-display);font-size:clamp(1.7rem,1.3rem + 1.4vw,2.2rem);margin-bottom:.35rem;line-height:1.15;letter-spacing:-.015em}
-.subtitle{color:var(--text-faint);margin-bottom:1.75rem;font-size:.98rem;font-style:italic}
-/* Cards use the stretched-link pattern: the title's ::after overlay covers the
-   whole card so a click anywhere opens the tutorial, while .tutorial-actions is
-   lifted above it (z-index) so the delete button still works. Denser padding +
-   margins than the reading shell to make the index scan quickly. */
-.tutorial{position:relative;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-md);padding:.7rem 1rem;margin:.5rem 0;display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;flex-wrap:wrap;transition:border-color var(--transition),box-shadow var(--transition)}
-.tutorial:hover{border-color:var(--border-strong);box-shadow:var(--shadow-sm)}
-.tutorial-body{min-width:0;flex:1 1 14rem}
-.tutorial-link{text-decoration:none;color:var(--accent);font-family:var(--font-display);font-weight:600;font-size:1.08rem;display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+/* ---- List page (body.list) — the bookshelf ------------------------------
+   Each tutorial is a book cover: a colored top with its size and title in big
+   Casual type, and a paper strip below with progress, chips, status and the
+   delete button. The cover is built with CSS grid over the existing markup:
+   .tutorial-body is display:contents, so its children (.meta, .tutorial-link,
+   .tutorial-progress, .chips) sit directly in the card's grid, and ::before
+   paints the colored top behind the first two rows. */
+body.list{max-width:76rem;margin:0 auto;padding:clamp(1.75rem,1rem + 3vw,4rem) clamp(1rem,.5rem + 2.5vw,2.5rem) 4rem}
+body.list .header{display:flex;justify-content:space-between;align-items:flex-end;gap:1rem 2rem;flex-wrap:wrap;margin-bottom:2rem}
+body.list .header > div{min-width:0;display:flex;align-items:flex-end;gap:1rem 2rem;flex-wrap:wrap;flex:1 1 auto}
+body.list h1{font-size:clamp(3rem,2rem + 4.5vw,5.25rem);font-weight:1000;margin:0;line-height:.88;letter-spacing:-.05em}
+.subtitle{color:var(--text-muted);margin:0 0 .35rem;font-size:1.05rem;font-weight:600;max-width:24rem}
+.tutorial-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(15.5rem,1fr));gap:1.25rem}
+.tutorial{--cover:var(--cover-1);--cover-ink:var(--cover-1-ink);position:relative;isolation:isolate;display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto 1fr auto auto auto;min-height:19rem;border:var(--line) solid var(--rule);border-radius:var(--radius-lg);background:var(--bg);overflow:hidden;transition:transform 150ms ease-out,box-shadow 150ms ease-out}
+/* Covers in one row share their row tracks, so every colored top in a row is
+   the same height however the titles and chips wrap. */
+@supports (grid-template-rows:subgrid){
+  .tutorial{grid-row:span 5;grid-template-rows:subgrid;row-gap:0;min-height:0}
+  .tutorial-list{row-gap:1.25rem}
+  .tutorial-link{min-height:6.5rem}
+}
+.tutorial:nth-child(4n+2){--cover:var(--cover-2);--cover-ink:var(--cover-2-ink)}
+.tutorial:nth-child(4n+3){--cover:var(--cover-3);--cover-ink:var(--cover-3-ink)}
+.tutorial:nth-child(4n+4){--cover:var(--cover-4);--cover-ink:var(--cover-4-ink)}
+.tutorial::before{content:'';grid-row:1/3;grid-column:1;background:var(--cover);border-bottom:var(--line) solid var(--rule);z-index:-1}
+.tutorial:hover{transform:translateY(-3px);box-shadow:var(--shadow-md)}
+.tutorial:has(.tutorial-link:focus-visible){outline:3px solid var(--focus);outline-offset:3px}
+.tutorial-body{display:contents}
+.tutorial .meta{grid-row:1;grid-column:1;padding:1.1rem 1.2rem 0;font-size:.875rem;font-weight:750;color:var(--cover-ink);opacity:.92;font-variant-numeric:tabular-nums}
+.tutorial-link{grid-row:2;grid-column:1;align-self:start;padding:.45rem 1.2rem 1.3rem;text-decoration:none;color:var(--cover-ink);font-family:var(--font-display);font-variation-settings:var(--casual);font-weight:950;font-size:1.65rem;line-height:1.02;letter-spacing:-.025em;overflow-wrap:anywhere}
+.tutorial-link:hover{color:var(--cover-ink);text-decoration:underline;text-decoration-thickness:3px;text-underline-offset:5px}
+.tutorial-link:focus-visible{outline:none}
 .tutorial-link::after{content:'';position:absolute;inset:0;z-index:0}
-.tutorial:hover .tutorial-link{color:var(--accent-hover);text-decoration:underline;text-underline-offset:2px}
-.meta{font-size:.8rem;color:var(--text-faint);margin-top:.25rem}
-.tutorial-progress{display:flex;align-items:center;gap:.55rem;margin-top:.45rem;max-width:min(16rem,100%)}
-.tutorial-progress-track{position:relative;flex:1;height:.35rem;border-radius:9999px;background:var(--surface-sunken);overflow:hidden;border:1px solid var(--border)}
-.tutorial-progress-track .fill{display:block;height:100%;background:var(--accent);border-radius:inherit}
-.tutorial-progress-segments{display:flex;gap:2px}
-.tutorial-progress-segments .segment{display:block;flex:1;min-width:.35rem;height:100%;border-radius:9999px;background:var(--surface-sunken);overflow:hidden}
-.tutorial-progress-label{font-family:var(--font-display);font-size:.72rem;font-weight:600;color:var(--text-faint);white-space:nowrap}
-/* Sits above the stretched-link overlay so the badge reads and the × deletes. */
-.tutorial-actions{position:relative;z-index:1;display:flex;align-items:center;gap:.6rem;flex-shrink:0;flex-wrap:wrap}
-.delete-form{margin:0}
-.delete-btn{background:transparent;border:1px solid var(--border);color:var(--text-faint);font:inherit;font-size:1rem;line-height:1;min-width:32px;min-height:32px;padding:.15rem .55rem;border-radius:var(--radius-sm);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;transition:color var(--transition),border-color var(--transition),background var(--transition)}
-.delete-btn:hover{color:var(--badge-failed-text);border-color:var(--badge-failed-text);background:var(--badge-failed-bg)}
-.empty{color:var(--text-faint);text-align:center;padding:3rem 1rem;font-size:1rem;font-style:italic}
-.empty code{background:var(--code-bg);color:var(--code-text);padding:.1rem .35rem;border-radius:var(--radius-sm);font-family:var(--font-mono);font-size:.85em;font-style:normal}
+.tutorial-progress{grid-row:4;grid-column:1;align-self:start;display:flex;align-items:center;gap:.6rem;padding:.75rem 1.2rem 0}
+.tutorial-progress-track{position:relative;flex:1;height:.55rem;background:var(--border);overflow:hidden;border-radius:9999px}
+.tutorial-progress-track .fill{display:block;height:100%;background:var(--red);border-radius:9999px}
+.tutorial-progress-segments{display:flex;gap:4px;background:transparent}
+.tutorial-progress-segments .segment{display:block;flex:1;min-width:.35rem;height:100%;background:var(--border);overflow:hidden;border-radius:9999px}
+.tutorial-progress-label{font-size:.8125rem;font-weight:750;color:var(--text-subtle);white-space:nowrap;font-variant-numeric:tabular-nums}
+.chips{grid-row:3;grid-column:1;align-self:start;display:flex;gap:.35rem;flex-wrap:wrap;align-items:center;padding:.85rem 1.2rem 0}
+.chips:empty{display:none}
+/* Above the stretched-link overlay so the badge reads and the × deletes. */
+.tutorial-actions{grid-row:5;grid-column:1;position:relative;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:.5rem;padding:.7rem .8rem .8rem 1.2rem;min-height:3rem}
+.delete-form{margin:0;margin-left:auto}
+.delete-btn{background:var(--bg);border:2px solid var(--border-strong);color:var(--text-subtle);font:inherit;font-size:1.15rem;font-weight:700;line-height:1;width:2.25rem;height:2.25rem;border-radius:var(--radius-pill);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;transition:color var(--transition),border-color var(--transition),background var(--transition),opacity var(--transition)}
+.delete-btn:hover,.delete-btn:focus-visible{color:var(--badge-failed-text);border-color:var(--badge-failed-text);background:var(--badge-failed-bg)}
+/* Deleting is rare and permanent, so on pointer devices the button stays out
+   of the way until the cover is hovered or anything in it has focus. */
+@media (hover:hover){
+  .delete-btn{opacity:0}
+  .tutorial:hover .delete-btn,.tutorial:focus-within .delete-btn{opacity:1}
+}
+.empty{padding:2.5rem 2rem;border:var(--line) dashed var(--rule);border-radius:var(--radius-lg);color:var(--text-muted);font-size:1.1rem;line-height:1.6;max-width:44rem}
+.empty strong{display:block;font-family:var(--font-display);font-variation-settings:var(--casual);font-size:1.75rem;font-weight:950;letter-spacing:-.02em;margin-bottom:.4rem}
+.empty code{background:var(--cmd-bg);color:var(--cmd-text);padding:.12rem .45rem;border-radius:var(--radius-sm);font-family:var(--font-mono);font-variation-settings:var(--mono);font-size:.9em}
 
-/* List controls — client-side search, sort, and tag/status filters. Pure
-   progressive enhancement: without JS every card and every filter stays visible
-   (.hidden / .collapsed are only ever set by the list page script). The toolbar
-   row (search + sort + Filters toggle) is always shown; the pill rows live in a
-   panel the toggle collapses on load. */
-.controls{margin:0 0 1.25rem;display:flex;flex-direction:column;gap:.6rem}
-.toolbar{display:flex;gap:.6rem;flex-wrap:wrap;align-items:center}
-.search-input{flex:1 1 14rem;min-width:0;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:var(--radius-md);padding:.55rem .75rem;font-family:var(--font-body);font-size:.95rem;line-height:1.4}
-.search-input:focus{outline:2px solid var(--accent);outline-offset:1px}
-.sort-select{background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:var(--radius-md);padding:.5rem .65rem;font-family:var(--font-display);font-size:.85rem;font-weight:600;cursor:pointer}
-.sort-select:focus{outline:2px solid var(--accent);outline-offset:1px}
-/* Filters toggle — shares the sort-select / filter-pill vocabulary. .has-active
-   tints it with the accent soft so an active filter set reads even when the
-   panel is collapsed. */
-.filter-toggle{background:var(--surface);color:var(--text-subtle);border:1px solid var(--border);border-radius:var(--radius-md);padding:.5rem .8rem;font-family:var(--font-display);font-size:.85rem;font-weight:600;cursor:pointer;transition:background var(--transition),color var(--transition),border-color var(--transition)}
-.filter-toggle:hover{background:var(--surface-sunken);color:var(--text)}
-.filter-toggle:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.filter-toggle[aria-expanded="true"]{background:var(--surface-sunken);color:var(--text);border-color:var(--border-strong)}
-.filter-toggle.has-active{color:var(--accent);border-color:var(--accent);background:var(--accent-soft)}
-.filter-panel{display:flex;flex-direction:column;gap:.55rem;padding-top:.15rem}
+/* List controls — client-side search, sort, and filters (progressive
+   enhancement: without JS every cover and filter stays visible). */
+.controls{margin:0 0 1.75rem;display:flex;flex-direction:column;gap:.75rem}
+.toolbar{display:flex;gap:.6rem;flex-wrap:wrap;align-items:stretch}
+.search-input{flex:1 1 18rem;min-width:0;min-height:3.1rem;background:var(--surface);color:var(--text);border:var(--line) solid var(--rule);border-radius:var(--radius-pill);padding:.55rem 1.1rem .55rem 2.75rem;font-family:var(--font-body);font-size:1.05rem;line-height:1.4;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%236B6550' stroke-width='2.4' stroke-linecap='round'><circle cx='8.5' cy='8.5' r='5.5'/><path d='M13 13l4 4'/></svg>");background-repeat:no-repeat;background-position:1rem center;background-size:1.05rem}
+.search-input:focus{outline:3px solid var(--focus);outline-offset:2px}
+.sort-select{min-height:3.1rem;background:var(--surface);color:var(--text);border:var(--line) solid var(--rule);border-radius:var(--radius-pill);padding:.5rem 1rem;font-family:var(--font-sans);font-size:.95rem;font-weight:800;cursor:pointer}
+.sort-select:focus{outline:3px solid var(--focus);outline-offset:2px}
+.filter-toggle{min-height:3.1rem;background:var(--yellow);color:var(--on-yellow);border:var(--line) solid #1C2140;border-radius:var(--radius-pill);padding:.5rem 1.3rem;font-family:var(--font-sans);font-size:.95rem;font-weight:850;cursor:pointer;transition:background var(--transition),color var(--transition)}
+.filter-toggle:hover{background:#FFD75E}
+.filter-toggle[aria-expanded="true"]{background:#1C2140;color:#FFF4D6}
+.filter-toggle.has-active{background:var(--red);color:var(--on-red);border-color:var(--red)}
+.filter-panel{display:flex;flex-direction:column;gap:.7rem;padding:1rem 1.2rem;background:var(--surface);border:var(--line) solid var(--rule);border-radius:var(--radius-lg)}
 .filter-panel.collapsed{display:none}
 .filter-row{display:flex;gap:.4rem;flex-wrap:wrap;align-items:center}
-.filter-label{font-family:var(--font-display);font-size:.75rem;font-weight:600;color:var(--text-faint);margin-right:.15rem}
-.filter-pill{font-family:var(--font-display);font-size:.78rem;font-weight:600;color:var(--text-subtle);background:transparent;border:1px solid var(--border);padding:.3rem .7rem;border-radius:9999px;cursor:pointer;transition:background var(--transition),color var(--transition),border-color var(--transition)}
-.filter-pill:hover{background:var(--surface-sunken);color:var(--text)}
-.filter-pill:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.filter-pill[aria-pressed="true"]{background:var(--accent);color:var(--btn-on-accent);border-color:var(--accent)}
+.filter-label{flex:0 0 5rem;font-size:.875rem;font-weight:850;color:var(--teal)}
+.filter-pill{font-family:var(--font-sans);font-size:.875rem;font-weight:750;color:var(--text);background:var(--bg);border:2px solid var(--rule);padding:.3rem .8rem;min-height:2.1rem;border-radius:9999px;cursor:pointer;transition:background var(--transition),color var(--transition)}
+.filter-pill:hover{background:var(--accent-soft)}
+.filter-pill[aria-pressed="true"]{background:var(--rule);color:var(--bg)}
 
-/* Tag chips on each card */
-.tags{display:flex;gap:.35rem;flex-wrap:wrap;margin-top:.45rem}
-.tag{font-family:var(--font-display);font-size:.72rem;font-weight:600;color:var(--text-subtle);background:var(--surface-sunken);border:1px solid var(--border);padding:.12rem .5rem;border-radius:9999px;line-height:1.4}
-
-/* Version chips — the languages/tools a tutorial targets. Distinguished from
-   tag pills by the accent-soft fill so versions read as a different axis. */
-.versions{display:flex;gap:.35rem;flex-wrap:wrap;margin-top:.45rem}
-.version{font-family:var(--font-mono);font-size:.7rem;font-weight:500;color:var(--accent);background:var(--accent-soft);border:1px solid var(--accent-soft);padding:.12rem .5rem;border-radius:var(--radius-sm);line-height:1.4}
+/* Tag and version chips. Versions are code-shaped, so they are set in Mono. */
+.tags,.versions{display:contents}
+.tag{font-size:.8125rem;font-weight:700;color:var(--text-subtle);background:transparent;border:2px solid var(--border-strong);padding:.05rem .55rem;border-radius:9999px;line-height:1.45}
+.version{font-family:var(--font-mono);font-variation-settings:var(--mono);font-size:.8rem;font-weight:650;color:var(--text);background:var(--surface-sunken);padding:.12rem .5rem;border-radius:var(--radius-sm);line-height:1.45}
 
 .tutorial.hidden{display:none}
-.no-results{color:var(--text-faint);text-align:center;padding:2.5rem 1rem;font-size:.98rem;font-style:italic}
+.no-results{color:var(--text-subtle);padding:2rem 0;font-size:1.05rem}
 
 /* ---- 5. Responsive ------------------------------------------------------- */
 
-/* Narrow viewport (<900px): off-canvas ToC drawer + hamburger, no right rail,
-   bottom dock for theme + Ask. The persistent top bar stays but swaps its
-   back-link/theme-toggle for the hamburger. */
+/* Wide (≥1240px): the section rail becomes a permanent index in the right
+   gutter, labels always visible, anchored just past the reading column. */
+@media (min-width:1240px){
+  #tocRail{top:6rem;transform:none;right:auto;left:calc(50% + 25rem);width:min(15rem,calc(50% - 27rem));max-height:calc(100vh - 9rem);padding:0;border:none;border-radius:0;background:transparent;gap:.1rem}
+  #tocRail::before{content:'On this page';display:block;font-size:.8125rem;font-weight:850;color:var(--teal);padding:0 .7rem .45rem}
+  #tocRail a,#tocRail:hover a,#tocRail:focus-within a{justify-content:flex-start;padding:.35rem .7rem;border-radius:var(--radius-md)}
+  #tocRail .tick,#tocRail:hover .tick,#tocRail:focus-within .tick{display:none}
+  #tocRail .label{width:auto;opacity:1;white-space:normal;overflow-wrap:break-word}
+  #tocRail a.active{background:var(--yellow)}
+  #tocRail a.active .label{color:var(--on-yellow)}
+  #tocRail a:not(.active):hover{background:var(--accent-soft)}
+  #tocRail a:not(.active):hover .label{color:var(--text)}
+  #tocRail:hover,#tocRail:focus-within{background:transparent;box-shadow:none;padding:0;border-color:transparent}
+}
+
+/* Narrow viewport (<900px): off-canvas ToC drawer + hamburger, no rail, bottom
+   dock for theme + progress + Ask. */
 @media (max-width:899px){
   .layout{display:block}
-  #sidebar{display:flex;position:fixed;top:0;left:0;height:100vh;width:min(280px,82vw);transform:translateX(-100%);transition:transform 200ms ease-out}
+  #sidebar{display:flex;position:fixed;top:0;left:0;height:100vh;width:min(300px,84vw);transform:translateX(-100%);transition:transform 200ms ease-out}
   [data-sidebar="open"] #sidebar{transform:translateX(0)}
   [data-sidebar="open"] #sidebarBackdrop{display:block}
-  main{max-width:none;padding-bottom:5.5rem}
+  main{max-width:none;padding-bottom:7rem}
   #tocRail{display:none}
   #hamburger{display:inline-flex}
   #topBar .back-link,#topBar .theme-toggle{display:none}
   #bottomDock{display:flex}
   #bottomDock .progress-button{flex:1;min-width:0}
   #floatingActions{display:none}
-  .progress-status{left:.85rem;right:.85rem;bottom:4.25rem;max-width:none;text-align:center}
+  .progress-status{left:.85rem;right:.85rem;bottom:5rem;max-width:none;text-align:center}
 }
 
 /* Bottom-sheet Ask drawer (≤700px) */
 @media (max-width:700px){
-  #askDrawer{top:auto;left:0;right:0;width:100%;height:80vh;border-left:none;border-top:1px solid var(--border);border-radius:var(--radius-lg) var(--radius-lg) 0 0;transform:translateY(100%)}
+  #askDrawer{top:auto;left:0;right:0;width:100%;height:82vh;border-left:none;border-top:var(--line) solid var(--rule);border-radius:var(--radius-lg) var(--radius-lg) 0 0;transform:translateY(100%);overflow:hidden}
   #askDrawer.open{transform:translateY(0)}
+  .title-block{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .part-nav{flex-direction:column}
+  .part-nav a{max-width:none}
+  main > h2:not(#exercises)::before{width:2.2rem;height:2.2rem;font-size:1.05rem;margin-top:-.1rem}
 }
 
-/* List page: stack header + cards on small screens */
 @media (max-width:499px){
-  body.list .header{flex-direction:column;align-items:stretch}
-  body.list .header > div{flex:initial}
-  body.list .theme-toggle{align-self:flex-start}
-  .subtitle{margin-bottom:1.25rem}
-}
-@media (max-width:419px){
-  .tutorial{flex-direction:column;align-items:stretch}
-  .tutorial-actions{justify-content:space-between}
+  body.list .header{align-items:flex-start}
+  .filter-label{flex-basis:100%}
+  .tutorial{min-height:15rem}
+  .tutorial-link{font-size:1.45rem}
 }
 
-/* Reduced motion: the drawer/sidebar slide and the live-nudge fade are the
-   remaining transform/opacity animations on interactive UI (backdrops are
-   display-toggled, so nothing to disable there). */
+/* Reduced motion: the drawer/sidebar slide, the live-nudge fade, and the
+   cover lift. */
 @media (prefers-reduced-motion:reduce){
   #askDrawer,#sidebar,.live-nudge{transition:none}
+  .tutorial,.part-nav a,#floatingActions .btn{transition:none}
+  .tutorial:hover,#floatingActions .btn:hover{transform:none}
 }

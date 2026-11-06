@@ -1239,10 +1239,7 @@ func TestStaticFontAssets(t *testing.T) {
 	// at flat /_static/<name>.woff2 (single-segment route + whitelist). Verify
 	// the .woff2 → static/fonts/ path resolution works for every bundled font.
 	fonts := []string{
-		"fraunces.woff2",
-		"newsreader.woff2",
-		"newsreader-italic.woff2",
-		"jetbrains-mono.woff2",
+		"recursive.woff2",
 	}
 	for _, name := range fonts {
 		t.Run(name, func(t *testing.T) {

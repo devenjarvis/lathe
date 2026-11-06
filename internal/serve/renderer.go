@@ -594,6 +594,11 @@ func HighlightCSS() (template.CSS, error) {
 	var out strings.Builder
 	out.WriteString(stripWrapperBackground(scopeCSS(lightBuf.String(), `:root:not([data-theme="dark"])`)))
 	out.WriteString(stripWrapperBackground(scopeCSS(darkBuf.String(), `[data-theme="dark"]`)))
+	// Command blocks are drawn as a dark panel in both themes (the "type this"
+	// block in styles.css), so in light mode they take the dark palette too.
+	// The extra .tutorial-block-command in the scope out-specifies the light
+	// rules above.
+	out.WriteString(stripWrapperBackground(scopeCSS(darkBuf.String(), `:root:not([data-theme="dark"]) .tutorial-block-command`)))
 
 	return template.CSS(out.String()), nil
 }
