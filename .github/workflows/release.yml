@@ -2,19 +2,102 @@ name: Release
 
 # Releases are cut by pushing a semver tag, e.g.:
 #   git tag v0.1.0 && git push origin v0.1.0
-# GoReleaser then builds the multi-platform binaries, publishes a GitHub
-# Release, and updates the Homebrew tap formula.
+#
+# Design: three jobs, each with one job to do.
+#
+#   1. macos (macos-latest, Apple Silicon) -- build/darwin/package.sh builds the
+#      `-tags desktop` binary for arm64 and amd64 (cgo, WebKit), lipos them into
+#      one universal binary, wraps it in Lathe.app (Info.plist from
+#      build/darwin/, .icns from internal/desktop/appicon.png), signs it with a
+#      Developer ID cert + hardened runtime, notarizes it with
+#      `notarytool submit --wait`, staples the ticket and zips it as
+#      Lathe_<version>_macos_universal.zip. Uploaded as a workflow artifact.
+#   2. release (ubuntu) -- GoReleaser (OSS) cross-compiles everything that needs
+#      no cgo: the CLI-only linux/darwin tarballs (what install.sh fetches) and
+#      the Windows desktop zips. It attaches the Lathe.app zip from job 1 via
+#      `release.extra_files` / `checksum.extra_files`, so checksums.txt covers
+#      every asset, and publishes the GitHub Release with the changelog.
+#   3. homebrew (ubuntu) -- renders the cask with build/homebrew/cask.sh
+#      (`app "Lathe.app"` + `binary` linked from inside the bundle) and commits
+#      it to devenjarvis/homebrew-tap. Not GoReleaser's homebrew_casks because
+#      the `app` stanza and app bundles are GoReleaser Pro-only. Skipped for
+#      prerelease tags (vX.Y.Z-rc.1) and outside the upstream repo.
+#
+# Why not one GoReleaser run on a Mac: app bundles, macos_native notarization
+# and cask `app` are all Pro features, and quill-based `notarize.macos` only
+# signs bare binaries (a notarized binary inside an unsigned .app does not
+# work). Doing the Mac part as a plain script keeps it runnable on any Mac
+# (`VERSION=0.0.0 build/darwin/package.sh`) and lets CI exercise it on PRs.
+#
+# Signing rule: a tag push on devenjarvis/lathe REQUIRES the five MACOS_*
+# secrets -- package.sh fails the release if any is missing or signing /
+# notarization fails. Everywhere else (forks, workflow_dispatch dry runs
+# without secrets) a missing set is a warning and the app is only ad-hoc
+# signed. A partial set is always an error.
+#
+# Dry run: Actions -> Release -> Run workflow (workflow_dispatch) runs jobs 1
+# and 2 with `goreleaser release --snapshot --skip=publish` and uploads dist/
+# as an artifact; nothing is published and the tap is not touched.
+#
+# Secrets (repo settings -> Secrets and variables -> Actions):
+#   HOMEBREW_TAP_GITHUB_TOKEN  PAT with contents:write on devenjarvis/homebrew-tap
+#   MACOS_SIGN_P12             base64 of the "Developer ID Application" cert + private key (.p12)
+#   MACOS_SIGN_PASSWORD        password for that .p12
+#   MACOS_NOTARY_KEY           base64 of an App Store Connect API key (.p8, "Developer" role)
+#   MACOS_NOTARY_KEY_ID        that API key's Key ID
+#   MACOS_NOTARY_ISSUER_ID     the App Store Connect Issuer ID (UUID)
 on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
+  macos:
+    runs-on: macos-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build, sign and notarize Lathe.app
+        run: |
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            VERSION="0.0.0-snapshot-$(git rev-parse --short HEAD)"
+          fi
+          export VERSION
+          build/darwin/package.sh
+        env:
+          OUT_DIR: dist-macos
+          REQUIRE_SIGNING: ${{ github.event_name == 'push' && github.repository == 'devenjarvis/lathe' }}
+          MACOS_SIGN_P12: ${{ secrets.MACOS_SIGN_P12 }}
+          MACOS_SIGN_PASSWORD: ${{ secrets.MACOS_SIGN_PASSWORD }}
+          MACOS_NOTARY_KEY: ${{ secrets.MACOS_NOTARY_KEY }}
+          MACOS_NOTARY_KEY_ID: ${{ secrets.MACOS_NOTARY_KEY_ID }}
+          MACOS_NOTARY_ISSUER_ID: ${{ secrets.MACOS_NOTARY_ISSUER_ID }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-app
+          path: dist-macos/*.zip
+          if-no-files-found: error
+
   release:
+    needs: macos
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -27,13 +110,78 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      # Outside the checkout: GoReleaser refuses to release from a dirty tree.
+      - uses: actions/download-artifact@v4
+        with:
+          name: macos-app
+          path: ${{ runner.temp }}/dist-macos
+
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
         with:
-          version: "~> v2"
-          args: release --clean
+          version: v2.20.0
+          args: ${{ github.event_name == 'push' && 'release --clean' || 'release --clean --snapshot --skip=publish' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # PAT with contents:write on devenjarvis/homebrew-tap so the formula
-          # can be committed there. Set this as a repo secret before releasing.
-          HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+          MACOS_APP_DIR: ${{ runner.temp }}/dist-macos
+
+      - name: Release metadata
+        id: meta
+        run: echo "version=$(jq -r .version dist/metadata.json)" >> "$GITHUB_OUTPUT"
+
+      # The app zip is already the macos-app artifact.
+      - name: Upload dist (dry run)
+        if: github.event_name != 'push'
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/checksums.txt
+
+  homebrew:
+    needs: release
+    # Stable tags on the upstream repo only: a cask pointing at an -rc would
+    # move every `brew upgrade` user onto it.
+    if: >-
+      github.event_name == 'push' &&
+      github.repository == 'devenjarvis/lathe' &&
+      !contains(github.ref_name, '-')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: lathe
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: macos-app
+          path: dist-macos
+
+      - uses: actions/checkout@v4
+        with:
+          repository: devenjarvis/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+          path: tap
+
+      - name: Update the cask
+        env:
+          VERSION: ${{ needs.release.outputs.version }}
+        run: |
+          zip="dist-macos/Lathe_${VERSION}_macos_universal.zip"
+          sha=$(sha256sum "$zip" | awk '{print $1}')
+          mkdir -p tap/Casks
+          sh lathe/build/homebrew/cask.sh "$VERSION" "$sha" > tap/Casks/lathe.rb
+          cd tap
+          git config user.name goreleaser-bot
+          git config user.email goreleaser-bot@users.noreply.github.com
+          git add Casks/lathe.rb
+          if git diff --cached --quiet; then
+            echo "cask already up to date"
+            exit 0
+          fi
+          git commit -m "Brew cask update for lathe version v${VERSION}"
+          git push

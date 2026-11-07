@@ -10,7 +10,7 @@ import (
 
 func TestExtendCommandPrintsHandoff(t *testing.T) {
 	homeDir := t.TempDir()
-	t.Setenv("HOME", homeDir)
+	setHome(t, homeDir)
 	tutDir := writeTutorial(t, homeDir, "test-slug", store.StatusVerified, []string{"part-01.md"})
 
 	var out bytes.Buffer
@@ -40,7 +40,7 @@ func TestExtendCommandPrintsHandoff(t *testing.T) {
 
 func TestExtendCommandFoldsGuidanceIntoHandoff(t *testing.T) {
 	homeDir := t.TempDir()
-	t.Setenv("HOME", homeDir)
+	setHome(t, homeDir)
 	writeTutorial(t, homeDir, "test-slug", store.StatusVerified, []string{"part-01.md"})
 
 	var out bytes.Buffer

@@ -39,7 +39,7 @@ func TestStoreCmdRecordsModel(t *testing.T) {
 		t.Fatal(err)
 	}
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setHome(t, home)
 
 	storeModel = "Claude Opus 4.8"
 	t.Cleanup(func() { storeModel = "" })

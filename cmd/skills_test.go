@@ -39,7 +39,7 @@ func TestSkillsInstallClaudeProject(t *testing.T) {
 
 func TestSkillsInstallClaudeUser(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setHome(t, home)
 	// Also chdir somewhere clean so a stray project dir can't mask a bug.
 	t.Chdir(t.TempDir())
 	resetSkillsFlags(t)
@@ -78,7 +78,7 @@ func TestSkillsInstallCursorStripsFrontmatter(t *testing.T) {
 
 func TestSkillsInstallCursorUserFallsBackToProject(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setHome(t, home)
 	dir := t.TempDir()
 	t.Chdir(dir)
 	resetSkillsFlags(t)
@@ -127,7 +127,7 @@ func TestSkillsInstallCodexProject(t *testing.T) {
 
 func TestSkillsInstallCodexUser(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setHome(t, home)
 	// Also chdir somewhere clean so a stray project dir can't mask a bug.
 	t.Chdir(t.TempDir())
 	resetSkillsFlags(t)
@@ -178,7 +178,7 @@ func TestSkillsInstallRawShipAgents(t *testing.T) {
 		})
 		t.Run(tc.agent+"-user", func(t *testing.T) {
 			home := t.TempDir()
-			t.Setenv("HOME", home)
+			setHome(t, home)
 			// Chdir somewhere clean so a stray project dir can't mask a bug.
 			t.Chdir(t.TempDir())
 			resetSkillsFlags(t)
@@ -210,7 +210,7 @@ func TestSkillsInstallWindsurfProject(t *testing.T) {
 // than the home dir.
 func TestSkillsInstallWindsurfUserFallsBackToProject(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setHome(t, home)
 	dir := t.TempDir()
 	t.Chdir(dir)
 	resetSkillsFlags(t)
@@ -260,7 +260,7 @@ func TestSkillsInstallAll(t *testing.T) {
 // the install loop, while every other target lands in the user home dir.
 func TestSkillsInstallAllUser(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setHome(t, home)
 	proj := t.TempDir()
 	t.Chdir(proj)
 	resetSkillsFlags(t)

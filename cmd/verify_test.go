@@ -35,7 +35,7 @@ func writeTutorial(t *testing.T, homeDir, slug string, status store.Status, part
 
 func TestVerifyCommandPrintsHandoff(t *testing.T) {
 	homeDir := t.TempDir()
-	t.Setenv("HOME", homeDir)
+	setHome(t, homeDir)
 	tutDir := writeTutorial(t, homeDir, "test-slug", store.StatusUnverified, []string{"part-01.md"})
 
 	var out bytes.Buffer
@@ -60,7 +60,7 @@ func TestVerifyCommandPrintsHandoff(t *testing.T) {
 }
 
 func TestVerifyCommandRejectsBadSlug(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	setHome(t, t.TempDir())
 	for _, slug := range []string{"", ".", "..", "foo/bar", `foo\bar`} {
 		if err := verifyCmd.RunE(verifyCmd, []string{slug}); err == nil {
 			t.Errorf("verify %q should be rejected as invalid", slug)

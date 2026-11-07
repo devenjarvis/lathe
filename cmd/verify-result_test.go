@@ -24,7 +24,7 @@ func resetVerifyResultFlags(t *testing.T) {
 
 func TestVerifyResultRecordsVerified(t *testing.T) {
 	homeDir := t.TempDir()
-	t.Setenv("HOME", homeDir)
+	setHome(t, homeDir)
 	tutDir := writeTutorial(t, homeDir, "test-slug", store.StatusVerifying, []string{"part-01.md"})
 
 	resetVerifyResultFlags(t)
@@ -54,7 +54,7 @@ func TestVerifyResultRecordsVerified(t *testing.T) {
 
 func TestVerifyResultRecordsFailure(t *testing.T) {
 	homeDir := t.TempDir()
-	t.Setenv("HOME", homeDir)
+	setHome(t, homeDir)
 	tutDir := writeTutorial(t, homeDir, "test-slug", store.StatusVerifying, []string{"part-01.md", "part-02.md"})
 
 	resetVerifyResultFlags(t)
@@ -80,7 +80,7 @@ func TestVerifyResultRecordsFailure(t *testing.T) {
 
 func TestVerifyResultVerifyingDoesNotWriteResultFile(t *testing.T) {
 	homeDir := t.TempDir()
-	t.Setenv("HOME", homeDir)
+	setHome(t, homeDir)
 	tutDir := writeTutorial(t, homeDir, "test-slug", store.StatusUnverified, []string{"part-01.md"})
 
 	resetVerifyResultFlags(t)
@@ -103,7 +103,7 @@ func TestVerifyResultVerifyingDoesNotWriteResultFile(t *testing.T) {
 
 func TestVerifyResultVerifyingRejectsWhileExtending(t *testing.T) {
 	homeDir := t.TempDir()
-	t.Setenv("HOME", homeDir)
+	setHome(t, homeDir)
 	writeTutorial(t, homeDir, "test-slug", store.StatusExtending, []string{"part-01.md"})
 
 	resetVerifyResultFlags(t)
@@ -115,7 +115,7 @@ func TestVerifyResultVerifyingRejectsWhileExtending(t *testing.T) {
 
 func TestVerifyResultRejectsBadStatus(t *testing.T) {
 	homeDir := t.TempDir()
-	t.Setenv("HOME", homeDir)
+	setHome(t, homeDir)
 	writeTutorial(t, homeDir, "test-slug", store.StatusUnverified, []string{"part-01.md"})
 
 	resetVerifyResultFlags(t)
@@ -127,7 +127,7 @@ func TestVerifyResultRejectsBadStatus(t *testing.T) {
 
 func TestVerifyResultCodeRequiresTerminalRun(t *testing.T) {
 	homeDir := t.TempDir()
-	t.Setenv("HOME", homeDir)
+	setHome(t, homeDir)
 	writeTutorial(t, homeDir, "test-slug", store.StatusVerifying, []string{"part-01.md"})
 
 	for _, status := range []string{"verifying", "skipped"} {
@@ -142,7 +142,7 @@ func TestVerifyResultCodeRequiresTerminalRun(t *testing.T) {
 
 func TestVerifyResultCodeRecordsStatusEvenWhenSnapshotFails(t *testing.T) {
 	homeDir := t.TempDir()
-	t.Setenv("HOME", homeDir)
+	setHome(t, homeDir)
 	tutDir := writeTutorial(t, homeDir, "test-slug", store.StatusVerifying, []string{"part-01.md"})
 
 	resetVerifyResultFlags(t)

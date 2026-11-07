@@ -76,6 +76,15 @@ type agentHost struct {
 	runs     map[string]*agentRun
 	active   map[string]string // "slug/part" → run id of the running ask
 	counter  int64
+	// finished, when set, is told about every run once its final event is
+	// out (the server's notify point; see Server.setAgentHost).
+	finished func(run *agentRun, final runEvent, cancelled bool)
+}
+
+// jobTarget is what a verify, extend or check run works on.
+type jobTarget struct {
+	tutDir string
+	part   string // the checked part (check only)
 }
 
 func newAgentHost(command string, start agentStarter) *agentHost {
@@ -134,6 +143,11 @@ func (s *Server) makeHost(command string) *agentHost {
 }
 
 func (s *Server) setAgentHost(h *agentHost) {
+	if h != nil {
+		h.mu.Lock()
+		h.finished = s.runFinished
+		h.mu.Unlock()
+	}
 	s.agentMu.Lock()
 	s.agent = h
 	s.agentMu.Unlock()
@@ -507,6 +521,25 @@ func (h *agentHost) drive(c *acp.Client, key, sid, prompt string, run *agentRun)
 		}
 		run.finish(ev)
 	}
+
+	// Canceled (not DeadlineExceeded) means the reader stopped the run, or
+	// the server is shutting down; drive's deferred cancel hasn't run yet.
+	h.mu.Lock()
+	finished := h.finished
+	h.mu.Unlock()
+	if finished != nil {
+		finished(run, run.last(), errors.Is(run.ctx.Err(), context.Canceled))
+	}
+}
+
+// last returns the run's final event (zero before it has one).
+func (r *agentRun) last() runEvent {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if len(r.events) == 0 {
+		return runEvent{}
+	}
+	return r.events[len(r.events)-1]
 }
 
 func withNote(msg, note string) string {
@@ -555,7 +588,10 @@ type agentRun struct {
 	// after, when set, runs once the prompt has ended, before the final
 	// event; what it returns is added to that event's message.
 	after func() string
-	done  chan struct{} // closed when drive has returned
+	// target is the tutorial (and, for a check, the part) a verify, extend
+	// or check job works on; zero for an ask.
+	target jobTarget
+	done   chan struct{} // closed when drive has returned
 
 	mu       sync.Mutex
 	events   []runEvent

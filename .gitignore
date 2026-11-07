@@ -1,6 +1,7 @@
 .superpowers/
 /lathe
 /lathe-local
+/lathe-desktop
 .claude/
 # GoReleaser build output
 /dist/

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en"{{if .Native}} data-native{{end}}>
 <head>
   {{template "head" .}}
   <title>Lathe — Tutorials</title>
@@ -301,6 +301,7 @@
     }
   });
 </script>
+{{if .Native}}{{template "nativeLinks" .}}{{end}}
 {{template "liveNudge" .}}
 </body>
 </html>

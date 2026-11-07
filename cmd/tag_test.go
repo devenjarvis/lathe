@@ -40,7 +40,7 @@ func sameTags(a, b []string) bool {
 
 func TestTagSetReplacesAndNormalizes(t *testing.T) {
 	homeDir := t.TempDir()
-	t.Setenv("HOME", homeDir)
+	setHome(t, homeDir)
 	tutDir := writeTutorial(t, homeDir, "test-slug", store.StatusUnverified, []string{"part-01.md"})
 
 	resetTagFlags(t)
@@ -55,7 +55,7 @@ func TestTagSetReplacesAndNormalizes(t *testing.T) {
 
 func TestTagAddAndRemove(t *testing.T) {
 	homeDir := t.TempDir()
-	t.Setenv("HOME", homeDir)
+	setHome(t, homeDir)
 	tutDir := writeTutorial(t, homeDir, "test-slug", store.StatusUnverified, []string{"part-01.md"})
 
 	resetTagFlags(t)
@@ -77,7 +77,7 @@ func TestTagAddAndRemove(t *testing.T) {
 
 func TestTagRequiresAnAction(t *testing.T) {
 	homeDir := t.TempDir()
-	t.Setenv("HOME", homeDir)
+	setHome(t, homeDir)
 	writeTutorial(t, homeDir, "test-slug", store.StatusUnverified, []string{"part-01.md"})
 
 	resetTagFlags(t)

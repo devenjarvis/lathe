@@ -47,7 +47,7 @@ wrote it" isn't an answer to review feedback.
 
 ## Prerequisites
 
-- **Go 1.25+** (see `go.mod` for the exact version)
+- **Go 1.26+** (see `go.mod` for the exact version)
 - **[mage](https://magefile.org/)** and **golangci-lint** for the CI gate
   (one-time install below)
 - **Access to a supported LLM agent harness** for testing tutorial generation. If you use an agent harness not natively supported today, please consider that for a great first issue!

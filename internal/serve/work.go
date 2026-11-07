@@ -98,11 +98,16 @@ func (s *Server) handleWorkDone(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := r.PathValue("id")
-	if _, ok := s.queue.Get(id); !ok {
+	job, ok := s.queue.Get(id)
+	if !ok {
 		http.NotFound(w, r)
 		return
 	}
 	s.queue.Done(id)
+	// A repeated done (the worker CLI retrying) notifies once.
+	if job.State != queue.StateDone {
+		s.workJobFinished(job)
+	}
 	w.WriteHeader(http.StatusNoContent)
 }
 

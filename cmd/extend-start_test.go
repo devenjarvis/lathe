@@ -12,7 +12,7 @@ import (
 
 func TestExtendStartReservesNextPart(t *testing.T) {
 	homeDir := t.TempDir()
-	t.Setenv("HOME", homeDir)
+	setHome(t, homeDir)
 	tutDir := writeTutorial(t, homeDir, "test-slug", store.StatusVerified, []string{"part-01.md"})
 
 	var out bytes.Buffer
@@ -40,7 +40,7 @@ func TestExtendStartReservesNextPart(t *testing.T) {
 
 func TestExtendStartPromotesLegacyIndex(t *testing.T) {
 	homeDir := t.TempDir()
-	t.Setenv("HOME", homeDir)
+	setHome(t, homeDir)
 	// Legacy single-part tutorial: index.md, no parts list.
 	tutDir := filepath.Join(homeDir, ".lathe", "tutorials", "legacy")
 	if err := os.MkdirAll(tutDir, 0755); err != nil {
@@ -71,7 +71,7 @@ func TestExtendStartRejectsWhileBusy(t *testing.T) {
 	for _, status := range []store.Status{store.StatusExtending, store.StatusVerifying} {
 		t.Run(string(status), func(t *testing.T) {
 			homeDir := t.TempDir()
-			t.Setenv("HOME", homeDir)
+			setHome(t, homeDir)
 			writeTutorial(t, homeDir, "test-slug", status, []string{"part-01.md"})
 			if err := extendStartCmd.RunE(extendStartCmd, []string{"test-slug"}); err == nil {
 				t.Errorf("extend-start should reject a tutorial that is %q", status)

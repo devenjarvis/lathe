@@ -23,10 +23,11 @@ Lathe is a combination of LLM skills and a Golang CLI used to store, manage, and
 
 <img src="docs/img/lathe-prompt-cc.png" alt="Prompting a coding agent with `/lathe build a 3D Slicer in Erlang`" width="800">
 
-Then open lathe from any terminal:
+Then open the Lathe app, or start the reader from any terminal:
 
 ```bash
-lathe serve              # starts the web server, opens the browser
+lathe                    # opens the desktop app (when installed)
+lathe serve              # or: starts the web server, opens the browser
 ```
 
 <img src="docs/img/tutorial-selection-light-mode.png" alt="Browsing tutorials in lathe (light mode)" width="800">
@@ -53,26 +54,48 @@ Whichever way you use, your own agent does the model work, under your own login.
 
 ## Install
 
-Lathe is a single self-contained binary. All you need is `lathe` on your `$PATH`; the
-skills run in an interactive coding-agent session (Claude Code, Cursor, Codex, Gemini
-CLI, opencode, Cline, or Windsurf).
+### Desktop app (recommended)
 
-**Homebrew** (macOS, recommended):
+The desktop app is the same reader in its own window, with your coding agent in the agent panel. It doesn't need a terminal or a localhost tab, and adds a native folder picker for your workspace, a system notification when Verify, Extend or Check my work finishes, a real window for the agent panel's pop-out, and links to other sites open in your browser. It's the same `lathe` binary: `lathe` with no arguments (or `lathe app`) opens the app, and every subcommand works as before.
 
-```bash
-brew install devenjarvis/tap/lathe
+- **macOS 12+:** `brew install --cask devenjarvis/tap/lathe` installs `Lathe.app` into `/Applications` and puts `lathe` on your `PATH`. Or download `Lathe_<version>_macos_universal.zip` from the [latest release](https://github.com/devenjarvis/lathe/releases/latest) and drag `Lathe.app` into Applications. The app is signed and notarized.
+- **Windows 10/11:** download `lathe_<version>_windows_amd64.zip` (or `_arm64`) from the [latest release](https://github.com/devenjarvis/lathe/releases/latest), unzip it, and run `lathe.exe`. Double-clicking it opens the app; in a terminal it's the CLI. It uses the WebView2 runtime that ships with Windows.
+- **Linux:** build it from source for now. The release binaries for Linux are CLI-only. On Ubuntu 24.04:
+
+  ```bash
+  sudo apt install libgtk-4-dev libwebkitgtk-6.0-dev
+  CGO_ENABLED=1 go install -tags desktop,production github.com/devenjarvis/lathe@latest
+  ```
+
+  Without a display (`DISPLAY`/`WAYLAND_DISPLAY` unset, e.g. over SSH), `lathe` prints its help as before.
+
+`lathe work` (the `/lathe-work` loop), `lathe start` and `lathe verify-cancel` find the running app the same way they find `lathe serve`. Opening Lathe a second time brings the existing window forward.
+
+**The app can't find my agent.** Apps opened from the Dock don't get the `PATH` your shell sets up. When it starts, Lathe runs your login shell once (`$SHELL -i -l`, with a 5-second limit) and picks up its `PATH`. If your agent still isn't found (it's installed somewhere your shell files don't add, or your shell is csh, tcsh or nu), list its directory in `~/.lathe/config.json`:
+
+```json
+{
+  "agent_path": ["~/.nvm/versions/node/v22.11.0/bin", "/opt/homebrew/bin"]
+}
 ```
 
-Distributed as a cask (a pre-built binary), so it's macOS-only — on Linux use the
-install script or `go install` below.
+These directories are searched before `PATH` by both the app and `lathe serve`. If your shell startup files are slow or interactive, skip that work during the probe with `[ -n "$LATHE_RESOLVING_ENVIRONMENT" ] && return` (fish: `set -q LATHE_RESOLVING_ENVIRONMENT; and return`).
 
-**Install script** (`curl | sh`):
+### CLI only
+
+The CLI is a single self-contained binary. All you need is `lathe` on your `$PATH`; the
+skills run in an interactive coding-agent session (Claude Code, Cursor, Codex, Gemini
+CLI, opencode, Cline, or Windsurf). `lathe serve` opens the reader in your browser.
+
+**Homebrew** (macOS): the cask above also gives you the `lathe` CLI.
+
+**Install script** (`curl | sh`, macOS and Linux, CLI-only binary):
 
 ```bash
 curl -sSf https://raw.githubusercontent.com/devenjarvis/lathe/main/install.sh | sh
 ```
 
-**Go** (needs Go 1.25+):
+**Go** (needs Go 1.26+; CLI only, add `-tags desktop,production` with cgo for the app):
 
 ```bash
 go install github.com/devenjarvis/lathe@latest
@@ -83,7 +106,8 @@ go install github.com/devenjarvis/lathe@latest
 ```bash
 git clone https://github.com/devenjarvis/lathe
 cd lathe
-go build -o lathe
+go build -o lathe                                   # CLI
+go build -tags desktop,production -o lathe .        # CLI + desktop app (cgo; see Linux deps above)
 ```
 
 ### Install the skills
