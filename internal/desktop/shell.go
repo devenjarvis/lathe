@@ -1,0 +1,123 @@
+//go:build desktop
+
+package desktop
+
+import (
+	"sync"
+
+	"github.com/devenjarvis/lathe/internal/serve"
+	"github.com/wailsapp/wails/v3/pkg/application"
+)
+
+// shell is the app's serve.Native: what the reader can ask of the OS through
+// the server. The server calls it from its HTTP handler goroutines (the Wails
+// asset server runs every request on its own goroutine), never from the UI
+// thread. Every Wails call used here marshals itself onto the main thread
+// (InvokeSync / InvokeAsync) and hands results back over a channel, so
+// calling them from a handler goroutine is safe, and blocking that goroutine
+// on a dialog does not block the UI.
+type shell struct {
+	app   *application.App
+	notes *notifier
+	logf  func(string, ...any)
+
+	mu      sync.Mutex
+	main    *application.WebviewWindow
+	picking sync.Mutex // one folder dialog at a time
+}
+
+var _ serve.Native = (*shell)(nil)
+
+func (s *shell) setMain(w *application.WebviewWindow) {
+	s.mu.Lock()
+	s.main = w
+	s.mu.Unlock()
+}
+
+func (s *shell) mainWindow() *application.WebviewWindow {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.main
+}
+
+// focusMain brings the reader window forward (a second `lathe` launch).
+func (s *shell) focusMain() {
+	w := s.mainWindow()
+	if w == nil {
+		return
+	}
+	w.Restore()
+	w.Show()
+	w.Focus()
+}
+
+// PickFolder shows the OS directory chooser over the window the reader is
+// using and blocks until it closes. A cancel returns "".
+func (s *shell) PickFolder(title, start string) (string, error) {
+	s.picking.Lock()
+	defer s.picking.Unlock()
+
+	d := s.app.Dialog.OpenFile().
+		CanChooseFiles(false).
+		CanChooseDirectories(true).
+		CanCreateDirectories(true).
+		ShowHiddenFiles(false)
+	if title != "" {
+		d.SetTitle(title)
+	}
+	if start != "" {
+		d.SetDirectory(start)
+	}
+	if w := s.parentWindow(); w != nil {
+		d.AttachToWindow(w)
+	}
+	return d.PromptForSingleSelection()
+}
+
+// parentWindow is the focused app window (the pop-out when the reader picks
+// from there), else the main window.
+func (s *shell) parentWindow() application.Window {
+	if w := s.app.Window.Current(); w != nil {
+		return w
+	}
+	if w := s.mainWindow(); w != nil {
+		return w
+	}
+	return nil
+}
+
+// Notify posts a system notification without blocking (see notifier).
+func (s *shell) Notify(title, body string) {
+	s.notes.Notify(title, body)
+}
+
+// OpenWindow opens path in a new app window, or focuses the window already
+// showing it (clicking "Pop out" twice gives one pop-out).
+func (s *shell) OpenWindow(path, title string) error {
+	path, err := windowPath(path)
+	if err != nil {
+		return err
+	}
+	if title == "" {
+		title = AppName
+	}
+	name := "window:" + path
+	if w, ok := s.app.Window.GetByName(name); ok {
+		w.Restore()
+		w.Show()
+		w.Focus()
+		return nil
+	}
+	s.app.Window.NewWithOptions(application.WebviewWindowOptions{
+		Name:             name,
+		Title:            title,
+		URL:              path,
+		Width:            popWidth,
+		Height:           popHeight,
+		MinWidth:         popMinWidth,
+		MinHeight:        popMinHeight,
+		BackgroundColour: paper,
+		Linux:            application.LinuxWindow{Icon: appIcon},
+	})
+	return nil
+}
