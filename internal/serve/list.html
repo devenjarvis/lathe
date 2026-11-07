@@ -5,81 +5,100 @@
   <title>Lathe — Tutorials</title>
 </head>
 <body class="list">
-{{if .Tutorials}}<a class="skip-link" href="#searchInput">Skip to search</a>{{end}}
+{{with .Library}}
+<a class="skip-link" href="{{if .Cards}}#searchInput{{else}}#libraryMain{{end}}">{{if .Cards}}Skip to search{{else}}Skip to the library{{end}}</a>
 <div class="header">
   <div>
     <h1>Lathe</h1>
-    <p class="subtitle">{{if .Tutorials}}{{len .Tutorials}} tutorial{{if ne (len .Tutorials) 1}}s{{end}} on your shelf. Want another? Type <code>/lathe</code> and a topic in your agent.{{else}}Hands-on tutorials you build yourself, written by your coding agent.{{end}}</p>
+    <p class="subtitle">{{if .Total}}{{.Total}} tutorial{{if ne .Total 1}}s{{end}}{{if .ShelfCount}} on {{.ShelfCount}} shel{{if ne .ShelfCount 1}}ves{{else}}f{{end}}{{else}} in your library{{end}}.{{else}}Hands-on tutorials you build yourself, written by your coding agent.{{end}}</p>
   </div>
-  {{template "themeToggle" .}}
+  {{template "themeToggle" $}}
 </div>
-{{if .Tutorials}}
-<div class="controls">
-  <div class="toolbar">
-    <input type="search" id="searchInput" class="search-input" placeholder="Search by title, topic, tag, repo, or version…" aria-label="Search tutorials" autocomplete="off">
-    <select id="sortSelect" class="sort-select" aria-label="Sort tutorials">
-      <option value="newest">Newest</option>
-      <option value="oldest">Oldest</option>
-      <option value="title">Title A–Z</option>
-    </select>
-    <button type="button" id="filterToggle" class="filter-toggle" aria-expanded="false" aria-controls="filterPanel">Filters</button>
-  </div>
-  <div class="filter-panel" id="filterPanel">
-    <div class="filter-row" id="statusFilters">
-      <span class="filter-label">Status</span>
-      <button type="button" class="filter-pill" aria-pressed="false" data-status="verified">Verified</button>
-      <button type="button" class="filter-pill" aria-pressed="false" data-status="failed">Failed</button>
-      <button type="button" class="filter-pill" aria-pressed="false" data-status="skipped">Skipped</button>
-      <button type="button" class="filter-pill" aria-pressed="false" data-status="unverified">Unverified</button>
-    </div>
-    <div class="filter-row" id="typeFilters">
-      <span class="filter-label">Type</span>
-      <button type="button" class="filter-pill" aria-pressed="false" data-series="false">Single</button>
-      <button type="button" class="filter-pill" aria-pressed="false" data-series="true">Series</button>
-    </div>
-    <div class="filter-row" id="tagFilters" hidden>
-      <span class="filter-label">Tags</span>
-    </div>
-    <div class="filter-row" id="versionFilters" hidden>
-      <span class="filter-label">Versions</span>
-    </div>
-  </div>
-</div>
-<div class="tutorial-list" id="tutorialList">
-{{range .Tutorials}}
-  <div class="tutorial" data-title="{{.Title}}" data-slug="{{.Slug}}" data-topic="{{.Topic}}" data-tags="{{range .Tags}}{{.}},{{end}}" data-repo="{{.RepoDisplay}}" data-tools="{{range .Tools}}{{.Name}}{{if .Version}} {{.Version}}{{end}},{{end}}" data-status="{{.Status}}" data-created="{{.Created.Format "2006-01-02T15:04:05Z07:00"}}" data-series="{{.IsSeries}}">
-    <div class="tutorial-body">
-      <a class="tutorial-link" href="/{{.Slug}}/">{{.Title}}</a>
-      <div class="meta">{{if .IsSeries}}{{len .Parts}} parts{{else}}single tutorial{{end}} · {{.Created.Format "Jan 2, 2006"}}{{if .Sources}} · {{len .Sources}} source{{if ne (len .Sources) 1}}s{{end}}{{end}}</div>
-      {{with cardProgress .}}
-      {{if .IsSeries}}
-      <div class="tutorial-progress" aria-label="Saved at part {{.PartNumber}} of {{.TotalParts}}">
-        <div class="tutorial-progress-track tutorial-progress-segments">
-          {{range .Segments}}<span class="segment{{if .Current}} current{{end}}" aria-hidden="true"><span class="fill" style="width:{{.Percent}}%"></span></span>{{end}}
-        </div>
-        <span class="tutorial-progress-label">Part {{.PartNumber}} of {{.TotalParts}} ({{.Percent}}%)</span>
+<div class="library">
+  {{template "libraryNav" .}}
+  <div class="library-main" id="libraryMain" role="main" tabindex="-1">
+  {{if eq .View "home"}}
+    {{if .Total}}
+    <form class="home-search" method="GET" action="/" role="search">
+      <input type="hidden" name="view" value="all">
+      <input type="search" name="q" class="search-input" placeholder="Search all tutorials…" aria-label="Search all tutorials" autocomplete="off">
+    </form>
+    {{end}}
+    <section class="shelf" aria-labelledby="pickUpHeading">
+      <div class="shelf-head">
+        <h2 id="pickUpHeading">{{if .Total}}Pick up where you left off{{else}}Start your library{{end}}</h2>
+      </div>
+      <div class="shelf-row" id="pickUpRow"{{if .PickUpFull}} data-full{{end}}>
+        {{template "newCover"}}
+        {{range .PickUp}}{{template "cover" .}}{{end}}
+      </div>
+      {{if not .Total}}<p class="shelf-empty">Nothing here yet. Once your agent stores a tutorial it lands on the Unsorted shelf, and anything you start reading comes back to this row.</p>{{end}}
+    </section>
+    {{range .Rows}}
+    <section class="shelf" aria-labelledby="shelf-{{.Shelf.ID}}">
+      <div class="shelf-head">
+        <h2 id="shelf-{{.Shelf.ID}}">{{.Shelf.Name}} <span class="shelf-count">{{.Count}}</span></h2>
+        {{if .Count}}<a class="see-all" href="/?shelf={{.Shelf.ID}}">See all<span class="visually-hidden"> on {{.Shelf.Name}}</span> ›</a>{{end}}
+      </div>
+      {{if .Covers}}
+      <div class="shelf-row">
+        {{range .Covers}}{{template "cover" .}}{{end}}
+        {{if .More}}<a class="more-tile" href="/?shelf={{.Shelf.ID}}"><span class="more-count">+{{.More}}</span> more<span class="visually-hidden"> on {{.Shelf.Name}}</span></a>{{end}}
       </div>
       {{else}}
-      <div class="tutorial-progress" aria-label="Progress at {{.Percent}}%">
-        <div class="tutorial-progress-track"><span class="fill" style="width:{{.Percent}}%"></span></div>
-        <span class="tutorial-progress-label">Progress {{.Percent}}%</span>
-      </div>
+      <p class="shelf-empty">Nothing on this shelf yet.</p>
       {{end}}
-      {{end}}
-      {{if or .Tools .Tags}}<div class="chips">{{if .Tools}}<div class="versions">{{range .Tools}}<span class="version">{{.Name}}{{if .Version}} {{.Version}}{{end}}</span>{{end}}</div>{{end}}{{if .Tags}}<div class="tags">{{range .Tags}}<span class="tag">{{.}}</span>{{end}}</div>{{end}}</div>{{end}}
+    </section>
+    {{end}}
+  {{else}}
+    <div class="view-head">
+      <h2>{{.Heading}} <span class="shelf-count">{{.Count}}</span></h2>
     </div>
-    <div class="tutorial-actions">
-      {{template "badge" .Status}}
-      <form method="POST" action="/-/delete/{{.Slug}}" class="delete-form" data-tutorial-title="{{.Title}}">
-        <button type="submit" class="delete-btn" aria-label="Delete {{.Title}}" title="Delete tutorial">×</button>
+    {{if .Cards}}
+    <div class="controls">
+      <form class="toolbar" method="GET" action="/" role="search">
+        {{if .ShelfID}}<input type="hidden" name="shelf" value="{{.ShelfID}}">{{else if .Tool}}<input type="hidden" name="tool" value="{{.Tool}}">{{else}}<input type="hidden" name="view" value="{{.View}}">{{end}}
+        <input type="search" id="searchInput" class="search-input" placeholder="Search by title, topic, tag, repo, or version…" name="q" aria-label="Search tutorials" autocomplete="off" value="{{.Query}}">
+        <select id="sortSelect" class="sort-select" aria-label="Sort tutorials">
+          <option value="newest">Newest</option>
+          <option value="oldest">Oldest</option>
+          <option value="title">Title A–Z</option>
+        </select>
+        <button type="button" id="filterToggle" class="filter-toggle" aria-expanded="false" aria-controls="filterPanel">Filters</button>
       </form>
+      <div class="filter-panel" id="filterPanel">
+        <div class="filter-row" id="statusFilters">
+          <span class="filter-label">Status</span>
+          <button type="button" class="filter-pill" aria-pressed="false" data-status="verified">Verified</button>
+          <button type="button" class="filter-pill" aria-pressed="false" data-status="failed">Failed</button>
+          <button type="button" class="filter-pill" aria-pressed="false" data-status="skipped">Skipped</button>
+          <button type="button" class="filter-pill" aria-pressed="false" data-status="unverified">Unverified</button>
+        </div>
+        <div class="filter-row" id="typeFilters">
+          <span class="filter-label">Type</span>
+          <button type="button" class="filter-pill" aria-pressed="false" data-series="false">Single</button>
+          <button type="button" class="filter-pill" aria-pressed="false" data-series="true">Series</button>
+        </div>
+        <div class="filter-row" id="tagFilters" hidden>
+          <span class="filter-label">Tags</span>
+        </div>
+        <div class="filter-row" id="versionFilters" hidden>
+          <span class="filter-label">Versions</span>
+        </div>
+      </div>
     </div>
+    <div class="tutorial-list" id="tutorialList">
+    {{range .Cards}}{{template "cover" .}}{{end}}
+    </div>
+    <div class="no-results" id="noResults" aria-live="polite"{{if not .NoMatches}} hidden{{end}}>No tutorials match your search.</div>
+    {{else if .Total}}
+    <p class="shelf-empty">{{.Empty}}</p>
+    {{else}}
+    <div class="empty"><strong>No tutorials yet</strong>Run <code>/lathe</code> with a topic in your coding agent, for example <code>/lathe build a digital synth in Zig</code>. It appears here when it's stored.</div>
+    {{end}}
+  {{end}}
   </div>
-{{end}}
 </div>
-<div class="no-results" id="noResults" aria-live="polite" hidden>No tutorials match your search.</div>
-{{else}}
-<div class="empty"><strong>No tutorials yet</strong>Run <code>/lathe</code> with a topic in your coding agent, for example <code>/lathe build a digital synth in Zig</code>. It appears here when it's stored.</div>
 {{end}}
 <script>
   // Theme toggle — attaches to every [data-theme-toggle] (the shared partial),
@@ -122,9 +141,10 @@
   // container in place. With JS off, every card stays visible (.hidden is only
   // ever set here).
   (function(){
-    var cards = Array.prototype.slice.call(document.querySelectorAll('.tutorial'));
-    if (!cards.length) return;
     var list = document.getElementById('tutorialList');
+    if (!list) return; // Home has no grid; its search box submits to All tutorials.
+    var cards = Array.prototype.slice.call(list.querySelectorAll('.tutorial'));
+    if (!cards.length) return;
     var search = document.getElementById('searchInput');
     var sortSel = document.getElementById('sortSelect');
     var filterToggle = document.getElementById('filterToggle');
@@ -186,7 +206,8 @@
       cards.forEach(function(card){
         var hay = (card.dataset.title + ' ' + card.dataset.slug + ' ' +
                    card.dataset.topic + ' ' + card.dataset.tags + ' ' +
-                   card.dataset.repo + ' ' + card.dataset.tools).toLowerCase();
+                   card.dataset.repo + ' ' + card.dataset.tools + ' ' +
+                   card.dataset.shelfName).toLowerCase();
         var ct = cardTags(card), cv = cardTools(card);
         var show = (!q || hay.indexOf(q) !== -1)
           && (!statuses.length || statuses.indexOf(card.dataset.status) !== -1)
@@ -221,6 +242,9 @@
     }
 
     search.addEventListener('input', apply);
+    // The search box is a GET form so it works with scripts off; here it
+    // filters live instead.
+    if (search.form) search.form.addEventListener('submit', function(e){ e.preventDefault(); });
     sortSel.addEventListener('change', sort);
     [statusRow, typeRow, tagRow, versionRow].forEach(function(row){
       if (!row) return;
@@ -236,7 +260,106 @@
     apply();
   })();
   
-  // Refresh progress cards in place if navigating back via browser back button (bfcache).
+  // Library sidebar: collapsed to its summary line on narrow screens (set
+  // before paint by the inline script in the partial), always open on wide
+  // ones, following the viewport as it resizes.
+  (function(){
+    var nav = document.getElementById('libraryNav');
+    if (!nav || !window.matchMedia) return;
+    var narrow = window.matchMedia('(max-width: 899px)');
+    var sync = function(){ nav.open = !narrow.matches; };
+    if (narrow.addEventListener) narrow.addEventListener('change', sync);
+    // Wide: the summary is hidden, but keep a stray toggle from closing it.
+    nav.addEventListener('toggle', function(){ if (!narrow.matches && !nav.open) nav.open = true; });
+  })();
+  // "+ New shelf": with scripts on, create the shelf in place and report a bad
+  // name inline; with scripts off the form posts and the server redirects.
+  (function(){
+    var form = document.querySelector('.new-shelf-form');
+    if (!form || !window.fetch) return;
+    var input = form.querySelector('input[name="name"]');
+    var error = form.querySelector('.new-shelf-error');
+    form.addEventListener('submit', function(e){
+      e.preventDefault();
+      error.hidden = true;
+      fetch(form.action, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({ name: input.value })
+      }).then(function(res){
+        if (res.ok) return res.json().then(function(shelf){ location.href = shelf.url; });
+        return res.text().then(function(msg){
+          msg = (msg || 'could not create the shelf.').trim();
+          error.textContent = msg.charAt(0).toUpperCase() + msg.slice(1);
+          error.hidden = false;
+          input.focus();
+        });
+      }).catch(function(){
+        error.textContent = 'Could not reach Lathe to create the shelf.';
+        error.hidden = false;
+      });
+    });
+  })();
+  // The New tutorial cover's Copy button (hidden until this runs).
+  (function(){
+    document.querySelectorAll('.new-cover-copy').forEach(function(btn){
+      if (!navigator.clipboard || !navigator.clipboard.writeText) return;
+      btn.hidden = false;
+      btn.addEventListener('click', function(){
+        navigator.clipboard.writeText(btn.getAttribute('data-copy')).then(function(){
+          btn.textContent = 'Copied';
+          setTimeout(function(){ btn.textContent = 'Copy'; }, 1600);
+        });
+      });
+    });
+  })();
+
+  // Refresh progress cards in place if navigating back via browser back button
+  // (bfcache). A cover can appear twice on Home (its shelf row and Pick up), so
+  // every copy is updated. If a tutorial changed shelves, or one was started
+  // that Home's Pick up row doesn't show yet, the rows themselves are stale:
+  // reload instead.
+  function refreshProgress(card, p) {
+    var body = card.querySelector('.tutorial-body');
+    if (!body) return;
+    var progEl = body.querySelector('.tutorial-progress');
+    if (!p) {
+      if (progEl) progEl.remove();
+      return;
+    }
+    var html = '';
+    if (p.IsSeries) {
+      var segmentsHtml = '';
+      if (p.Segments) {
+        p.Segments.forEach(function(seg) {
+          var currentClass = seg.Current ? ' current' : '';
+          segmentsHtml += '<span class="segment' + currentClass + '" aria-hidden="true">' +
+            '<span class="fill" style="width:' + seg.Percent + '%"></span></span>';
+        });
+      }
+      html = '<div class="tutorial-progress-track tutorial-progress-segments">' + segmentsHtml + '</div>' +
+        '<span class="tutorial-progress-label">Part ' + p.PartNumber + ' of ' + p.TotalParts + ' (' + p.Percent + '%)</span>';
+    } else {
+      html = '<div class="tutorial-progress-track"><span class="fill" style="width:' + p.Percent + '%"></span></div>' +
+        '<span class="tutorial-progress-label">Progress ' + p.Percent + '%</span>';
+    }
+    if (!progEl) {
+      progEl = document.createElement('div');
+      progEl.className = 'tutorial-progress';
+      var meta = body.querySelector('.meta');
+      if (meta && meta.nextSibling) {
+        body.insertBefore(progEl, meta.nextSibling);
+      } else {
+        body.appendChild(progEl);
+      }
+    }
+    if (p.IsSeries) {
+      progEl.setAttribute('aria-label', 'Saved at part ' + p.PartNumber + ' of ' + p.TotalParts);
+    } else {
+      progEl.setAttribute('aria-label', 'Progress at ' + p.Percent + '%');
+    }
+    progEl.innerHTML = html;
+  }
   window.addEventListener('pageshow', function(event) {
     if (event.persisted) {
       fetch('/', {
@@ -245,54 +368,18 @@
       .then(function(res) { return res.json(); })
       .then(function(data) {
         if (!Array.isArray(data)) return;
+        var pickUp = document.getElementById('pickUpRow');
+        var stale = data.some(function(item) {
+          var shown = document.querySelector('.tutorial[data-slug="' + item.slug + '"]');
+          if (shown && shown.dataset.shelf !== item.shelf) return true;
+          return !!(pickUp && item.inProgress && !pickUp.hasAttribute('data-full') &&
+            !pickUp.querySelector('.tutorial[data-slug="' + item.slug + '"]'));
+        });
+        if (stale) { location.reload(); return; }
         data.forEach(function(item) {
-          var card = document.querySelector('.tutorial[data-slug="' + item.slug + '"]');
-          if (!card) return;
-          var body = card.querySelector('.tutorial-body');
-          if (!body) return;
-          
-          var progEl = body.querySelector('.tutorial-progress');
-          var p = item.progress;
-          
-          if (!p) {
-            if (progEl) progEl.remove();
-            return;
-          }
-          
-          var html = '';
-          if (p.IsSeries) {
-            var segmentsHtml = '';
-            if (p.Segments) {
-              p.Segments.forEach(function(seg) {
-                var currentClass = seg.Current ? ' current' : '';
-                segmentsHtml += '<span class="segment' + currentClass + '" aria-hidden="true">' +
-                  '<span class="fill" style="width:' + seg.Percent + '%"></span></span>';
-              });
-            }
-            html = '<div class="tutorial-progress-track tutorial-progress-segments">' + segmentsHtml + '</div>' +
-              '<span class="tutorial-progress-label">Part ' + p.PartNumber + ' of ' + p.TotalParts + ' (' + p.Percent + '%)</span>';
-          } else {
-            html = '<div class="tutorial-progress-track"><span class="fill" style="width:' + p.Percent + '%"></span></div>' +
-              '<span class="tutorial-progress-label">Progress ' + p.Percent + '%</span>';
-          }
-          
-          if (!progEl) {
-            progEl = document.createElement('div');
-            progEl.className = 'tutorial-progress';
-            var meta = body.querySelector('.meta');
-            if (meta && meta.nextSibling) {
-              body.insertBefore(progEl, meta.nextSibling);
-            } else {
-              body.appendChild(progEl);
-            }
-          }
-          
-          if (p.IsSeries) {
-            progEl.setAttribute('aria-label', 'Saved at part ' + p.PartNumber + ' of ' + p.TotalParts);
-          } else {
-            progEl.setAttribute('aria-label', 'Progress at ' + p.Percent + '%');
-          }
-          progEl.innerHTML = html;
+          document.querySelectorAll('.tutorial[data-slug="' + item.slug + '"]').forEach(function(card) {
+            refreshProgress(card, item.progress);
+          });
         });
       })
       .catch(function(err) {
@@ -305,3 +392,99 @@
 {{template "liveNudge" .}}
 </body>
 </html>
+
+{{/* cover — one tutorial as a book cover (. is a libCard). The colored top
+     carries its size and title; the paper foot carries progress, chips, the
+     status badge and the delete button. data-* feed the client search/filter;
+     data-shelf feeds the bfcache refresh. */}}
+{{define "cover"}}
+  <div class="tutorial{{if .Hidden}} hidden{{end}}" data-title="{{.Title}}" data-slug="{{.Slug}}" data-topic="{{.Topic}}" data-tags="{{range .Tags}}{{.}},{{end}}" data-repo="{{.RepoDisplay}}" data-tools="{{range .Tools}}{{.Name}}{{if .Version}} {{.Version}}{{end}},{{end}}" data-status="{{.Status}}" data-created="{{.Created.Format "2006-01-02T15:04:05Z07:00"}}" data-series="{{.IsSeries}}" data-shelf="{{.ShelfID}}" data-shelf-name="{{.ShelfName}}">
+    <div class="tutorial-body">
+      <a class="tutorial-link" href="/{{.Slug}}/">{{.Title}}</a>
+      <div class="meta">{{if .IsSeries}}{{len .Parts}} parts{{else}}single tutorial{{end}} · {{.Created.Format "Jan 2, 2006"}}{{if .Sources}} · {{len .Sources}} source{{if ne (len .Sources) 1}}s{{end}}{{end}}</div>
+      {{with cardProgress .Tutorial}}
+      {{if .IsSeries}}
+      <div class="tutorial-progress" aria-label="Saved at part {{.PartNumber}} of {{.TotalParts}}">
+        <div class="tutorial-progress-track tutorial-progress-segments">
+          {{range .Segments}}<span class="segment{{if .Current}} current{{end}}" aria-hidden="true"><span class="fill" style="width:{{.Percent}}%"></span></span>{{end}}
+        </div>
+        <span class="tutorial-progress-label">Part {{.PartNumber}} of {{.TotalParts}} ({{.Percent}}%)</span>
+      </div>
+      {{else}}
+      <div class="tutorial-progress" aria-label="Progress at {{.Percent}}%">
+        <div class="tutorial-progress-track"><span class="fill" style="width:{{.Percent}}%"></span></div>
+        <span class="tutorial-progress-label">Progress {{.Percent}}%</span>
+      </div>
+      {{end}}
+      {{end}}
+      {{if or .Tools .Tags}}<div class="chips">{{if .Tools}}<div class="versions">{{range .Tools}}<span class="version">{{.Name}}{{if .Version}} {{.Version}}{{end}}</span>{{end}}</div>{{end}}{{if .Tags}}<div class="tags">{{range .Tags}}<span class="tag">{{.}}</span>{{end}}</div>{{end}}</div>{{end}}
+    </div>
+    <div class="tutorial-actions">
+      {{template "badge" .Status}}
+      <form method="POST" action="/-/delete/{{.Slug}}" class="delete-form" data-tutorial-title="{{.Title}}">
+        <button type="submit" class="delete-btn" aria-label="Delete {{.Title}}" title="Delete tutorial">×</button>
+      </form>
+    </div>
+  </div>
+{{end}}
+
+{{/* newCover — the blank "New tutorial" cover that opens Home's first row.
+     For now it hands over the /lathe command to run in the reader's agent
+     (the copy button needs scripts; the command stays selectable without). */}}
+{{define "newCover"}}
+  <article class="new-cover" aria-labelledby="newCoverTitle">
+    <span class="new-cover-plus" aria-hidden="true">+</span>
+    <h3 class="new-cover-title" id="newCoverTitle">New tutorial</h3>
+    <p class="new-cover-hint">Run this in your coding agent, with the topic you want to learn:</p>
+    <div class="new-cover-cmd">
+      <code>/lathe <var>topic</var></code>
+      <button type="button" class="new-cover-copy" data-copy="/lathe " hidden>Copy</button>
+    </div>
+  </article>
+{{end}}
+
+{{/* libraryNav — the library sidebar (. is a libraryPage). A <details> that
+     is open by default, so with scripts off every link shows; on a narrow
+     screen a tiny script collapses it to its summary line before paint. */}}
+{{define "libraryNav"}}
+  <nav class="library-nav" aria-label="Library">
+    <details class="library-nav-panel" id="libraryNav" open>
+      <summary class="library-nav-summary">Library<span class="library-nav-current"> · {{.Nav.CurrentLabel}}</span></summary>
+      <script>
+        (function(){
+          var d = document.getElementById('libraryNav');
+          try { if (window.matchMedia('(max-width: 899px)').matches) d.open = false; } catch (e) {}
+        })();
+      </script>
+      <ul class="nav-list">
+        {{template "navItem" .Nav.Home}}
+        {{template "navItem" .Nav.All}}
+        {{template "navItem" .Nav.Writing}}
+      </ul>
+      <h2 class="nav-heading">Shelves</h2>
+      <ul class="nav-list">
+        {{range .Nav.Shelves}}{{template "navItem" .}}{{end}}
+      </ul>
+      <details class="new-shelf">
+        <summary class="new-shelf-toggle">+ New shelf</summary>
+        <form class="new-shelf-form" method="POST" action="/-/shelves">
+          <label class="visually-hidden" for="newShelfName">Shelf name</label>
+          <input type="text" id="newShelfName" name="name" required maxlength="60" placeholder="e.g. Audio &amp; DSP" autocomplete="off">
+          <button type="submit" class="new-shelf-submit">Create</button>
+          <p class="new-shelf-error" role="alert" hidden></p>
+        </form>
+      </details>
+      {{if .Nav.Languages}}
+      <h2 class="nav-heading">Languages</h2>
+      <ul class="nav-list">
+        {{range .Nav.Languages}}{{template "navItem" .}}{{end}}
+      </ul>
+      {{end}}
+      <ul class="nav-list nav-attention">
+        {{template "navItem" .Nav.Attention}}
+      </ul>
+    </details>
+  </nav>
+{{end}}
+
+{{define "navItem"}}<li><a class="nav-link" href="{{.Href}}"{{if .Current}} aria-current="page"{{end}}><span class="nav-label">{{.Label}}</span>{{if .Count}}<span class="nav-count">{{.Count}}</span>{{end}}</a></li>{{end}}
