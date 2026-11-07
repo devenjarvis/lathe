@@ -1,8 +1,23 @@
 # GoReleaser config for Lathe. See https://goreleaser.com
 #
-# Local dry run (no tag needed):
+# GoReleaser (OSS) builds everything that cross-compiles without cgo and
+# publishes the GitHub Release:
+#   - linux + darwin, amd64 + arm64: CLI-only `lathe` tarballs (CGO_ENABLED=0,
+#     no desktop tag) -- the assets install.sh downloads.
+#   - windows, amd64 + arm64: the desktop build (`-tags desktop`, pure Go,
+#     WebView2) as zips.
+# Lathe.app (macOS, `-tags desktop`, cgo, signed + notarized) is built by
+# build/darwin/package.sh in release.yml's macOS job and handed to this run as
+# a prebuilt zip in $MACOS_APP_DIR (default ./dist-macos; release.yml puts it
+# outside the checkout so GoReleaser's clean-tree check passes). The
+# extra_files below attach it to the release and list it in checksums.txt.
+# The Homebrew cask is rendered by build/homebrew/cask.sh (GoReleaser's cask
+# `app` stanza and app bundles are Pro-only).
+#
+# Local dry run (no tag needed). Off a Mac, give it a placeholder app zip:
+#   d=$(mktemp -d) && touch "$d/Lathe_0.0.0_macos_universal.zip"
 #   goreleaser check
-#   goreleaser release --snapshot --clean
+#   MACOS_APP_DIR=$d goreleaser release --snapshot --clean --skip=publish
 #
 # Real release: push a vX.Y.Z tag; .github/workflows/release.yml runs this.
 version: 2
@@ -14,6 +29,7 @@ before:
     - go mod tidy
 
 builds:
+  # CLI-only binary, exactly what `go build` produces with no tags.
   - id: lathe
     main: .
     binary: lathe
@@ -26,17 +42,49 @@ builds:
       - amd64
       - arm64
     # Stamp version metadata into internal/buildinfo (must match the package
-    # path used by magefile.go and internal/buildinfo).
-    ldflags:
+    # path used by magefile.go, internal/buildinfo and build/darwin/package.sh).
+    ldflags: &ldflags
       - -s -w
       - -X github.com/devenjarvis/lathe/internal/buildinfo.Version={{.Version}}
       - -X github.com/devenjarvis/lathe/internal/buildinfo.Commit={{.Commit}}
       - -X github.com/devenjarvis/lathe/internal/buildinfo.Date={{.Date}}
 
+  # Windows desktop build: the same single binary with the app compiled in
+  # (`lathe` with no args opens it). Pure Go, so it cross-compiles from Linux.
+  # A console-subsystem exe on purpose (no -H windowsgui): the CLI must be able
+  # to print; the app hides its own console window.
+  - id: lathe-windows
+    main: .
+    binary: lathe
+    env:
+      - CGO_ENABLED=0
+    tags:
+      - desktop
+    goos:
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags: *ldflags
+
 archives:
+  # Asset names are load-bearing: install.sh downloads
+  # lathe_<version>_<os>_<arch>.tar.gz and looks it up in checksums.txt.
   - id: lathe
+    ids:
+      - lathe
     formats:
       - tar.gz
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+    files:
+      - README.md
+      - LICENSE
+  - id: lathe-windows
+    ids:
+      - lathe-windows
+    formats:
+      - zip
     name_template: >-
       {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
     files:
@@ -45,6 +93,9 @@ archives:
 
 checksum:
   name_template: checksums.txt
+  # Lathe.app zip from release.yml's macOS job (build/darwin/package.sh).
+  extra_files:
+    - glob: '{{ envOrDefault "MACOS_APP_DIR" "./dist-macos" }}/*.zip'
 
 changelog:
   use: github
@@ -66,41 +117,11 @@ changelog:
     - title: Others
       order: 999
 
-# Homebrew cask (macOS only -- Homebrew on Linux can't install casks; Linux
-# users use install.sh or `go install`). Casks are GoReleaser's supported path
-# for distributing pre-built binaries (the deprecated `brews:`/formula path is
-# meant for build-from-source).
-homebrew_casks:
-  - name: lathe
-    repository:
-      owner: devenjarvis
-      name: homebrew-tap
-      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
-    homepage: https://github.com/devenjarvis/lathe
-    description: Generate, store, serve, verify, and extend hands-on technical tutorials
-    license: MIT
-    # Keep generated cask commits attributable.
-    commit_author:
-      name: goreleaser-bot
-      email: goreleaser-bot@users.noreply.github.com
-    # The release binaries are unsigned, so macOS Gatekeeper quarantines them on
-    # download. Strip the quarantine attribute on install so `lathe` runs without
-    # a "cannot be opened" prompt. Casks only run on macOS, so /usr/bin/xattr is
-    # always present -- no guard needed.
-    #
-    # `install_steps` (GoReleaser >= v2.19) renders Homebrew's declarative
-    # `postflight_steps` stanza. The older raw-Ruby `install` hook rendered a
-    # `postflight do ... end` block, which Homebrew now warns is deprecated on
-    # every brew command. `{{ .StagedPath }}` renders to Homebrew's
-    # `{{staged_path}}` placeholder.
-    hooks:
-      post:
-        install_steps: |
-          run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{ .StagedPath }}/lathe"]
-
 release:
   draft: false
   prerelease: auto
+  extra_files:
+    - glob: '{{ envOrDefault "MACOS_APP_DIR" "./dist-macos" }}/*.zip'
 
 snapshot:
   version_template: "{{ incpatch .Version }}-snapshot-{{ .ShortCommit }}"
