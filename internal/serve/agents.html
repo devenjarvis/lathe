@@ -1,0 +1,33 @@
+{{/* agentChoices — the registry agents as radio cards, with what Lathe
+     found on this machine and how to install what it didn't (. is a
+     []settingsAgent, from Server.agentCards). Shared by Settings › Agent
+     (settings.html) and the first-launch setup (welcome.html); the
+     enclosing <form> decides how a pick is sent. Copy buttons
+     ([data-copy]) need the page's script; the command shows either way. */}}
+{{define "agentChoices"}}
+    <fieldset class="agent-choices settings-agents">
+      <legend>Agents Lathe can host</legend>
+      {{- range .}}
+      <label class="agent-choice settings-agent{{if .Current}} is-current{{end}}" data-agent="{{.ID}}">
+        <input type="radio" name="agent" value="{{.ID}}"{{if .Picked}} checked{{end}}{{if not .Ready}} disabled{{end}}>
+        <span class="agent-choice-text">
+          <strong>{{.Name}}</strong>
+          {{- if .Current}}
+          <span class="settings-agent-status" data-agent-live data-state="{{.State}}"><span class="agent-dot" aria-hidden="true"></span><span class="settings-agent-live">{{.Status}}</span></span>
+          <span class="agent-choice-detail">{{.Command}}</span>
+          {{- else if .Ready}}
+          <span class="settings-agent-status is-found">Found on your PATH</span>
+          <span class="agent-choice-detail">{{.Command}}</span>
+          {{- else}}
+          <span class="settings-agent-status is-missing">{{if .Found}}{{.Program}} not found{{else}}Not installed{{end}}</span>
+          {{- if .InstallCmd}}
+          <span class="settings-install"><code>{{.Install}}</code><button type="button" class="btn btn-sm" data-copy="{{.Install}}" aria-label="Copy the install command for {{.Name}}">Copy</button></span>
+          {{- else}}
+          <span class="agent-choice-detail">{{.Install}}</span>
+          {{- end}}
+          {{- end}}
+        </span>
+      </label>
+      {{- end}}
+    </fieldset>
+{{end}}

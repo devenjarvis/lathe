@@ -56,7 +56,9 @@ func (s *Server) handleNativePickFolder(w http.ResponseWriter, r *http.Request) 
 		// For is "agent-path" when the Settings window's Agent tab picks a
 		// folder to search for agents, and "new-workspace" when the New
 		// tutorial sheet picks the workspace (starting at Path, or the
-		// nearest folder of it that exists); no tutorial is involved then.
+		// nearest folder of it that exists), and "code-root" when the
+		// first-launch setup picks the code folder (the same way); no
+		// tutorial is involved then.
 		For  string `json:"for"`
 		Path string `json:"path"`
 	}
@@ -77,8 +79,13 @@ func (s *Server) handleNativePickFolder(w http.ResponseWriter, r *http.Request) 
 		writeJSON(w, map[string]string{"path": path, "display": display})
 		return
 	}
-	if payload.For == "new-workspace" {
-		path, err := n.PickFolder("Choose where you'll type the code", nearestDir(payload.Path))
+	if payload.For == "new-workspace" || payload.For == "code-root" {
+		title := "Choose where you'll type the code"
+		if payload.For == "code-root" {
+			// The first-launch setup's code folder (welcome.go).
+			title = "Choose where code folders go"
+		}
+		path, err := n.PickFolder(title, nearestDir(payload.Path))
 		if err != nil {
 			http.Error(w, "could not open the folder picker: "+err.Error(), http.StatusInternalServerError)
 			return

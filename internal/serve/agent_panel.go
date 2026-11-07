@@ -1,6 +1,7 @@
 package serve
 
 import (
+	"fmt"
 	"net/http"
 	"os"
 
@@ -58,17 +59,25 @@ func (s *Server) handleAgentPick(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "unknown agent", http.StatusBadRequest)
 		return
 	}
+	if code, err := s.useAgent(a); err != nil {
+		http.Error(w, err.Error(), code)
+		return
+	}
+	writeJSON(w, map[string]any{"agent": s.hostedAgent().status()})
+}
 
+// useAgent remembers a as the picked agent and starts it in place of the
+// current one (the agent panel, Settings › Agent and the first-launch
+// setup all pick through here). It refuses with 409 while a run is active.
+func (s *Server) useAgent(a agents.Agent) (int, error) {
 	s.switchMu.Lock()
 	defer s.switchMu.Unlock()
 	old := s.hostedAgent()
 	if old != nil && old.busy() {
-		http.Error(w, "The agent is still working. Wait for it to finish (or stop it) before switching.", http.StatusConflict)
-		return
+		return http.StatusConflict, errBadRequest("The agent is still working. Wait for it to finish (or stop it) before switching.") // a message for the reader, like settings.go's
 	}
 	if err := config.SetAgent(a.ID); err != nil {
-		http.Error(w, "could not save the choice: "+err.Error(), http.StatusInternalServerError)
-		return
+		return http.StatusInternalServerError, fmt.Errorf("could not save the choice: %w", err)
 	}
 	if old == nil || old.command != a.Command {
 		h := s.makeHost(a.Command)
@@ -87,7 +96,7 @@ func (s *Server) handleAgentPick(w http.ResponseWriter, r *http.Request) {
 	} else {
 		old.id, old.name = a.ID, a.Name
 	}
-	writeJSON(w, map[string]any{"agent": s.hostedAgent().status()})
+	return http.StatusOK, nil
 }
 
 // handleAgentRestart stops the hosted agent and starts the same command

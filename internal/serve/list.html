@@ -24,6 +24,15 @@
       <input type="search" name="q" class="search-input" placeholder="Search all tutorials…" aria-label="Search all tutorials" autocomplete="off">
     </form>
     {{end}}
+    {{if $.Welcome}}
+    <aside class="welcome-callout" aria-labelledby="welcomeCalloutHeading">
+      <div class="welcome-callout-text">
+        <h2 id="welcomeCalloutHeading">New to Lathe?</h2>
+        <p>Three short steps: pick your coding agent, choose where code folders go, then make your first tutorial.</p>
+      </div>
+      <a class="btn btn-primary" href="/-/welcome">Set up Lathe</a>
+    </aside>
+    {{end}}
     <section class="shelf" aria-labelledby="pickUpHeading">
       <div class="shelf-head">
         <h2 id="pickUpHeading">{{if .Total}}Pick up where you left off{{else}}Start your library{{end}}</h2>

@@ -116,6 +116,10 @@ type Config struct {
 	// reopening them (and their tutorials and scroll positions) on launch.
 	// The app writes it; see WindowState.
 	Windows []WindowState `json:"windows,omitempty"`
+	// Onboarded records that the reader finished (or skipped) the
+	// first-launch setup (lathe serve's /-/welcome), so it isn't offered
+	// again on its own. Settings › Agent can still reopen it.
+	Onboarded bool `json:"onboarded,omitempty"`
 }
 
 // WindowState is one desktop app window as it was at quit: the page it

@@ -28,7 +28,7 @@ import (
 	"github.com/devenjarvis/lathe/internal/voice"
 )
 
-//go:embed layout.html list.html components.html check.html settings.html shortcuts.html palette.html newsheet.html new.html writing.html reading_tools.html drop.html
+//go:embed layout.html list.html components.html check.html settings.html shortcuts.html palette.html newsheet.html new.html writing.html reading_tools.html drop.html agents.html welcome.html
 var templateFS embed.FS
 
 // styles.css is the entire design system (tokens + components). It's loaded
@@ -85,6 +85,8 @@ type Server struct {
 	// fragment the sheet loads (new_sheet.go).
 	newTmpl     *template.Template
 	writingTmpl *template.Template
+	// welcomeTmpl renders the first-launch setup (/-/welcome, welcome.go).
+	welcomeTmpl *template.Template
 	// cmds tracks the pages that take desktop menu commands, and which one
 	// is focused (native_menu.go).
 	cmds commandHub
@@ -173,9 +175,10 @@ func NewServer(tutorialsDir string) *Server {
 	// ({{define "head"}}, "badge", "themeToggle") are available to each page.
 	layoutTmpl := template.Must(template.New("layout.html").Funcs(funcMap).ParseFS(templateFS, "components.html", "shortcuts.html", "palette.html", "newsheet.html", "drop.html", "check.html", "reading_tools.html", "layout.html"))
 	listTmpl := template.Must(template.New("list.html").Funcs(funcMap).ParseFS(templateFS, "components.html", "shortcuts.html", "palette.html", "newsheet.html", "drop.html", "list.html"))
-	settingsTmpl := template.Must(template.New("settings.html").Funcs(funcMap).ParseFS(templateFS, "components.html", "shortcuts.html", "palette.html", "newsheet.html", "drop.html", "settings.html"))
+	settingsTmpl := template.Must(template.New("settings.html").Funcs(funcMap).ParseFS(templateFS, "components.html", "shortcuts.html", "palette.html", "newsheet.html", "drop.html", "agents.html", "settings.html"))
 	newTmpl := template.Must(template.New("new.html").Funcs(funcMap).ParseFS(templateFS, "components.html", "shortcuts.html", "palette.html", "newsheet.html", "drop.html", "new.html"))
 	writingTmpl := template.Must(template.New("writing.html").Funcs(funcMap).ParseFS(templateFS, "components.html", "shortcuts.html", "palette.html", "newsheet.html", "drop.html", "writing.html"))
+	welcomeTmpl := template.Must(template.New("welcome.html").Funcs(funcMap).ParseFS(templateFS, "components.html", "shortcuts.html", "palette.html", "newsheet.html", "drop.html", "agents.html", "welcome.html"))
 	css, err := HighlightCSS()
 	if err != nil {
 		panic(fmt.Sprintf("lathe: failed to build syntax-highlight CSS: %v", err))
@@ -187,6 +190,7 @@ func NewServer(tutorialsDir string) *Server {
 		settingsTmpl: settingsTmpl,
 		newTmpl:      newTmpl,
 		writingTmpl:  writingTmpl,
+		welcomeTmpl:  welcomeTmpl,
 		highlightCSS: css,
 		designCSS:    template.CSS(stylesCSS),
 		jigScript:    template.JS(jig.Script()),
@@ -259,6 +263,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /-/agent/restart", s.handleAgentRestart)
 	mux.HandleFunc("POST /-/workspace/{slug}", s.handleWorkspace)
 	// The Settings window (settings.go).
+	mux.HandleFunc("GET /-/welcome", s.handleWelcome)
+	mux.HandleFunc("POST /-/welcome", s.handleWelcomePost)
 	mux.HandleFunc("GET /-/settings", s.handleSettings)
 	mux.HandleFunc("POST /-/settings", s.handleSettingsSave)
 	mux.HandleFunc("POST /-/settings/agent-path", s.handleAgentPath)
@@ -363,6 +369,11 @@ func (s *Server) handleList(w http.ResponseWriter, r *http.Request) {
 		s.writeListJSON(w, tutorials, shelves)
 		return
 	}
+	// A first launch of the desktop app opens the setup (welcome.go).
+	if s.showWelcome(r, len(tutorials)) {
+		http.Redirect(w, r, "/-/welcome", http.StatusSeeOther)
+		return
+	}
 	env := s.libraryEnvFor()
 	page, ok := buildLibrary(tutorials, shelves, r.URL.Query(), env)
 	if !ok {
@@ -380,6 +391,9 @@ func (s *Server) handleList(w http.ResponseWriter, r *http.Request) {
 		"HighlightCSS": s.highlightCSS,
 		// Native: the desktop shell is present (data-native on <html>).
 		"Native": s.nativeShell() != nil,
+		// Welcome: Home's empty state offers the first-launch setup until
+		// it is done or skipped.
+		"Welcome": len(tutorials) == 0 && !config.Onboarded(),
 	}); err != nil {
 		log.Printf("lathe: list template: %v", err)
 		http.Error(w, "template error", http.StatusInternalServerError)
