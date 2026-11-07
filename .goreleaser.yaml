@@ -58,8 +58,10 @@ builds:
     binary: lathe
     env:
       - CGO_ENABLED=0
+    # `production` turns off Wails' dev mode (inspector, dev-server checks).
     tags:
       - desktop
+      - production
     goos:
       - windows
     goarch:

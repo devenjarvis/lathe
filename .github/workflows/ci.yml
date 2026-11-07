@@ -74,7 +74,7 @@ jobs:
         run: go vet -tags desktop ./...
 
       - name: Build
-        run: go build -tags desktop .
+        run: go build -tags desktop,production .
 
       - name: Test
         run: |

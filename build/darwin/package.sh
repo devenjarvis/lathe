@@ -103,9 +103,9 @@ trap cleanup EXIT
 # --- build both arches and merge -------------------------------------------
 ldflags="-s -w -X $BUILDINFO.Version=$VERSION -X $BUILDINFO.Commit=$COMMIT -X $BUILDINFO.Date=$DATE"
 for arch in arm64 amd64; do
-	log "go build -tags desktop (darwin/$arch)"
+	log "go build -tags desktop,production (darwin/$arch)"
 	CGO_ENABLED=1 GOOS=darwin GOARCH=$arch MACOSX_DEPLOYMENT_TARGET=$MIN_MACOS \
-		go build -tags desktop -ldflags "$ldflags" -o "$work/$BIN-$arch" .
+		go build -tags desktop,production -ldflags "$ldflags" -o "$work/$BIN-$arch" .
 done
 lipo -create -output "$work/$BIN" "$work/$BIN-arm64" "$work/$BIN-amd64"
 log "universal binary: $(lipo -archs "$work/$BIN")"

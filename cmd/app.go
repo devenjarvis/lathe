@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/devenjarvis/lathe/internal/desktop"
+	"github.com/devenjarvis/lathe/internal/loginenv"
 	"github.com/spf13/cobra"
 )
 
@@ -27,10 +28,15 @@ var appCmd = &cobra.Command{
 	},
 }
 
-// appPrepareEnv runs before the app resolves and starts the agent. It is the
-// seam for loading the login shell's environment on a dock or Start-menu
-// launch (which inherits no shell PATH); nil until that lands.
-var appPrepareEnv func(context.Context) error
+// appPrepareEnv runs before the app resolves and starts the agent. A dock or
+// Start-menu launch inherits no shell PATH, so it loads the login shell's
+// environment and the configured agent_path dirs (internal/loginenv), and
+// logs what changed. Its error is logged by the app, never fatal.
+var appPrepareEnv = func(ctx context.Context) error {
+	rep, err := loginenv.Prepare(ctx)
+	_, _ = fmt.Fprintln(os.Stderr, "lathe:", rep.String())
+	return err
+}
 
 func appOptions(agent string) desktop.Options {
 	return desktop.Options{Agent: agent, PrepareEnv: appPrepareEnv}
