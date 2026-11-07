@@ -120,7 +120,7 @@ Each component is a class in `styles.css`. Markup it expects:
 | About box | `.article-header`, `.article-title`, `dl.title-block` with one `div` per cell (`.tb-part`, `.tb-tools`, `.article-byline`, `.tb-voice`, `.tb-status`) and full-width `.tb-row`s; `.tb-big`, `.status-none`, `.status-jump` | layout.html + `statusHeader` (components.html) |
 | Voice reveal | `.voice-reveal`, `.voice-reveal-body` | layout.html (in the Voice cell) |
 | Section index | `#tocRail`, `.label`, `.tick`, `a.active` | layout.html |
-| Agent panel | `#agentPanel.agent-panel` (docked ≥1100px via `html[data-agent-dock="open"\|"collapsed"]` and `--dock-w`; overlay dialog below, bottom sheet ≤700px; `html[data-agent-popout]` for the pop-out window), `.agent-panel-head`, `.agent-pick`, `.agent-state[data-state]` + `.agent-dot`, `.agent-model`, `.icon-btn`, `.agent-rail` (collapsed), `.agent-toggle` (masthead), `.agent-session`, `.agent-actions`, `.agent-workspace` (+`-form`), `.link-btn` (`[aria-busy="true"]` while a system dialog is open); desktop app only: a second `.link-btn` "Choose folder…" in `.agent-workspace-row` before "Change" | layout.html |
+| Agent panel | `#agentPanel.agent-panel` (docked ≥1100px via `html[data-agent-dock="open"\|"collapsed"]` and `--dock-w`; overlay dialog below, bottom sheet ≤700px; `html[data-agent-popout]` for the pop-out window), `.agent-panel-head` with one `.agent-chip` (+`.agent-dot`, `[data-state]`) and `.agent-state[data-state]` beside it, `.icon-btn`; `.agent-menu` (`role="menu"`; `.agent-chip-menu`, `.agent-action-menu`) of `.agent-menu-item`s (`.agent-menu-row`, `.agent-menu-label`, `.agent-menu-key`/`.agent-kbd` key hints, `.agent-menu-desc`, `.agent-menu-info` read-only rows, `[aria-disabled="true"]` with the reason as its description, `.agent-menu-sep`); `.agent-context` strip (`.agent-place`, `.agent-ws-btn`, `.agent-workspace-form`); `.agent-session`, `.agent-suggestion` (+`-text`/`-act`/`-close`), `.agent-composer` with `.agent-plus`; `.agent-rail` (collapsed), `.agent-toggle` (masthead, `.agent-toggle-key`), `.place-saved` (masthead, `[data-state="error"]`); desktop app only: a "Choose folder…" `btn btn-ghost btn-sm` in `.agent-workspace-actions` | layout.html |
 | Agent panel setup | `.agent-setup`, `.agent-choices`, `.agent-choice` (+`-text`/`-detail`), `.agent-others`, `.agent-field` (+ `.agent-field-row`, desktop app only: the field plus a "Choose folder…" `btn btn-ghost btn-sm`), `.agent-hint`, `.agent-error`, `.agent-fallback` (+`-cmd`) | layout.html |
 | Agent session log | `#askLog`, `.ask-bubble`, `.ask-question`, `.ask-answer`, `.ask-streaming` (caret), `.ask-note`/`.ask-note-error`, `.ask-permission` (+`-label`/`-title`/`-options`/`-result`, `.resolved`), `.agent-isolation` | layout.html |
 | Reading progress bar | `#progressBar` | layout.html |
@@ -251,7 +251,7 @@ What it speaks:
 | Event | Announced |
 |---|---|
 | Background save start, and background save success | nothing |
-| Background save failure | `Progress not saved: <error>. Use Save progress to try again.` — first failure only, then quiet until saving works again |
+| Background save failure | `Progress not saved: <error>. Lathe tries again as you read.` — first failure only, then quiet until saving works again (the masthead note reads "Place not saved" and saves again when pressed) |
 | A save that succeeds after a failure | `Progress saved` |
 | Manual save success | `Progress saved` |
 | Manual save failure | `Progress save failed: <error>` |

@@ -90,6 +90,42 @@ func (s *Server) handleAgentPick(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{"agent": s.hostedAgent().status()})
 }
 
+// handleAgentRestart stops the hosted agent and starts the same command
+// afresh (the panel's "Restart agent"), keeping its registry id, name and
+// run-id counter. Like a switch, it is refused while a run is active.
+func (s *Server) handleAgentRestart(w http.ResponseWriter, r *http.Request) {
+	if !sameOrigin(r) {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+	s.switchMu.Lock()
+	defer s.switchMu.Unlock()
+	old := s.hostedAgent()
+	if old == nil {
+		http.Error(w, "No agent is running here to restart.", http.StatusConflict)
+		return
+	}
+	if old.busy() {
+		http.Error(w, "The agent is still working. Wait for it to finish (or stop it) before restarting.", http.StatusConflict)
+		return
+	}
+	h := s.makeHost(old.command)
+	h.id, h.name = old.id, old.name
+	h.counter = old.lastCounter()
+	s.setAgentHost(h)
+	go old.close()
+	go func() { _, _ = h.ensure() }()
+	writeJSON(w, map[string]any{"agent": h.status()})
+}
+
+// panelSuggestions reports whether the agent panel offers its one context
+// suggestion ("Want feedback on your code? Check my work"). It is the page's
+// .PanelSuggestions: on by default; the Settings window's "suggestions in
+// the panel" key belongs here.
+func (s *Server) panelSuggestions() bool {
+	return !s.noPanelSuggestions
+}
+
 // handleWorkspace records the reader's code folder for a tutorial, creating
 // it (and running git init) when needed.
 func (s *Server) handleWorkspace(w http.ResponseWriter, r *http.Request) {
