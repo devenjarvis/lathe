@@ -1,0 +1,45 @@
+{{define "workspaceMenu"}}
+{{/* The masthead's workspace button ("zig-synth ▾"): Open in editor, Open in
+     Terminal, Show in Finder. Desktop app only (a shell that can launch or
+     reveal); hidden until the tutorial has a workspace folder. The menu is
+     built by reading_tools.js. */}}
+{{- with .ReadingTools}}{{if or .Launch .Reveal}}
+<div class="ws-menu-wrap" id="wsMenuWrap"{{if not .Workspace}} hidden{{end}}>
+  <button type="button" id="wsMenuButton" class="ws-menu-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="wsMenu" title="{{.Workspace}}"><span class="visually-hidden">Workspace: </span><code id="wsMenuName">{{.WorkspaceName}}</code><span class="caret" aria-hidden="true">▾</span></button>
+  <div id="wsMenu" class="agent-menu ws-menu" role="menu" aria-labelledby="wsMenuButton" hidden></div>
+</div>
+{{- end}}{{end}}
+{{end}}
+
+{{define "askQuote"}}
+{{/* The quote the selection toolbar's Ask (⌘L) or a listing's "Ask about
+     this code" put in the composer. Sent ahead of the question. */}}
+<div id="askQuote" class="ask-quote" hidden>
+  <div class="ask-quote-head"><span class="ask-quote-label" id="askQuoteLabel">Quoting</span><button type="button" class="ask-quote-remove" id="askQuoteRemove" aria-label="Remove the quote" title="Remove the quote"><span aria-hidden="true">×</span></button></div>
+  <pre class="ask-quote-text" id="askQuoteText"></pre>
+</div>
+{{end}}
+
+{{define "readingTools"}}
+{{/* Select to ask, right-click a listing, Run in Terminal (issue #145).
+     Everything here is built by reading_tools.js: with scripts off the page
+     is unchanged. */}}
+<div id="selectionBar" class="selection-bar" role="toolbar" aria-label="Selected text" hidden>
+  <button type="button" class="selection-bar-btn" data-sel="ask">Ask <kbd class="agent-kbd" data-kbd aria-hidden="true">⌘L</kbd></button>
+  <button type="button" class="selection-bar-btn" data-sel="simpler">Explain it more simply</button>
+  <button type="button" class="selection-bar-btn" data-sel="copy">Copy</button>
+</div>
+<div id="listingMenu" class="agent-menu listing-menu" role="menu" aria-label="Listing" hidden></div>
+<dialog id="compareDialog" class="compare-dialog" aria-labelledby="compareTitle">
+  <header class="compare-head">
+    <h2 id="compareTitle">Compare</h2>
+    <button type="button" class="icon-btn compare-close" id="compareClose" aria-label="Close"><span aria-hidden="true">×</span></button>
+  </header>
+  <p class="compare-note" id="compareNote"></p>
+  <p class="compare-legend" id="compareLegend" hidden><span class="compare-key compare-key-tutorial">+ only in the tutorial</span><span class="compare-key compare-key-yours">− only in yours</span></p>
+  <pre class="compare-body" id="compareBody" tabindex="0" hidden></pre>
+  <footer class="compare-foot" id="compareFoot"></footer>
+</dialog>
+<script type="application/json" id="latheReadingTools">{{.ReadingTools}}</script>
+<script>{{readingToolsJS}}</script>
+{{end}}

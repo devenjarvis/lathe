@@ -257,6 +257,9 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 		"TrashChoices": []choice{{"7", "7 days"}, {"30", "30 days"}, {"0", "Never"}},
 		"TrashCount":   s.trashCount(),
 		"LineWidths":   choices(config.LineWidths, lineWidthLabels),
+		// Editors and Terminals: Settings › Reading's "Open code in"
+		// (native_workspace.go).
+		"Launchers": launcherChoices(runtime.GOOS),
 		// Shortcuts is the read-only list from the shortcut registry.
 		"Shortcuts": shortcutGroups(runtime.GOOS),
 	}
@@ -285,6 +288,8 @@ type settingsPatch struct {
 	NotifyExtend     *bool   `json:"notify_extend"`
 	NotifyCheck      *bool   `json:"notify_check"`
 	TrashDays        *int    `json:"trash_days"`
+	Editor           *string `json:"editor"`
+	Terminal         *string `json:"terminal"`
 }
 
 func (p *settingsPatch) apply(c *config.Config) error {
@@ -351,6 +356,9 @@ func (p *settingsPatch) apply(c *config.Config) error {
 			v := *p.TrashDays
 			c.TrashDays = &v
 		}
+	}
+	if err := p.applyLaunchers(c); err != nil {
+		return err
 	}
 	if p.NotifyVerify != nil || p.NotifyExtend != nil || p.NotifyCheck != nil {
 		if c.Notify == nil {

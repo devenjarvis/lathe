@@ -114,6 +114,24 @@
     'agent.check': panelAction('check', function () {
       return !!$('#checkWork') && typeof window.latheCheckWork === 'function';
     }, function () { window.latheCheckWork(); }),
+    // Reading tools (reading_tools.js): ⌘L quotes the selection in the
+    // composer; the workspace items ask the desktop shell.
+    'agent.ask-selection': {
+      when: function () { return !popout && !!window.latheReadingTools && !!window.latheAgentPanel; },
+      run: function () { window.latheReadingTools.askSelection(); }
+    },
+    'tutorial.open-editor': {
+      when: function () { return !!window.latheReadingTools && window.latheReadingTools.canLaunch(); },
+      run: function () { window.latheReadingTools.openEditor(); }
+    },
+    'tutorial.open-terminal': {
+      when: function () { return !!window.latheReadingTools && window.latheReadingTools.canLaunch(); },
+      run: function () { window.latheReadingTools.openTerminal(); }
+    },
+    'tutorial.workspace': {
+      when: function () { return !!window.latheReadingTools && window.latheReadingTools.canReveal(); },
+      run: function () { window.latheReadingTools.reveal(); }
+    },
     'agent.popout': {
       when: function () { return !popout && !!clickable('#agentPopout'); },
       run: function () { $('#agentPopout').click(); }

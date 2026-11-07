@@ -109,6 +109,12 @@ Bullets: tools to install, what the reader should already roughly know.
 Why this exists. Then code, in small blocks, each with an insertion point.
 Aside or design note where it earns its keep.
 
+When a block is (part of) a file the reader keeps in their project, name the
+file after the language: \`\`\`zig src/envelope.zig. The reader sees the path
+on the block's label, and `lathe serve` offers to compare the listing with
+their copy and to open it in their editor. Use the project-relative path,
+no spaces.
+
 ## [...]
 
 ## Checkpoint

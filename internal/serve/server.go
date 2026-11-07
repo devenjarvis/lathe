@@ -28,7 +28,7 @@ import (
 	"github.com/devenjarvis/lathe/internal/voice"
 )
 
-//go:embed layout.html list.html components.html check.html settings.html shortcuts.html palette.html
+//go:embed layout.html list.html components.html check.html settings.html shortcuts.html palette.html reading_tools.html
 var templateFS embed.FS
 
 // styles.css is the entire design system (tokens + components). It's loaded
@@ -145,10 +145,12 @@ func NewServer(tutorialsDir string) *Server {
 		"shortcutsJS":   shortcutsJS,
 		// The Go to anything palette's script (index.go).
 		"paletteJS": paletteJS,
+		// The reading page's selection toolbar and listing menu.
+		"readingToolsJS": readingToolsJS,
 	}
 	// components.html is parsed into both template sets so its shared partials
 	// ({{define "head"}}, "badge", "themeToggle") are available to each page.
-	layoutTmpl := template.Must(template.New("layout.html").Funcs(funcMap).ParseFS(templateFS, "components.html", "shortcuts.html", "palette.html", "check.html", "layout.html"))
+	layoutTmpl := template.Must(template.New("layout.html").Funcs(funcMap).ParseFS(templateFS, "components.html", "shortcuts.html", "palette.html", "check.html", "reading_tools.html", "layout.html"))
 	listTmpl := template.Must(template.New("list.html").Funcs(funcMap).ParseFS(templateFS, "components.html", "shortcuts.html", "palette.html", "list.html"))
 	settingsTmpl := template.Must(template.New("settings.html").Funcs(funcMap).ParseFS(templateFS, "components.html", "shortcuts.html", "palette.html", "settings.html"))
 	css, err := HighlightCSS()
@@ -233,6 +235,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /-/native/window", s.handleNativeWindow)
 	mux.HandleFunc("POST /-/native/open-url", s.handleNativeOpenURL)
 	mux.HandleFunc("POST /-/native/reveal", s.handleNativeReveal)
+	// Editor, terminal and Compare (native_workspace.go).
+	s.workspaceRoutes(mux)
 	// Shortcut registry and desktop menu commands (native_menu.go).
 	mux.HandleFunc("GET /-/shortcuts", s.handleShortcuts)
 	mux.HandleFunc("GET /-/index", s.handleIndex)
@@ -705,8 +709,11 @@ func (s *Server) renderPart(w http.ResponseWriter, tut *store.Tutorial, tutDir, 
 		"HighlightCSS":      s.highlightCSS,
 		// Native: the desktop shell is present, so the page renders its
 		// affordances (data-native, "Choose folder…", the app-window pop-out).
-		"Native":            s.nativeShell() != nil,
-		"JigScript":         jigScript,
+		"Native":    s.nativeShell() != nil,
+		"JigScript": jigScript,
+		// ReadingTools: the selection toolbar, listing menu, Run in
+		// Terminal and the title bar's workspace menu (native_workspace.go).
+		"ReadingTools":      s.readingToolsFor(tut.Slug),
 		"PrevPart":          prevPart,
 		"NextPart":          nextPart,
 		"PrevTitle":         prevTitle,

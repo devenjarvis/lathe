@@ -61,6 +61,10 @@ type Settings struct {
 	NotifyCheck      bool   `json:"notify_check"`
 	// TrashDays is the Trash retention in days; 0 means never purge.
 	TrashDays int `json:"trash_days"`
+	// Editor and Terminal are the desktop app's launchers (launchers.go);
+	// "" is the system default.
+	Editor   string `json:"editor"`
+	Terminal string `json:"terminal"`
 }
 
 // Resolve applies the defaults to c's Settings-window keys. An unknown value
@@ -96,6 +100,7 @@ func (c *Config) Resolve() Settings {
 	if v := strings.TrimSpace(c.CodeRoot); v != "" {
 		s.CodeRoot = v
 	}
+	resolveLaunchers(c, &s)
 	if n := c.Notify; n != nil {
 		s.NotifyVerify, s.NotifyExtend, s.NotifyCheck = on(n.Verify), on(n.Extend), on(n.Check)
 	}

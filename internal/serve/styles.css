@@ -1527,3 +1527,75 @@ kbd{font-family:var(--font-mono);font-variation-settings:var(--mono);font-size:.
   #topBar .palette-open{padding:.3rem .65rem}
   #topBar .palette-open-label{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 }
+
+/* Reading tools (reading_tools.js, issue #145): the selection toolbar, the
+   listing menu, Run in Terminal on command blocks, the composer's quote, the
+   Compare dialog and the masthead's workspace menu. */
+/* Command blocks: Copy | Run in Terminal on the label row (desktop app). */
+.tutorial-block-command .command-actions{position:absolute;top:-.3rem;right:0;display:flex;gap:.4rem}
+.tutorial-block-command .command-actions .copy-command{position:static}
+/* The selection toolbar: a navy pill of plain buttons above the selection,
+   like the command panel, in both themes. */
+.selection-bar{position:fixed;z-index:70;display:flex;align-items:center;gap:.15rem;padding:.25rem;background:var(--cmd-bg);color:var(--cmd-text);border:2px solid var(--cmd-bg);border-radius:var(--radius-pill);box-shadow:var(--shadow-md);font-family:var(--font-body)}
+[data-theme="dark"] .selection-bar{border-color:var(--border-strong)}
+.selection-bar[hidden]{display:none}
+.selection-bar-btn{display:inline-flex;align-items:center;gap:.45rem;min-height:2.1rem;padding:.3rem .8rem;font:inherit;font-size:.85rem;font-weight:800;color:inherit;background:none;border:none;border-radius:var(--radius-pill);cursor:pointer;white-space:nowrap}
+.selection-bar-btn:hover,.selection-bar-btn:focus-visible{background:var(--yellow);color:var(--on-yellow)}
+.selection-bar-btn:focus-visible{outline:3px solid var(--focus);outline-offset:1px}
+.selection-bar-btn[data-sel="ask"]{background:var(--yellow);color:var(--on-yellow)}
+.selection-bar-btn[data-sel="ask"]:hover{background:#FFFFFF}
+.selection-bar-btn .agent-kbd{opacity:.8}
+/* The listing menu and the workspace menu reuse the agent menus' card. */
+.listing-menu{position:fixed;z-index:70}
+.listing-menu[hidden],.ws-menu[hidden]{display:none}
+/* The masthead's workspace button ("zig-synth ▾"), shaped like the agent
+   toggle beside it. */
+.ws-menu-wrap{position:relative;margin-left:auto;flex-shrink:1;min-width:0}
+.ws-menu-wrap[hidden]{display:none}
+.ws-menu-wrap:not([hidden]) + .agent-toggle{margin-left:0}
+.ws-menu-btn{display:inline-flex;align-items:center;gap:.4rem;max-width:16rem;font:inherit;font-size:.875rem;font-weight:800;color:#1C2140;background:#FFFBF0;border:2px solid #1C2140;border-radius:var(--radius-pill);padding:.3rem .8rem;min-height:2.4rem;cursor:pointer}
+.ws-menu-btn code{font-family:var(--font-mono);font-variation-settings:var(--mono);font-size:.85rem;background:none;padding:0;color:inherit;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ws-menu-btn:hover{background:#FFFFFF}
+.ws-menu-btn[aria-expanded="true"]{background:#1C2140;color:#FFF4D6}
+.ws-menu-btn .caret{font-size:.75em;opacity:.8}
+.ws-menu{top:calc(100% + .4rem);right:0;min-width:15rem}
+/* The quote waiting in the composer. */
+.ask-quote{margin:0 0 .5rem;padding:.45rem .6rem .5rem .75rem;border:2px solid var(--rule);border-left-width:6px;border-left-color:var(--yellow);border-radius:var(--radius-md);background:var(--surface)}
+.ask-quote[hidden]{display:none}
+.ask-quote-head{display:flex;align-items:center;gap:.5rem}
+.ask-quote-label{flex:1;min-width:0;font-size:.75rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--teal);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ask-quote-remove{flex:none;width:1.75rem;height:1.75rem;border-radius:var(--radius-pill);border:2px solid var(--rule);background:var(--bg);color:var(--text);font:inherit;font-weight:900;line-height:1;cursor:pointer}
+.ask-quote-remove:hover{background:var(--accent-soft)}
+.ask-quote-text{margin:.3rem 0 0;max-height:6.5rem;overflow:auto;white-space:pre-wrap;word-break:break-word;font-family:var(--font-mono);font-variation-settings:var(--mono);font-size:.8125rem;line-height:1.45;color:var(--text-muted);background:none;border:none;padding:0}
+/* Feedback from Run in Terminal, Copy, Open in editor: one toast. */
+.rt-toast{position:fixed;left:50%;bottom:1.25rem;transform:translateX(-50%);z-index:75;max-width:min(36rem,calc(100vw - 2rem));padding:.65rem 1rem;background:var(--rule);color:var(--bg);border-radius:var(--radius-md);box-shadow:var(--shadow-md);font-weight:750;font-size:.95rem;line-height:1.4}
+.rt-toast[hidden]{display:none}
+.rt-toast.is-error{background:var(--red);color:var(--on-red)}
+/* Compare with my <path>. */
+.compare-dialog{margin:auto;inset:0;width:min(52rem,calc(100vw - 2rem));max-height:calc(100vh - 4rem);padding:0;border:var(--line) solid var(--rule);border-radius:var(--radius-lg);background:var(--bg);color:var(--text);box-shadow:var(--shadow-md)}
+.compare-dialog[open]{display:flex;flex-direction:column}
+.compare-dialog::backdrop{background:rgba(20,24,46,.45)}
+.compare-head{display:flex;align-items:center;gap:.75rem;padding:.7rem .85rem .7rem 1.2rem;background:var(--yellow);color:var(--on-yellow);border-bottom:var(--line) solid #1C2140}
+.compare-head h2{flex:1;margin:0;font-size:1.05rem;font-weight:900;font-variation-settings:var(--casual);color:inherit}
+.compare-note{margin:.85rem 1.2rem 0;color:var(--text-muted)}
+.compare-legend{display:flex;flex-wrap:wrap;gap:.5rem;margin:.6rem 1.2rem 0;font-size:.8125rem;font-weight:800}
+.compare-key{padding:.1rem .6rem;border-radius:var(--radius-pill)}
+.compare-key-tutorial{background:var(--code-band);color:var(--text)}
+.compare-key-yours{background:var(--accent-soft);color:var(--text)}
+.compare-body{flex:1;min-height:4rem;overflow:auto;margin:.75rem 1.2rem 0;padding:.6rem 0;border:2px solid var(--rule);border-radius:var(--radius-md);background:var(--code-bg);font-family:var(--font-mono);font-variation-settings:var(--mono);font-size:.85rem;line-height:1.5}
+.compare-body .cmp-line{display:block;padding:0 .9rem;white-space:pre}
+.compare-body .cmp-tutorial{background:var(--code-band)}
+.compare-body .cmp-yours{background:var(--accent-soft)}
+.compare-body .cmp-gap{color:var(--text-faint);font-style:italic}
+.compare-foot{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:.5rem;padding:.85rem 1.2rem 1rem}
+/* Settings › Reading: Open code in. */
+.settings-select-row{display:flex;flex-wrap:wrap;align-items:center;gap:.4rem 1rem;margin-top:.6rem}
+.settings-select-row label{min-width:5.5rem;font-weight:800}
+@media (max-width:700px){
+  /* No room in the phone masthead; the Tutorial menu and a listing's menu
+     still reach the workspace. */
+  .ws-menu-wrap,.ws-menu-wrap:not([hidden]){display:none}
+  .ws-menu-wrap + .agent-toggle{margin-left:auto}
+  .selection-bar-btn[data-sel="simpler"]{white-space:normal;text-align:left}
+}
+@media print{.selection-bar,.listing-menu,.rt-toast,.ws-menu-wrap{display:none!important}}
