@@ -80,7 +80,9 @@ type newRequest struct {
 	// Repo / RepoBranch pin the git remote the tutorial is for.
 	Repo       string `json:"repo"`
 	RepoBranch string `json:"repoBranch"`
-	// Shelf is a shelf id to file the tutorial on once it is stored.
+	// Shelf is a shelf id to file the tutorial on once it is stored
+	// ("unsorted" keeps it off every shelf). Empty lets the agent pick one
+	// (the /lathe skill's "Pick a shelf").
 	Shelf string `json:"shelf"`
 	// Slug, when set, is used exactly (409 if taken); else it is derived
 	// from the topic and made unique.
@@ -176,7 +178,7 @@ func (s *Server) validateNew(req newRequest) (*newInputs, error) {
 
 	if in.Shelf != "" {
 		if in.Shelf == store.UnsortedShelfID {
-			in.Shelf = ""
+			// The reader's choice: settleNew takes it off any shelf.
 		} else if sh, err := store.ReadShelves(s.shelvesPath()); err != nil {
 			return nil, err
 		} else if _, ok := sh.Get(in.Shelf); !ok {
@@ -229,6 +231,7 @@ func (in *newInputs) command() string {
 	if in.Repo != "" {
 		flag("repo-branch", in.RepoBranch)
 	}
+	flag("shelf", in.Shelf)
 	return b.String()
 }
 
@@ -371,7 +374,8 @@ func (h *agentHost) startNew(tutorialsDir, shelvesPath string, in *newInputs, co
 	}
 	c.SetPolicy(sid, acp.NewPolicy(scratch, workspace, in.voiceFile))
 
-	prompt := newPrompt(slug, scratch, workspace, in, command)
+	shelves, _ := store.ListShelves(tutorialsDir)
+	prompt := newPrompt(slug, scratch, workspace, in, command, shelves)
 	run, err := h.launch(c, jobKey(slug), jobNew, jobTarget{tutDir: tutDir}, sid, prompt, command, jobRunTimeout, func() string {
 		c.SetPolicy(sid, nil)
 		note := settleNew(tutDir, shelvesPath, in.Shelf)
@@ -515,7 +519,7 @@ func (s *Server) handleAgentReply(w http.ResponseWriter, r *http.Request) {
 // newPrompt is the whole prompt for a new-tutorial run: framing for the
 // hosted session, the pre-answered inputs, the voice, the /lathe skill text,
 // then the invocation the handoff would paste.
-func newPrompt(slug, scratch, workspace string, in *newInputs, command string) string {
+func newPrompt(slug, scratch, workspace string, in *newInputs, command string, shelves []store.ShelfListing) string {
 	var b strings.Builder
 	out := filepath.Join(scratch, slug)
 	b.WriteString("You are writing a new Lathe tutorial for the \"New tutorial\" button in the Lathe web reader, which hosts you. ")
@@ -530,7 +534,12 @@ func newPrompt(slug, scratch, workspace string, in *newInputs, command string) s
 		b.WriteString("- Lathe lets this session read, write and run commands only in the scratch dir; requests outside that are refused.\n")
 	}
 	fmt.Fprintf(&b, "- Store it with the lathe_store tool, path %s; it stores only into %s. Use `lathe store %s` if you don't have the tool. A run that ends without storing loses the reservation, and Lathe deletes the scratch dir after the run.\n", out, slug, quoteArg(out))
-	b.WriteString("- Lathe records the workspace and files the tutorial on its shelf itself; don't run `lathe start` or `lathe shelf`.\n")
+	b.WriteString("- Lathe records the workspace itself; don't run `lathe start`.\n")
+	if in.Shelf != "" {
+		b.WriteString("- The reader chose the tutorial's shelf, and Lathe files it there when the run ends: skip the skill's \"Pick a shelf\" step and don't call lathe_shelf_set or `lathe shelf`.\n")
+	} else {
+		b.WriteString("- Pick its shelf as the skill's \"Pick a shelf\" step says, after storing: an existing shelf from the list below when one fits, else a new one. Record it with the lathe_shelf_set tool (it defaults to this tutorial; pass create: true for a new shelf).\n")
+	}
 	b.WriteString("- The reader sees your plan live: keep a short plan (pin versions, research, write, check jigs, store) and update it as you go.\n")
 	b.WriteString("- Finish with a short summary for the reader (markdown): what Part 1 builds and the tutorial's slug.\n\n")
 
@@ -569,6 +578,11 @@ func newPrompt(slug, scratch, workspace string, in *newInputs, command string) s
 		b.WriteString("- Repo: none — a standalone tutorial.\n")
 	}
 	b.WriteString("\n")
+	if in.Shelf == "" && len(shelves) > 0 {
+		b.WriteString("The reader's shelves (pick from these first):\n\n```json\n")
+		b.WriteString(jsonBlock(shelves))
+		b.WriteString("\n```\n\n")
+	}
 	fmt.Fprintf(&b, "<voice name=%q>\n%s\n</voice>\n\n", in.Voice, strings.TrimSpace(in.voice.Wrapped()))
 	writeSkill(&b, "lathe")
 	b.WriteString(command)

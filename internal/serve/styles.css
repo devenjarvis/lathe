@@ -1193,6 +1193,49 @@ body.list h1{font-size:clamp(3rem,2rem + 4.5vw,5.25rem);font-weight:1000;margin:
 .view-title{min-width:0}
 .shelf-desc{margin:.45rem 0 0;color:var(--text-muted);font-size:1.02rem;max-width:44rem}
 .shelf-desc a{font-weight:750}
+/* Split banner (a shelf page past Settings › Library's split threshold):
+   yellow and navy in both themes, like .perm-card, because it asks the
+   reader something. Preview split opens .split-preview (a :target panel, or
+   .is-open with scripts): the two proposed lists side by side. */
+.split-banner{margin:0 0 1.5rem;padding:.85rem 1rem;background:var(--yellow);color:#1C2140;border:var(--line) solid #1C2140;border-radius:var(--radius-md);box-shadow:4px 4px 0 #1C2140}
+.split-banner p,.split-banner strong{color:inherit}
+.split-banner-row{display:flex;align-items:center;justify-content:space-between;gap:.6rem 1rem;flex-wrap:wrap}
+.split-banner-text{margin:0;flex:1 1 22rem;font-size:1rem;line-height:1.4}
+.split-banner-text strong{font-weight:900;font-variation-settings:var(--casual)}
+.split-banner-actions{display:flex;align-items:center;gap:.45rem;flex-wrap:wrap}
+.split-banner-actions form{margin:0}
+.split-banner .btn{border-color:#1C2140}
+.split-banner .btn:not(.btn-primary){background:#FFFBF0;color:#1C2140}
+.split-banner .btn:not(.btn-primary):hover:not(:disabled){background:#FFE7A3}
+.split-banner .btn-primary{background:#1C2140;border-color:#1C2140;color:#FFF4D6}
+.split-banner .btn-primary:hover:not(:disabled){background:#33385A;border-color:#33385A;color:#FFF4D6}
+.split-preview{margin-top:.85rem;padding-top:.85rem;border-top:2px dashed rgba(28,33,64,.45)}
+.split-preview:not(:target):not(.is-open){display:none}
+.split-preview:focus{outline:none}
+.split-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(14rem,1fr));gap:.75rem}
+.split-col{background:#FFFBF0;border:2px solid #1C2140;border-radius:var(--radius-md);padding:.7rem .85rem}
+.split-col h3{margin:0;font-size:1.1rem;color:#1C2140}
+.split-col .shelf-count{color:#4F4A3A}
+.split-col-note{margin:.15rem 0 .5rem;font-size:.85rem;font-weight:700;color:#4F4A3A !important}
+.split-col ul{margin:0;padding-left:1.1rem;font-size:.92rem;line-height:1.45}
+.split-col a{color:#1C2140}
+.split-preview-actions{display:flex;flex-wrap:wrap;gap:.45rem;margin-top:.85rem}
+/* A running shelf job (Sort my shelves…, Suggest a split): one status line
+   with Stop, a permission card when the agent asks, or the command to
+   paste when no agent runs. */
+.shelf-job{margin-top:.75rem}
+.shelf-job[hidden]{display:none}
+.shelf-job-line{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin:0;font-size:.92rem;font-weight:700}
+.shelf-job[data-state="running"] .agent-dot{background:#D63B22;border-color:#D63B22;animation:agent-pulse 1.2s ease-in-out infinite}
+@media (prefers-reduced-motion:reduce){.shelf-job[data-state="running"] .agent-dot{animation:none}}
+.shelf-job-text{flex:1 1 12rem;min-width:0}
+.shelf-job-perms{display:flex;flex-direction:column;gap:.5rem;margin-top:.5rem}
+.shelf-job-perms:empty{display:none}
+.shelf-job-error{margin:0 0 .4rem;font-weight:800;color:var(--badge-failed-text)}
+.split-banner .shelf-job-error{color:#962512}
+.shelf-job-note{margin:0 0 .4rem;font-size:.88rem}
+.shelf-job-cmd{display:flex;align-items:center;gap:.45rem;flex-wrap:wrap;margin-top:.4rem}
+.shelf-job-cmd code{font-size:.85rem;padding:.3rem .55rem;background:var(--cmd-bg);color:var(--cmd-text);border-radius:var(--radius-sm)}
 .shelf-menu{position:relative;flex:none;margin-top:.35rem}
 .shelf-menu > summary{list-style:none}
 .shelf-menu > summary::-webkit-details-marker{display:none}
@@ -1458,6 +1501,24 @@ html:not(.settings-js) .settings-panel + .settings-panel{margin-top:3rem;padding
 }
 .settings-chip{font-size:.75rem;font-weight:800;padding:.05rem .55rem;border-radius:var(--radius-pill);background:var(--yellow);color:var(--on-yellow)}
 .settings-chip.is-quiet{background:transparent;color:var(--text-subtle);border:2px solid var(--border-strong)}
+/* Library: the Sort my shelves review — a before/after table of moves
+   (each with a checkbox), unchanged tutorials folded away. */
+.sort-review-summary{margin:.25rem 0 .6rem;font-size:.95rem}
+.sort-table{width:100%;max-width:none;margin:0 0 .5rem;font-size:.92rem}
+.sort-table th,.sort-table td{padding:.45rem .6rem;vertical-align:baseline}
+.sort-table thead th{font-size:.72rem;font-weight:850;letter-spacing:.06em;text-transform:uppercase}
+.sort-table tbody th{background:none;color:var(--text);font-weight:750;font-variation-settings:normal;border-bottom:2px dotted var(--border-strong)}
+.sort-table tbody tr:last-child > *{border-bottom:none}
+.sort-table td:first-child{width:1.75rem}
+.sort-table input{width:1.05rem;height:1.05rem;margin:0;accent-color:var(--red)}
+.sort-table tr:has(input:not(:checked)) .sort-to{text-decoration:line-through;color:var(--text-faint)}
+.sort-from{color:var(--text-subtle)}
+.sort-to{font-weight:750;white-space:nowrap}
+.sort-same{margin:.25rem 0 0;font-size:.9rem}
+.sort-same summary{cursor:pointer;font-weight:750;color:var(--text-muted)}
+.sort-same ul{margin:.4rem 0 0;padding-left:1.2rem;columns:2 16rem}
+.sort-done{margin:.25rem 0 .75rem;padding:.5rem .75rem;border-radius:var(--radius-md);background:var(--badge-verified-bg);color:var(--badge-verified-text);font-weight:750}
+.sort-done a{margin-left:.35rem}
 /* Reading: segmented radios and checkboxes */
 .settings-seg{display:inline-flex;flex-wrap:wrap;border:2px solid var(--rule);border-radius:var(--radius-pill);background:var(--surface);padding:3px;gap:2px}
 .settings-seg label{position:relative;cursor:pointer}

@@ -102,6 +102,10 @@ type Config struct {
 	// UpdateCheck lets the desktop app look up the newest release on GitHub
 	// at most once a day and show a notice when one is out. Default on.
 	UpdateCheck *bool `json:"update_check,omitempty"`
+	// ShelfSplitAt is the shelf size past which the shelf's page suggests
+	// splitting it: one of ShelfSplitChoices, 0 for never. Nil means
+	// DefaultShelfSplitAt.
+	ShelfSplitAt *int `json:"shelf_split_at,omitempty"`
 }
 
 // NotifyConfig is the per-event notification switches. Nil means on.

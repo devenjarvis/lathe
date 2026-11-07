@@ -339,6 +339,60 @@
     </div>
     <p class="settings-inline settings-trash-link"><a class="btn btn-ghost btn-sm" href="/?view=trash">Show Trash{{with .TrashCount}} · {{.}}{{end}}</a></p>
   </fieldset>
+  <div class="settings-group" id="sortShelves">
+    <h3>Shelves</h3>
+    <p class="agent-hint" id="sortHint">Your agent proposes a shelf for every tutorial: your shelves first, a new one only where several tutorials share a subject. You review the list, and nothing moves until you apply it.</p>
+    {{- with .Sorted}}
+    <p class="sort-done" role="status">{{if eq . "0"}}Nothing needed to move.{{else if eq . "1"}}Moved 1 tutorial.{{else}}Moved {{.}} tutorials.{{end}} <a href="/">Open the library</a></p>
+    {{- end}}
+    {{- with .SortReview}}
+    <form class="sort-review" id="sortReview" method="POST" action="/-/shelves/sort/apply">
+      <p class="sort-review-summary"><strong>{{if .Moves}}{{.Moves}} tutorial{{if ne .Moves 1}}s{{end}} would move{{else}}Everything is already where your agent would put it{{end}}</strong>{{with .NewShelves}} · {{len .}} new shel{{if ne (len .) 1}}ves{{else}}f{{end}}: {{range $i, $n := .}}{{if $i}}, {{end}}{{$n}}{{end}}{{end}}</p>
+      {{- if .Moves}}
+      <table class="sort-table">
+        <thead><tr><th scope="col"><span class="visually-hidden">Move</span></th><th scope="col">Tutorial</th><th scope="col">Now</th><th scope="col">Proposed</th></tr></thead>
+        <tbody>
+        {{- range .Rows}}{{if not .Same}}
+          <tr>
+            <td><input type="checkbox" name="slug" value="{{.Slug}}" checked aria-label="Move {{.Title}} to {{.To}}"></td>
+            <th scope="row">{{.Title}}</th>
+            <td class="sort-from">{{.From}}</td>
+            <td class="sort-to"><span aria-hidden="true">→ </span>{{.To}}{{if .New}} <span class="settings-chip">New</span>{{end}}</td>
+          </tr>
+        {{- end}}{{end}}
+        </tbody>
+      </table>
+      {{- end}}
+      {{- if lt .Moves (len .Rows)}}
+      <details class="sort-same">
+        <summary>{{sub (len .Rows) .Moves}} stay where they are</summary>
+        <ul>{{range .Rows}}{{if .Same}}<li>{{.Title}} <span class="sort-from">· {{.From}}</span></li>{{end}}{{end}}</ul>
+      </details>
+      {{- end}}
+      <div class="settings-actions">
+        {{- if .Moves}}<button type="submit" class="btn btn-primary" id="sortApply" data-moves="{{.Moves}}">Apply {{.Moves}} move{{if ne .Moves 1}}s{{end}}</button>{{end}}
+        <button type="submit" class="btn btn-ghost" formaction="/-/shelves/sort/discard">Discard</button>
+        <button type="button" class="btn btn-ghost" data-shelf-job data-action="/-/shelves/sort" data-status="sortJob">Ask again</button>
+      </div>
+    </form>
+    {{- else}}
+    <div class="settings-inline">
+      <button type="button" class="btn btn-primary" data-shelf-job data-action="/-/shelves/sort" data-status="sortJob"{{if not .LibraryTotal}} disabled{{end}}>Sort my shelves…</button>
+      <span class="agent-hint">{{if not .LibraryTotal}}Nothing to sort yet.{{else if .AgentLabel}}{{.AgentLabel}} sorts {{.LibraryTotal}} tutorial{{if ne .LibraryTotal 1}}s{{end}}.{{else}}No agent is set up, so Lathe gives you a command to paste.{{end}}</span>
+    </div>
+    {{- end}}
+    <div class="shelf-job" id="sortJob" data-starting="Your agent is reading your library…"{{with .SortRun}} data-run-id="{{.ID}}"{{else}} hidden{{end}}></div>
+  </div>
+  <fieldset class="settings-group settings-seg-group">
+    <legend>Suggest splitting a shelf</legend>
+    <p class="agent-hint" id="splitHint">When a shelf holds more tutorials than this, its page offers to split it in two. Your agent proposes the split; you preview both lists before anything moves.</p>
+    <div class="settings-seg" aria-describedby="splitHint">
+      {{- $sa := .Settings.ShelfSplitAt}}
+      {{- range .ShelfSplitChoices}}
+      <label><input type="radio" name="shelf_split_at" value="{{.Value}}" data-setting="shelf_split_at" data-setting-int{{if eq (print $sa) .Value}} checked{{end}}><span>{{.Label}}</span></label>
+      {{- end}}
+    </div>
+  </fieldset>
   <div class="settings-group">
     <label class="settings-check"><input type="checkbox" data-setting="keep_verified_code"{{if .Settings.KeepVerifiedCode}} checked{{end}}><span><strong>Keep verified code</strong><span class="agent-hint">After a verify run, keep its code with the tutorial, one git tag per part, so you can compare yours against it.</span></span></label>
   </div>
@@ -1010,5 +1064,19 @@
 {{- if .Native}}
 {{template "nativeLinks"}}
 {{- end}}
+{{template "shelfJobs"}}
+<script>
+  // Sort review: the Apply button counts the ticked moves.
+  (function(){
+    var form = document.getElementById('sortReview');
+    var apply = document.getElementById('sortApply');
+    if (!form || !apply) return;
+    form.addEventListener('change', function(){
+      var n = form.querySelectorAll('input[name="slug"]:checked').length;
+      apply.textContent = n ? 'Apply ' + n + ' move' + (n === 1 ? '' : 's') : 'Apply';
+      apply.disabled = n === 0;
+    });
+  })();
+</script>
 </body>
 </html>

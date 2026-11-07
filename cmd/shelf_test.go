@@ -61,3 +61,49 @@ func TestShelfNewSetList(t *testing.T) {
 		t.Error("set unsorted did not take the tutorial off its shelf")
 	}
 }
+
+func TestShelfSetCreateAndProposals(t *testing.T) {
+	home := t.TempDir()
+	setHome(t, home)
+	for _, slug := range []string{"synth", "lexer", "parser"} {
+		writeTutorial(t, home, slug, store.StatusUnverified, []string{"part-01.md"})
+	}
+	if _, err := runShelf(t, shelfSetCmd, "synth", "Audio"); err == nil {
+		t.Error("set onto a missing shelf without --create succeeded")
+	}
+	shelfSetCreate = true
+	t.Cleanup(func() { shelfSetCreate = false })
+	out, err := runShelf(t, shelfSetCmd, "synth", "Audio")
+	if err != nil || !strings.Contains(out, `Created shelf "Audio"`) || !strings.Contains(out, "synth is on Audio") {
+		t.Fatalf("set --create: %q %v", out, err)
+	}
+
+	shelfListJSON = true
+	t.Cleanup(func() { shelfListJSON = false })
+	out, err = runShelf(t, shelfListCmd)
+	if err != nil || !strings.Contains(out, `"id": "audio"`) || !strings.Contains(out, `"count": 1`) {
+		t.Fatalf("list --json: %q %v", out, err)
+	}
+
+	out, err = runShelf(t, shelfProposeCmd, "lexer", "Compilers")
+	if err != nil || !strings.Contains(out, "new shelf") {
+		t.Fatalf("propose: %q %v", out, err)
+	}
+
+	if _, err := runShelf(t, shelfSetCmd, "lexer", "compilers-x"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runShelf(t, shelfSetCmd, "parser", "compilers-x"); err != nil {
+		t.Fatal(err)
+	}
+	shelfSplitGroups = []string{"Lexers=lexer", "Parsers=parser"}
+	t.Cleanup(func() { shelfSplitGroups = nil })
+	out, err = runShelf(t, shelfProposeSplitCmd, "compilers-x")
+	if err != nil || !strings.Contains(out, "Lexers (1) and Parsers (1)") {
+		t.Fatalf("propose-split: %q %v", out, err)
+	}
+	shelfSplitGroups = []string{"no-equals"}
+	if _, err := runShelf(t, shelfProposeSplitCmd, "compilers-x"); err == nil {
+		t.Error("a malformed --group was accepted")
+	}
+}

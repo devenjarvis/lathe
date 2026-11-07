@@ -24,6 +24,13 @@ const DefaultTrashDays = 30
 // (keep until deleted by hand).
 var TrashDayChoices = []int{7, 30, 0}
 
+// DefaultShelfSplitAt is the shelf size past which a shelf's page suggests a
+// split, when shelf_split_at is unset.
+const DefaultShelfSplitAt = 12
+
+// ShelfSplitChoices are the split-suggestion thresholds; 0 is "Never".
+var ShelfSplitChoices = []int{8, 12, 16, 24, 0}
+
 // Appearance values.
 const (
 	AppearanceSystem = "system"
@@ -63,6 +70,9 @@ type Settings struct {
 	TrashDays int `json:"trash_days"`
 	// UpdateCheck is the desktop app's daily check for a new release.
 	UpdateCheck bool `json:"update_check"`
+	// ShelfSplitAt is the shelf size past which its page suggests a split;
+	// 0 means never.
+	ShelfSplitAt int `json:"shelf_split_at"`
 }
 
 // Resolve applies the defaults to c's Settings-window keys. An unknown value
@@ -83,6 +93,10 @@ func (c *Config) Resolve() Settings {
 		NotifyCheck:      true,
 		TrashDays:        DefaultTrashDays,
 		UpdateCheck:      on(c.UpdateCheck),
+		ShelfSplitAt:     DefaultShelfSplitAt,
+	}
+	if c.ShelfSplitAt != nil && slices.Contains(ShelfSplitChoices, *c.ShelfSplitAt) {
+		s.ShelfSplitAt = *c.ShelfSplitAt
 	}
 	if c.TrashDays != nil && slices.Contains(TrashDayChoices, *c.TrashDays) {
 		s.TrashDays = *c.TrashDays
@@ -181,3 +195,6 @@ func UpdateCheck() bool { return LoadSettings().UpdateCheck }
 
 // KeepVerifiedCode reports whether a verify run's code snapshot is kept.
 func KeepVerifiedCode() bool { return LoadSettings().KeepVerifiedCode }
+
+// ShelfSplitAt is the split-suggestion threshold (0: never).
+func ShelfSplitAt() int { return LoadSettings().ShelfSplitAt }

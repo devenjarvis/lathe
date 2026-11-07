@@ -57,9 +57,23 @@ type Server struct {
 	// voice's spec, and lathe_voice_add saves the draft the reader approved,
 	// under that name only. Exclusive with Slug.
 	VoiceDraft string
+	// Propose, when set, is a hosted shelf-suggestion run's server:
+	// ProposeSort ("sort": a shelf for every tutorial) or ProposeSplit
+	// ("split": a two-way split of Shelf). It offers only that proposal tool
+	// and lathe_shelf_list, so the run can record a proposal but move
+	// nothing; the reader applies it.
+	Propose string
+	// Shelf is the shelf a ProposeSplit server may propose a split for.
+	Shelf string
 	// Version is reported as serverInfo.version.
 	Version string
 }
+
+// Propose modes.
+const (
+	ProposeSort  = "sort"
+	ProposeSplit = "split"
+)
 
 // Serve answers requests from r on w until r ends.
 func (s *Server) Serve(r io.Reader, w io.Writer) error {
@@ -133,6 +147,12 @@ func (s *Server) instructions() string {
 	if s.VoiceDraft != "" {
 		return fmt.Sprintf("Lathe's voice tools, scoped to the new voice %q that Lathe reserved for this session. Record each draft with lathe_voice_draft (the reader sees its ## Sample as the preview); lathe_voice_add saves the draft the reader approved, and only after they click Save voice.", s.VoiceDraft)
 	}
+	switch s.Propose {
+	case ProposeSort:
+		return "Lathe's shelf tools for sorting the library. lathe_shelf_propose records a proposed shelf for one tutorial; nothing moves until the reader reviews and applies the proposal."
+	case ProposeSplit:
+		return fmt.Sprintf("Lathe's shelf tools for splitting the shelf %q. lathe_shelf_split_propose records the proposed split; nothing moves until the reader previews and applies it.", s.Shelf)
+	}
 	if s.Slug != "" && s.New {
 		return fmt.Sprintf("Lathe's state-writing commands as tools, scoped to the new tutorial %q that Lathe reserved for this session. lathe_store stores into %q whatever your source directory is called. Use them instead of running the `lathe` CLI.", s.Slug, s.Slug)
 	}
@@ -150,6 +170,10 @@ type Tool struct {
 	InputSchema map[string]any `json:"inputSchema"`
 
 	scoped bool // acts on one tutorial, so a scoped server offers it
+	// anywhere: read-only, offered by every server (scoped and propose too).
+	anywhere bool
+	// propose: offered only by a server in that Propose mode.
+	propose string
 	// reserved: a --new scoped server offers it too, and its slug argument
 	// (optional, defaulting to the reservation) is added to the schema.
 	reserved bool
@@ -163,18 +187,32 @@ func (s *Server) Tools() []Tool {
 	}
 	var out []Tool
 	for _, t := range allTools() {
-		offered := s.Slug == "" || t.scoped || (s.New && t.reserved)
-		if !offered {
+		if !s.offers(t) {
 			continue
 		}
-		if s.Slug != "" && !t.scoped {
-			t.InputSchema = withReservedSlug(t.InputSchema, s.Slug)
-		} else if s.Slug != "" {
+		switch {
+		case s.Propose != "" || s.Slug == "" || t.anywhere:
+		case t.scoped:
 			t.InputSchema = withOptionalSlug(t.InputSchema, s.Slug)
+		case t.reserved:
+			t.InputSchema = withReservedSlug(t.InputSchema, s.Slug)
 		}
 		out = append(out, t)
 	}
 	return out
+}
+
+// offers reports whether this server offers t.
+func (s *Server) offers(t Tool) bool {
+	switch {
+	case s.Propose != "":
+		return t.anywhere || t.propose == s.Propose
+	case t.propose != "":
+		return false
+	case s.Slug == "" || t.anywhere:
+		return true
+	}
+	return t.scoped || (s.New && t.reserved)
 }
 
 func (s *Server) tool(name string) (Tool, bool) {
@@ -436,6 +474,55 @@ func allTools() []Tool {
 			run:    runCheckResult,
 		},
 		{
+			Name:        "lathe_shelf_list",
+			Title:       "List shelves",
+			Description: "List the library's shelves in display order (Unsorted last) with each one's id, name, description and tutorial count (same as `lathe shelf list --json`). Read-only.",
+			InputSchema: obj(nil, map[string]any{}),
+			anywhere:    true,
+			run:         runShelfList,
+		},
+		{
+			Name:        "lathe_shelf_set",
+			Title:       "Put a tutorial on a shelf",
+			Description: "Put a tutorial on a shelf, by the shelf's id or name (same as `lathe shelf set`). Prefer an existing shelf; pass create: true to make a new shelf when none fits. \"unsorted\" takes it off its shelf.",
+			InputSchema: obj([]string{"slug", "shelf"}, map[string]any{
+				"slug":   slugProp,
+				"shelf":  str("an existing shelf's id or name, or (with create) the new shelf's name"),
+				"create": map[string]any{"type": "boolean", "description": "create the shelf when no shelf has that name"},
+			}),
+			scoped: true,
+			run:    runShelfSet,
+		},
+		{
+			Name:        "lathe_shelf_propose",
+			Title:       "Propose a shelf for a tutorial",
+			Description: "Record the shelf you propose for one tutorial (same as `lathe shelf propose`): an existing shelf's id or name, or a new shelf's name. Moves nothing; the reader reviews every proposal and applies them. Call once per tutorial; a second call for the same slug replaces the first.",
+			InputSchema: obj([]string{"slug", "shelf"}, map[string]any{
+				"slug":  slugProp,
+				"shelf": str("an existing shelf's id or name, or the name of a new shelf"),
+			}),
+			propose: ProposeSort,
+			run:     runShelfPropose,
+		},
+		{
+			Name:        "lathe_shelf_split_propose",
+			Title:       "Propose splitting a shelf",
+			Description: "Record a proposed split of a shelf into exactly two groups (same as `lathe shelf propose-split`). Every tutorial on the shelf goes in exactly one group. The first group keeps the shelf (renamed to the group's name), so put the larger or more central group first. Moves nothing; the reader previews the split and applies it.",
+			InputSchema: obj([]string{"groups"}, map[string]any{
+				"shelf": str("the shelf's id; defaults to the shelf this session is for"),
+				"groups": map[string]any{
+					"type": "array", "minItems": 2, "maxItems": 2,
+					"description": "the two groups, the one that keeps the shelf first",
+					"items": obj([]string{"name", "slugs"}, map[string]any{
+						"name":  str("the group's shelf name: short, a plural noun phrase like the reader's other shelves"),
+						"slugs": strList("the slugs of the tutorials in this group"),
+					}),
+				},
+			}),
+			propose: ProposeSplit,
+			run:     runShelfSplitPropose,
+		},
+		{
 			Name:        "lathe_voice_add",
 			Title:       "Add a custom voice",
 			Description: "Save a custom writing voice (same as `lathe voice add <name> --file`). Built-in voice names are reserved.",
@@ -639,4 +726,85 @@ func runVoiceAdd(_ *Server, raw json.RawMessage) (string, error) {
 		return "", err
 	}
 	return fmt.Sprintf("Added custom voice %q.", a.Name), nil
+}
+
+func tutorialsDir() (string, error) { return config.TutorialsDir() }
+
+func runShelfList(_ *Server, raw json.RawMessage) (string, error) {
+	if err := decode(raw, &struct{}{}); err != nil {
+		return "", err
+	}
+	dir, err := tutorialsDir()
+	if err != nil {
+		return "", err
+	}
+	list, err := store.ListShelves(dir)
+	if err != nil {
+		return "", err
+	}
+	b, err := json.MarshalIndent(list, "", "  ")
+	return string(b), err
+}
+
+func runShelfSet(s *Server, raw json.RawMessage) (string, error) {
+	var a struct {
+		Slug   string `json:"slug"`
+		Shelf  string `json:"shelf"`
+		Create bool   `json:"create"`
+	}
+	if err := decode(raw, &a); err != nil {
+		return "", err
+	}
+	tutDir, slug, err := s.tutorialDir(a.Slug)
+	if err != nil {
+		return "", err
+	}
+	sh, created, err := store.SetShelf(filepath.Dir(tutDir), slug, a.Shelf, a.Create)
+	if err != nil {
+		return "", err
+	}
+	if created {
+		return fmt.Sprintf("Created the shelf %q and put %q on it.", sh.Name, slug), nil
+	}
+	return fmt.Sprintf("%q is on %s.", slug, sh.Name), nil
+}
+
+func runShelfPropose(_ *Server, raw json.RawMessage) (string, error) {
+	var a struct {
+		Slug  string `json:"slug"`
+		Shelf string `json:"shelf"`
+	}
+	if err := decode(raw, &a); err != nil {
+		return "", err
+	}
+	dir, err := tutorialsDir()
+	if err != nil {
+		return "", err
+	}
+	return store.ProposeShelf(dir, strings.TrimSpace(a.Slug), a.Shelf)
+}
+
+func runShelfSplitPropose(s *Server, raw json.RawMessage) (string, error) {
+	var a struct {
+		Shelf  string             `json:"shelf"`
+		Groups []store.SplitGroup `json:"groups"`
+	}
+	if err := decode(raw, &a); err != nil {
+		return "", err
+	}
+	shelf := strings.TrimSpace(a.Shelf)
+	switch {
+	case shelf == "":
+		shelf = s.Shelf
+	case s.Shelf != "" && shelf != s.Shelf:
+		return "", fmt.Errorf("this Lathe session is for the shelf %q; it cannot propose a split of %q", s.Shelf, shelf)
+	}
+	if shelf == "" {
+		return "", errors.New("shelf is required")
+	}
+	dir, err := tutorialsDir()
+	if err != nil {
+		return "", err
+	}
+	return store.ProposeSplit(dir, shelf, a.Groups)
 }

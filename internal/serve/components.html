@@ -342,3 +342,170 @@
 </section>
 {{- end}}
 {{end}}
+
+{{/* shelfJobs — runs a shelf suggestion ("Sort my shelves…" in Settings,
+     "Suggest a split" on a shelf page) and shows its progress in place.
+     A button[data-shelf-job] POSTs data-action; its data-status names the
+     .shelf-job element that shows the run: the hosted agent's progress
+     (streamed from /-/acp/{id}/events: plan step or tool, a permission
+     prompt as the yellow .perm-card, Stop), a /lathe-work note, or the
+     command to paste. When the run is done the page reloads to show the
+     proposal. A .shelf-job[data-run-id] reattaches after a reload. */}}
+{{define "shelfJobs"}}
+<script>
+(function(){
+  function el(tag, cls, text){
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text != null) e.textContent = text;
+    return e;
+  }
+  function post(url, body){
+    return fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json', 'Accept': 'application/json'}, body: JSON.stringify(body || {})})
+      .then(function(r){
+        if (!r.ok) return r.text().then(function(t){ throw new Error((t || ('HTTP ' + r.status)).replace(/^conflict: /, '').trim()); });
+        return r.status === 204 ? null : r.json();
+      });
+  }
+  function copyBtn(text){
+    var b = el('button', 'btn btn-sm btn-ghost', 'Copy');
+    b.type = 'button';
+    b.addEventListener('click', function(){
+      if (!navigator.clipboard) return;
+      navigator.clipboard.writeText(text).then(function(){ b.textContent = 'Copied'; setTimeout(function(){ b.textContent = 'Copy'; }, 1500); }, function(){});
+    });
+    return b;
+  }
+  function reloadBtn(){
+    var b = el('button', 'btn btn-sm btn-ghost', 'Reload');
+    b.type = 'button';
+    b.addEventListener('click', function(){ location.reload(); });
+    return b;
+  }
+  function setBusy(box, busy){
+    document.querySelectorAll('[data-shelf-job]').forEach(function(b){ b.disabled = busy; });
+    box.setAttribute('data-state', busy ? 'running' : 'idle');
+  }
+  // The command to paste (no agent) or a /lathe-work note.
+  function showFallback(box, data){
+    box.hidden = false;
+    box.textContent = '';
+    setBusy(box, false);
+    if (data.mode === 'queued') {
+      var q = el('p', 'shelf-job-line', 'Sent to your /lathe-work session. Reload this page when it says it is done. ');
+      q.appendChild(reloadBtn());
+      box.appendChild(q);
+      return;
+    }
+    if (data.notice) box.appendChild(el('p', 'shelf-job-note', data.notice));
+    box.appendChild(el('p', 'shelf-job-line', 'No agent is running here, so paste this into your coding agent. It records a proposal; reload this page when it is done.'));
+    var row = el('div', 'shelf-job-cmd');
+    row.appendChild(el('code', null, data.command));
+    row.appendChild(copyBtn(data.command));
+    row.appendChild(reloadBtn());
+    box.appendChild(row);
+  }
+  function showError(box, msg, command){
+    box.hidden = false;
+    box.textContent = '';
+    setBusy(box, false);
+    box.appendChild(el('p', 'shelf-job-error', msg));
+    if (command) {
+      var row = el('div', 'shelf-job-cmd');
+      row.appendChild(el('code', null, command));
+      row.appendChild(copyBtn(command));
+      box.appendChild(row);
+    }
+  }
+  function attach(box, runId){
+    box.hidden = false;
+    box.textContent = '';
+    setBusy(box, true);
+    var line = el('p', 'shelf-job-line');
+    line.appendChild(el('span', 'agent-dot', null)).setAttribute('aria-hidden', 'true');
+    var text = el('span', 'shelf-job-text', box.getAttribute('data-starting') || 'Your agent is working…');
+    text.setAttribute('role', 'status');
+    line.appendChild(text);
+    var stop = el('button', 'btn btn-sm btn-ghost shelf-job-stop', 'Stop');
+    stop.type = 'button';
+    stop.addEventListener('click', function(){ stop.disabled = true; post('/-/acp/' + encodeURIComponent(runId) + '/cancel').catch(function(){}); });
+    line.appendChild(stop);
+    box.appendChild(line);
+    var perms = el('div', 'shelf-job-perms');
+    box.appendChild(perms);
+    var plan = '';
+    var es = new EventSource('/-/acp/' + encodeURIComponent(runId) + '/events');
+    var handlers = {};
+    function on(type, fn){ handlers[type] = fn; }
+    es.onmessage = function(msg){
+      var d;
+      try { d = JSON.parse(msg.data); } catch (e) { return; }
+      if (handlers[d.type]) handlers[d.type](d);
+    };
+    es.onerror = function(){
+      // A finished run answers a reconnect with 204, which closes the
+      // stream: show whatever the page now has.
+      if (es.readyState === EventSource.CLOSED && box.getAttribute('data-state') === 'running') location.reload();
+    };
+    on('plan', function(d){
+      var cur = null;
+      (d.entries || []).forEach(function(p){ if (!cur && p.status === 'in_progress') cur = p; });
+      if (cur) { plan = cur.content; text.textContent = plan + '…'; }
+    });
+    on('tool', function(d){ if (d.title) text.textContent = (plan ? plan + ' · ' : '') + d.title; });
+    on('permission', function(d){
+      var card = el('div', 'perm-card');
+      card.setAttribute('data-perm', d.id);
+      card.appendChild(el('p', 'perm-kicker', 'Your agent asks'));
+      card.appendChild(el('p', 'perm-ask', d.title || 'Allow this step?'));
+      if (d.input) { var pre = el('pre', 'perm-cmd'); pre.appendChild(el('code', null, d.input)); card.appendChild(pre); }
+      var opts = el('div', 'perm-options');
+      (d.options || []).forEach(function(o){
+        var b = el('button', 'btn btn-sm' + (o.kind === 'allow_once' ? ' btn-primary' : ''), o.name);
+        b.type = 'button';
+        b.addEventListener('click', function(){
+          opts.querySelectorAll('button').forEach(function(x){ x.disabled = true; });
+          post('/-/acp/' + encodeURIComponent(runId) + '/permission', {permissionId: d.id, optionId: o.optionId}).catch(function(){});
+        });
+        opts.appendChild(b);
+      });
+      card.appendChild(opts);
+      perms.appendChild(card);
+    });
+    on('permission_resolved', function(d){
+      var c = perms.querySelector('[data-perm="' + d.id + '"]');
+      if (c) c.remove();
+    });
+    on('done', function(d){
+      es.close();
+      if (d.message || d.stopReason === 'cancelled') {
+        showError(box, d.message || 'Stopped. Nothing was proposed.');
+        box.appendChild(reloadBtn());
+        return;
+      }
+      text.textContent = 'Done. Showing the proposal…';
+      location.reload();
+    });
+    on('error', function(d){
+      es.close();
+      showError(box, d.message, d.command);
+    });
+  }
+  document.querySelectorAll('[data-shelf-job]').forEach(function(btn){
+    btn.addEventListener('click', function(ev){
+      ev.preventDefault();
+      var box = document.getElementById(btn.getAttribute('data-status'));
+      if (!box) return;
+      setBusy(box, true);
+      post(btn.getAttribute('data-action')).then(function(data){
+        if (data.mode === 'agent') attach(box, data.runId);
+        else showFallback(box, data);
+      }).catch(function(err){ showError(box, err.message); });
+    });
+  });
+  document.querySelectorAll('.shelf-job[data-run-id]').forEach(function(box){
+    attach(box, box.getAttribute('data-run-id'));
+  });
+})();
+</script>
+{{end}}

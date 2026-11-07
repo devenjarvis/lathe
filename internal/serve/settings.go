@@ -261,7 +261,15 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 		// Never.
 		"TrashChoices": []choice{{"7", "7 days"}, {"30", "30 days"}, {"0", "Never"}},
 		"TrashCount":   s.trashCount(),
-		"LineWidths":   choices(config.LineWidths, lineWidthLabels),
+		// ShelfSplitChoices is the split-suggestion threshold
+		// (shelf_split_at); 0 is Never.
+		"ShelfSplitChoices": []choice{{"8", "8"}, {"12", "12"}, {"16", "16"}, {"24", "24"}, {"0", "Never"}},
+		"SortReview":        s.buildSortReview(),
+		"SortRun":           s.runningShelfJob(jobShelfSort, ""),
+		"LibraryTotal":      s.libraryTotal(),
+		"AgentLabel":        agentLabel(h),
+		"Sorted":            sortedNote(r.URL.Query().Get("sorted")),
+		"LineWidths":        choices(config.LineWidths, lineWidthLabels),
 		// Version is the running release for Settings › Library › Updates,
 		// "" for a development build.
 		"Version": releaseVersion(),
@@ -301,6 +309,7 @@ type settingsPatch struct {
 	NotifyCheck      *bool   `json:"notify_check"`
 	TrashDays        *int    `json:"trash_days"`
 	UpdateCheck      *bool   `json:"update_check"`
+	ShelfSplitAt     *int    `json:"shelf_split_at"`
 }
 
 func (p *settingsPatch) apply(c *config.Config) error {
@@ -367,6 +376,17 @@ func (p *settingsPatch) apply(c *config.Config) error {
 		} else {
 			v := *p.TrashDays
 			c.TrashDays = &v
+		}
+	}
+	if p.ShelfSplitAt != nil {
+		if !slices.Contains(config.ShelfSplitChoices, *p.ShelfSplitAt) {
+			return errBadRequest("shelf_split_at must be 8, 12, 16, 24 or 0 (never)")
+		}
+		if *p.ShelfSplitAt == config.DefaultShelfSplitAt {
+			c.ShelfSplitAt = nil
+		} else {
+			v := *p.ShelfSplitAt
+			c.ShelfSplitAt = &v
 		}
 	}
 	if p.NotifyVerify != nil || p.NotifyExtend != nil || p.NotifyCheck != nil {
@@ -568,4 +588,34 @@ func (s *Server) trashCount() int {
 		return 0
 	}
 	return len(list)
+}
+
+// libraryTotal counts the stored tutorials.
+func (s *Server) libraryTotal() int {
+	tuts, err := s.readTutorials()
+	if err != nil {
+		return 0
+	}
+	return len(tuts)
+}
+
+// agentLabel names the hosted agent for a button hint ("Claude Code"), or
+// "" when none is configured.
+func agentLabel(h *agentHost) string {
+	if h == nil {
+		return ""
+	}
+	if h.name != "" {
+		return h.name
+	}
+	return "Your agent"
+}
+
+// sortedNote is ?sorted=<n> (the redirect after applying a sort), checked to
+// be a small number; "" otherwise.
+func sortedNote(v string) string {
+	if v == "" || len(v) > 5 || strings.Trim(v, "0123456789") != "" {
+		return ""
+	}
+	return v
 }

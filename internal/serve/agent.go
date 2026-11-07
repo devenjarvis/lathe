@@ -87,6 +87,7 @@ type jobTarget struct {
 	part   string // the checked part (check only)
 	parts  int    // how many parts the tutorial had when the job started (extend: did it add one?)
 	voice  string // the reserved voice name (a New voice run only)
+	shelf  string // the shelf a split suggestion is for (shelf-split only)
 }
 
 func newAgentHost(command string, start agentStarter) *agentHost {
@@ -818,6 +819,10 @@ func (r *agentRun) verb() string {
 		return "write the tutorial"
 	case jobVoice:
 		return "draft the voice"
+	case jobShelfSort:
+		return "sort your shelves"
+	case jobShelfSplit:
+		return "suggest a split"
 	}
 	return "answer"
 }
@@ -834,6 +839,10 @@ func (r *agentRun) doing() string {
 		return "writing the tutorial"
 	case jobVoice:
 		return "drafting the voice"
+	case jobShelfSort:
+		return "sorting your shelves"
+	case jobShelfSplit:
+		return "suggesting a split"
 	}
 	return "answering"
 }
