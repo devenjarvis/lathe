@@ -225,7 +225,7 @@ func TestAgentPathAddRemove(t *testing.T) {
 	}
 }
 
-func TestAgentRestart(t *testing.T) {
+func TestSettingsAgentRestart(t *testing.T) {
 	srv, ts, _, f := panelServer(t, "model-a", "claude-agent-acp")
 	if code, _ := postSettings(t, ts, "/-/agent/restart", `{}`); code != http.StatusConflict {
 		t.Errorf("restart with no agent = %d, want 409", code)
@@ -264,23 +264,38 @@ func TestAgentRestart(t *testing.T) {
 }
 
 func TestShortcutsTab(t *testing.T) {
-	srv, ts, _ := settingsServer(t)
-	if page := get(t, ts, "/-/settings"); !strings.Contains(page, "The full list of keyboard shortcuts will appear here.") {
-		t.Error("empty shortcuts tab lacks its placeholder")
-	}
-	srv.SetShortcuts([]Shortcut{
-		{Group: "Reading", Label: "Next part", Combo: "⌘]"},
-		{Group: "Reading", Label: "Previous part", Combo: "⌘["},
-		{Group: "Agent", Label: "Ask", Combo: "⌘K"},
-	})
+	_, ts, _ := settingsServer(t)
 	page := get(t, ts, "/-/settings")
-	for _, want := range []string{"<h3>Reading</h3>", "<h3>Agent</h3>", "<dt>Next part</dt><dd><kbd>⌘]</kbd>", "<dt>Ask</dt>"} {
+	for _, want := range []string{"<h3>Library</h3>", "<h3>Agent</h3>", "<h3>Reading</h3>", "<dt>Next part</dt>", `id="latheShortcuts"`} {
 		if !strings.Contains(page, want) {
 			t.Errorf("shortcuts tab lacks %q", want)
 		}
 	}
 	if strings.Count(page, "<h3>Reading</h3>") != 1 {
 		t.Error("a group's rows are not kept together")
+	}
+	// Stubs (no built action yet) are not listed.
+	if strings.Contains(page, "<dt>Go to anything…</dt>") {
+		t.Error("shortcuts tab lists a stub")
+	}
+}
+
+func TestShortcutGroupsFollowPlatform(t *testing.T) {
+	find := func(goos, label string) string {
+		for _, g := range shortcutGroups(goos) {
+			for _, it := range g.Items {
+				if it.Label == label {
+					return it.Combo
+				}
+			}
+		}
+		return ""
+	}
+	if got := find("darwin", "Next part"); got != "⌘]" {
+		t.Errorf("darwin Next part = %q, want ⌘]", got)
+	}
+	if got := find("linux", "Next part"); got != "Ctrl+]" {
+		t.Errorf("linux Next part = %q, want Ctrl+]", got)
 	}
 }
 

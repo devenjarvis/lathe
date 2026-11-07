@@ -28,7 +28,7 @@ import (
 	"github.com/devenjarvis/lathe/internal/voice"
 )
 
-//go:embed layout.html list.html components.html check.html settings.html
+//go:embed layout.html list.html components.html check.html settings.html shortcuts.html
 var templateFS embed.FS
 
 // styles.css is the entire design system (tokens + components). It's loaded
@@ -81,9 +81,9 @@ type Server struct {
 	nativeMu sync.RWMutex
 	// settingsTmpl renders the Settings window (/-/settings, settings.go).
 	settingsTmpl *template.Template
-	// shortcuts is the Settings window's Shortcuts tab (SetShortcuts).
-	shortcuts   []Shortcut
-	shortcutsMu sync.RWMutex
+	// cmds tracks the pages that take desktop menu commands, and which one
+	// is focused (native_menu.go).
+	cmds commandHub
 }
 
 // staticVersion fingerprints the embedded static assets so every page can ask
@@ -132,12 +132,15 @@ func NewServer(tutorialsDir string) *Server {
 		// prefs is the reader's appearance and reading settings, read per
 		// page so every window agrees (the head partial applies them).
 		"prefs": pagePrefsNow,
+		// The shortcut registry and its page script (native_menu.go).
+		"shortcutsJSON": shortcutsJSON,
+		"shortcutsJS":   shortcutsJS,
 	}
 	// components.html is parsed into both template sets so its shared partials
 	// ({{define "head"}}, "badge", "themeToggle") are available to each page.
-	layoutTmpl := template.Must(template.New("layout.html").Funcs(funcMap).ParseFS(templateFS, "components.html", "check.html", "layout.html"))
-	listTmpl := template.Must(template.New("list.html").Funcs(funcMap).ParseFS(templateFS, "components.html", "list.html"))
-	settingsTmpl := template.Must(template.New("settings.html").Funcs(funcMap).ParseFS(templateFS, "components.html", "settings.html"))
+	layoutTmpl := template.Must(template.New("layout.html").Funcs(funcMap).ParseFS(templateFS, "components.html", "shortcuts.html", "check.html", "layout.html"))
+	listTmpl := template.Must(template.New("list.html").Funcs(funcMap).ParseFS(templateFS, "components.html", "shortcuts.html", "list.html"))
+	settingsTmpl := template.Must(template.New("settings.html").Funcs(funcMap).ParseFS(templateFS, "components.html", "shortcuts.html", "settings.html"))
 	css, err := HighlightCSS()
 	if err != nil {
 		panic(fmt.Sprintf("lathe: failed to build syntax-highlight CSS: %v", err))
@@ -199,12 +202,15 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /-/settings", s.handleSettings)
 	mux.HandleFunc("POST /-/settings", s.handleSettingsSave)
 	mux.HandleFunc("POST /-/settings/agent-path", s.handleAgentPath)
-	mux.HandleFunc("POST /-/agent/restart", s.handleAgentRestart)
 	// Desktop shell (native_http.go): 404 unless SetNative installed one.
 	mux.HandleFunc("POST /-/native/pick-folder", s.handleNativePickFolder)
 	mux.HandleFunc("POST /-/native/window", s.handleNativeWindow)
 	mux.HandleFunc("POST /-/native/open-url", s.handleNativeOpenURL)
 	mux.HandleFunc("POST /-/native/reveal", s.handleNativeReveal)
+	// Shortcut registry and desktop menu commands (native_menu.go).
+	mux.HandleFunc("GET /-/shortcuts", s.handleShortcuts)
+	mux.HandleFunc("GET /-/native/commands", s.handleNativeCommands)
+	mux.HandleFunc("POST /-/native/context", s.handleNativeContext)
 	return mux
 }
 

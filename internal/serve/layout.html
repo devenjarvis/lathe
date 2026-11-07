@@ -242,7 +242,7 @@
     </div>
     <form id="workspaceForm" class="agent-workspace-form" hidden>
       <label for="workspaceInput" class="agent-workspace-label">Where are you typing the code?</label>
-      <input id="workspaceInput" type="text" autocomplete="off" spellcheck="false" value="{{.WorkspaceShort}}" placeholder="~/code/{{.Tutorial.Slug}}">
+      <input id="workspaceInput" type="text" autocomplete="off" spellcheck="false" value="{{.WorkspaceShort}}" placeholder="{{.WorkspaceSuggest}}">
       <div class="agent-workspace-actions">
         {{if .Native}}<button type="button" id="workspacePick" class="btn btn-ghost btn-sm" data-native-pick="footer">Choose folder…</button>
         {{end}}<button type="submit" class="btn btn-primary btn-sm">Save</button>
@@ -902,7 +902,11 @@
     });
 
     window.latheAgentPanel = {open: open, close: close, showSetup: showSetup,
-      editWorkspace: function(){ open({focus: 'workspace'}); }};
+      editWorkspace: function(){ open({focus: 'workspace'}); },
+      // For the shortcut registry (shortcuts.js): can/run an action-menu
+      // action ('check', 'verify', 'extend') under the menu's own rules.
+      canRun: function(action){ return !actionBlock(action); },
+      runAction: function(action){ if (actionBlock(action)) return false; runAction(action); return true; }};
 
     // Arriving from "Add a part" on an earlier part: focus the guidance box.
     if (location.hash === '#extendRegion') {
@@ -2713,6 +2717,7 @@
     }
   })();
 </script>
+{{template "shortcuts" .}}
 {{if .Native}}{{template "nativeLinks" .}}{{end}}
 {{template "liveNudge" .}}
 </body>

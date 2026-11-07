@@ -133,6 +133,9 @@ func Run(ctx context.Context, opts Options) error {
 		srv.SetAgent(agentCmd)
 	}
 	sh.notes = newNotifier(notes, logf)
+	// The menu bar goes in before any window exists (windows take it when
+	// they are created on Windows and Linux).
+	sh.setMenu(newMenuBar(app, sh, srv))
 	srv.SetNative(sh)
 	assets.set(followRedirects(srv.Handler()))
 
@@ -163,6 +166,8 @@ func Run(ctx context.Context, opts Options) error {
 		BackgroundColour: paper,
 		InitialPosition:  application.WindowCentered,
 		Linux:            application.LinuxWindow{Icon: appIcon},
+		// The menu bar (menu.go) shows in this window on Windows and Linux.
+		UseApplicationMenu: true,
 	})
 	sh.setMain(mainWin)
 	// Closing the reader quits the app, pop-outs included: they are views of

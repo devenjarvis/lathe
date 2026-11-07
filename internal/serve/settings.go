@@ -1,8 +1,11 @@
 package serve
 
 import (
+	"runtime"
+
 	"bytes"
 	"encoding/json"
+	"github.com/devenjarvis/lathe/internal/shortcuts"
 	"html/template"
 	"net/http"
 	"os"
@@ -41,38 +44,32 @@ var settingsTabs = []struct{ ID, Label string }{
 
 // Shortcut is one row of the Settings window's read-only Shortcuts tab.
 type Shortcut struct {
-	Group string // "Reading", "Agent", ...
 	Label string // what it does ("Next part")
 	Combo string // how to press it, as the menu shows it ("⌘]")
 }
 
-// shortcutGroup is a run of shortcuts with the same Group, for the template.
+// shortcutGroup is one group of the Shortcuts tab (Library, Agent, ...).
 type shortcutGroup struct {
 	Name  string
 	Items []Shortcut
 }
 
-// SetShortcuts installs the list the Shortcuts tab shows, in display order.
-//
-// TODO(#132): the shortcut registry (built with the native menu bar) should
-// call this with its entries, so the tab and the menu can never disagree.
-// Until then the tab shows its empty state.
-func (s *Server) SetShortcuts(list []Shortcut) {
-	s.shortcutsMu.Lock()
-	s.shortcuts = append([]Shortcut(nil), list...)
-	s.shortcutsMu.Unlock()
-}
-
-func (s *Server) shortcutGroups() []shortcutGroup {
-	s.shortcutsMu.RLock()
-	defer s.shortcutsMu.RUnlock()
+// shortcutGroups is the Shortcuts tab, from the one registry the menus and
+// key handlers use (internal/shortcuts), so they can never disagree. It lists
+// built commands that have a default combo on this platform.
+func shortcutGroups(goos string) []shortcutGroup {
 	var out []shortcutGroup
-	for _, sc := range s.shortcuts {
-		if len(out) == 0 || out[len(out)-1].Name != sc.Group {
-			out = append(out, shortcutGroup{Name: sc.Group})
+	for _, g := range shortcuts.Groups() {
+		sg := shortcutGroup{Name: string(g.Group)}
+		for _, sc := range g.Shortcuts {
+			if sc.Stub || sc.Combo(goos) == "" {
+				continue
+			}
+			sg.Items = append(sg.Items, Shortcut{Label: sc.LabelFor(goos), Combo: sc.Display(goos)})
 		}
-		g := &out[len(out)-1]
-		g.Items = append(g.Items, sc)
+		if len(sg.Items) > 0 {
+			out = append(out, sg)
+		}
 	}
 	return out
 }
@@ -234,9 +231,8 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 		},
 		"TextSizes":  choices(config.TextSizes, textSizeLabels),
 		"LineWidths": choices(config.LineWidths, lineWidthLabels),
-		// Shortcuts is the read-only list from the shortcut registry
-		// (SetShortcuts; empty until #132 wires it).
-		"Shortcuts": s.shortcutGroups(),
+		// Shortcuts is the read-only list from the shortcut registry.
+		"Shortcuts": shortcutGroups(runtime.GOOS),
 	}
 	var buf bytes.Buffer
 	if err := s.settingsTmpl.Execute(&buf, data); err != nil {
@@ -429,33 +425,6 @@ func (s *Server) handleAgentPath(w http.ResponseWriter, r *http.Request) {
 		list = []string{}
 	}
 	writeJSON(w, map[string]any{"agentPath": list})
-}
-
-// handleAgentRestart replaces the hosted agent's process with a fresh one
-// running the same command. Like a pick, it refuses while a run is going.
-func (s *Server) handleAgentRestart(w http.ResponseWriter, r *http.Request) {
-	if !sameOrigin(r) {
-		http.Error(w, "forbidden", http.StatusForbidden)
-		return
-	}
-	s.switchMu.Lock()
-	defer s.switchMu.Unlock()
-	old := s.hostedAgent()
-	if old == nil {
-		http.Error(w, "No agent is running. Pick one first.", http.StatusConflict)
-		return
-	}
-	if old.busy() {
-		http.Error(w, "The agent is still working. Wait for it to finish (or stop it) before restarting.", http.StatusConflict)
-		return
-	}
-	h := s.makeHost(old.command)
-	h.id, h.name = old.id, old.name
-	h.counter = old.lastCounter()
-	s.setAgentHost(h)
-	go old.close()
-	go func() { _, _ = h.ensure() }()
-	writeJSON(w, map[string]any{"agent": h.status()})
 }
 
 // notifyEnabled reports whether the reader wants a notification for job.

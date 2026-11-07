@@ -24,10 +24,31 @@ type shell struct {
 
 	mu      sync.Mutex
 	main    *application.WebviewWindow
+	menu    *menuBar
 	picking sync.Mutex // one folder dialog at a time
 }
 
-var _ serve.Native = (*shell)(nil)
+var (
+	_ serve.Native     = (*shell)(nil)
+	_ serve.NativeMenu = (*shell)(nil)
+)
+
+func (s *shell) setMenu(m *menuBar) {
+	s.mu.Lock()
+	s.menu = m
+	s.mu.Unlock()
+}
+
+// SetMenuState enables and disables the menu bar's page items for the
+// focused page (see menuBar). It never blocks.
+func (s *shell) SetMenuState(st serve.MenuState) {
+	s.mu.Lock()
+	m := s.menu
+	s.mu.Unlock()
+	if m != nil {
+		m.setState(st)
+	}
+}
 
 func (s *shell) setMain(w *application.WebviewWindow) {
 	s.mu.Lock()
@@ -140,22 +161,19 @@ func (s *shell) OpenWindow(path, title string) error {
 		MinHeight:        minH,
 		BackgroundColour: paper,
 		Linux:            application.LinuxWindow{Icon: appIcon},
+		// The menu bar carries the shortcuts on Windows and Linux too, where
+		// it is per window (the page binds none of the menu's keys).
+		UseApplicationMenu: true,
 	})
 	return nil
 }
 
-// openSettings opens the Settings window (or focuses it), at tab when one is
-// named ("agent", "reading", …).
-//
-// TODO(#132): the Lathe › Settings… menu item (⌘,) should call this.
-func (s *shell) openSettings(tab string) {
-	path := SettingsPath
-	if tab != "" {
-		path += "#" + tab
-	}
-	if err := s.OpenWindow(path, "Settings"); err != nil {
-		s.logf("could not open Settings: %v", err)
-	}
+// openSettings shows the Settings window at href ("/-/settings", or a tab
+// such as "/-/settings#agent"). OpenWindow reuses the one Settings window
+// and moves it to the asked-for tab. Lathe › Settings… (⌘,) and Agent ›
+// Agent settings… call it.
+func (s *shell) openSettings(href string) error {
+	return s.OpenWindow(href, "Settings")
 }
 
 // RevealFolder shows a folder in the system file manager (Finder on macOS).

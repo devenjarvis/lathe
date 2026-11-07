@@ -190,17 +190,8 @@
     <div><dt>{{.Label}}</dt><dd><kbd>{{.Combo}}</kbd></dd></div>
     {{- end}}
   </dl>
-  {{- else}}
-  <p class="settings-lead">The full list of keyboard shortcuts will appear here.</p>
-  <dl class="settings-shortcuts">
-    <div><dt>Open Settings</dt><dd><kbd>⌘</kbd><kbd>,</kbd></dd></div>
-    {{- if .Native}}
-    <div><dt>Larger text</dt><dd><kbd>⌘</kbd><kbd>+</kbd></dd></div>
-    <div><dt>Smaller text</dt><dd><kbd>⌘</kbd><kbd>−</kbd></dd></div>
-    <div><dt>Default text size</dt><dd><kbd>⌘</kbd><kbd>0</kbd></dd></div>
-    {{- end}}
-  </dl>
   {{- end}}
+  <p class="agent-hint">The menu bar shows the same keys. Items that aren't built yet (Go to anything, New tutorial) appear once they are.</p>
 </section>
 
 </main>
@@ -429,6 +420,7 @@
   });
 })();
 </script>
+{{template "shortcuts" .}}
 {{- if .Native}}
 {{template "nativeLinks"}}
 {{- end}}

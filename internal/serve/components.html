@@ -96,17 +96,8 @@
         try { localStorage.setItem('lathe-theme', theme); } catch (e) {}
         save({appearance: theme}).catch(function(){});
       };
-      // ⌘, opens Settings; in the desktop app ⌘+ / ⌘− / ⌘0 size the text
-      // (a browser keeps its own zoom on those keys).
-      // TODO(#132): move these into the shortcut registry once it lands.
-      document.addEventListener('keydown', function(ev){
-        if (!(ev.metaKey || ev.ctrlKey) || ev.altKey || ev.defaultPrevented) return;
-        if (ev.key === ',') { ev.preventDefault(); openSettings(); return; }
-        if (!root.hasAttribute('data-native')) return;
-        if (ev.key === '=' || ev.key === '+') { ev.preventDefault(); step(1); }
-        else if (ev.key === '-' || ev.key === '_') { ev.preventDefault(); step(-1); }
-        else if (ev.key === '0') { ev.preventDefault(); step(0); }
-      });
+      // ⌘, and ⌘+ / ⌘− / ⌘0 are in the shortcut registry (internal/shortcuts,
+      // shortcuts.js), which calls openSettings and step.
       // Settings links ([data-settings-link]) open the Settings window in the
       // desktop app instead of navigating this one.
       document.addEventListener('click', function(ev){
