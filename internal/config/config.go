@@ -55,6 +55,12 @@ type Config struct {
 	// reader picked in the web UI; `lathe serve` hosts it when no --agent is
 	// given. Empty means none picked yet (the panel shows the picker).
 	Agent string `json:"agent,omitempty"`
+	// AgentPath lists extra directories to search for agent programs, ahead
+	// of PATH. It is for installs the environment doesn't put on PATH, most
+	// often a GUI launch (the desktop app opened from the dock), which doesn't
+	// inherit the login shell's PATH. Entries may start with "~/". Set it by
+	// editing config.json; internal/loginenv applies it.
+	AgentPath []string `json:"agent_path,omitempty"`
 }
 
 func configPath() (string, error) {
@@ -142,5 +148,50 @@ func SetAgent(id string) error {
 		return err
 	}
 	c.Agent = strings.TrimSpace(id)
+	return WriteConfig(c)
+}
+
+// AgentPath returns the configured extra agent search directories with "~"
+// expanded, blanks dropped and relative entries skipped (a relative PATH entry
+// would resolve against whatever the cwd happens to be). It returns nil when
+// none are set or config.json can't be read: a bad config must never stop an
+// agent from starting with the PATH it already has.
+func AgentPath() []string {
+	c, err := ReadConfig()
+	if err != nil {
+		return nil
+	}
+	home, _ := os.UserHomeDir()
+	var dirs []string
+	for _, d := range c.AgentPath {
+		d = strings.TrimSpace(d)
+		if d == "~" || strings.HasPrefix(d, "~/") {
+			if home == "" {
+				continue
+			}
+			d = filepath.Join(home, strings.TrimPrefix(d, "~"))
+		}
+		if d == "" || !filepath.IsAbs(d) {
+			continue
+		}
+		dirs = append(dirs, filepath.Clean(d))
+	}
+	return dirs
+}
+
+// SetAgentPath records dirs as the extra agent search directories, trimmed,
+// with blanks dropped. An empty list clears the setting.
+func SetAgentPath(dirs []string) error {
+	c, err := ReadConfig()
+	if err != nil {
+		return err
+	}
+	var keep []string
+	for _, d := range dirs {
+		if d = strings.TrimSpace(d); d != "" {
+			keep = append(keep, d)
+		}
+	}
+	c.AgentPath = keep
 	return WriteConfig(c)
 }
