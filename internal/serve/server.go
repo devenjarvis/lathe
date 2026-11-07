@@ -27,7 +27,7 @@ import (
 	"github.com/devenjarvis/lathe/internal/voice"
 )
 
-//go:embed layout.html list.html components.html check.html
+//go:embed layout.html list.html components.html check.html shortcuts.html
 var templateFS embed.FS
 
 // styles.css is the entire design system (tokens + components). It's loaded
@@ -75,6 +75,9 @@ type Server struct {
 	// notifications, windows); nil in a plain browser. See native.go.
 	native   Native
 	nativeMu sync.RWMutex
+	// cmds tracks the pages that take desktop menu commands, and which one
+	// is focused (native_menu.go).
+	cmds commandHub
 }
 
 // staticVersion fingerprints the embedded static assets so every page can ask
@@ -120,11 +123,14 @@ func NewServer(tutorialsDir string) *Server {
 		"add":          func(a, b int) int { return a + b },
 		"cardProgress": cardProgress,
 		"asset":        assetURL,
+		// The shortcut registry and its page script (native_menu.go).
+		"shortcutsJSON": shortcutsJSON,
+		"shortcutsJS":   shortcutsJS,
 	}
 	// components.html is parsed into both template sets so its shared partials
 	// ({{define "head"}}, "badge", "themeToggle") are available to each page.
-	layoutTmpl := template.Must(template.New("layout.html").Funcs(funcMap).ParseFS(templateFS, "components.html", "check.html", "layout.html"))
-	listTmpl := template.Must(template.New("list.html").Funcs(funcMap).ParseFS(templateFS, "components.html", "list.html"))
+	layoutTmpl := template.Must(template.New("layout.html").Funcs(funcMap).ParseFS(templateFS, "components.html", "shortcuts.html", "check.html", "layout.html"))
+	listTmpl := template.Must(template.New("list.html").Funcs(funcMap).ParseFS(templateFS, "components.html", "shortcuts.html", "list.html"))
 	css, err := HighlightCSS()
 	if err != nil {
 		panic(fmt.Sprintf("lathe: failed to build syntax-highlight CSS: %v", err))
@@ -182,6 +188,10 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /-/native/pick-folder", s.handleNativePickFolder)
 	mux.HandleFunc("POST /-/native/window", s.handleNativeWindow)
 	mux.HandleFunc("POST /-/native/open-url", s.handleNativeOpenURL)
+	// Shortcut registry and desktop menu commands (native_menu.go).
+	mux.HandleFunc("GET /-/shortcuts", s.handleShortcuts)
+	mux.HandleFunc("GET /-/native/commands", s.handleNativeCommands)
+	mux.HandleFunc("POST /-/native/context", s.handleNativeContext)
 	return mux
 }
 
