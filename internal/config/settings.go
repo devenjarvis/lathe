@@ -61,6 +61,8 @@ type Settings struct {
 	NotifyCheck      bool   `json:"notify_check"`
 	// TrashDays is the Trash retention in days; 0 means never purge.
 	TrashDays int `json:"trash_days"`
+	// UpdateCheck is the desktop app's daily check for a new release.
+	UpdateCheck bool `json:"update_check"`
 }
 
 // Resolve applies the defaults to c's Settings-window keys. An unknown value
@@ -80,6 +82,7 @@ func (c *Config) Resolve() Settings {
 		NotifyExtend:     true,
 		NotifyCheck:      true,
 		TrashDays:        DefaultTrashDays,
+		UpdateCheck:      on(c.UpdateCheck),
 	}
 	if c.TrashDays != nil && slices.Contains(TrashDayChoices, *c.TrashDays) {
 		s.TrashDays = *c.TrashDays
@@ -171,6 +174,10 @@ func CodeRootFor(root, slug string) string {
 
 // TrashDays is the Trash retention in days (0: never purge).
 func TrashDays() int { return LoadSettings().TrashDays }
+
+// UpdateCheck reports whether the desktop app checks for a new release on
+// its own (Check for updates… works either way).
+func UpdateCheck() bool { return LoadSettings().UpdateCheck }
 
 // KeepVerifiedCode reports whether a verify run's code snapshot is kept.
 func KeepVerifiedCode() bool { return LoadSettings().KeepVerifiedCode }

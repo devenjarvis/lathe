@@ -89,6 +89,9 @@ type Server struct {
 	voiceTrash voiceTrash
 	// index caches the part outlines GET /-/index serves (index.go).
 	index indexCache
+	// updates is the desktop app's update checker, for the title-bar
+	// notice (updates.go).
+	updates *updateSlot
 }
 
 // staticVersion fingerprints the embedded static assets so every page can ask
@@ -130,7 +133,11 @@ func assetURL(name string) string {
 }
 
 func NewServer(tutorialsDir string) *Server {
+	updates := &updateSlot{}
 	funcMap := template.FuncMap{
+		// updateNotice is the desktop app's title-bar update notice, nil
+		// without one (updates.go).
+		"updateNotice": updates.notice,
 		"add":          func(a, b int) int { return a + b },
 		"cardProgress": cardProgress,
 		"asset":        assetURL,
@@ -164,6 +171,7 @@ func NewServer(tutorialsDir string) *Server {
 		designCSS:    template.CSS(stylesCSS),
 		jigScript:    template.JS(jig.Script()),
 		queue:        queue.New(),
+		updates:      updates,
 	}
 }
 
@@ -233,6 +241,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /-/native/window", s.handleNativeWindow)
 	mux.HandleFunc("POST /-/native/open-url", s.handleNativeOpenURL)
 	mux.HandleFunc("POST /-/native/reveal", s.handleNativeReveal)
+	mux.HandleFunc("POST /-/native/update", s.handleNativeUpdate)
 	// Shortcut registry and desktop menu commands (native_menu.go).
 	mux.HandleFunc("GET /-/shortcuts", s.handleShortcuts)
 	mux.HandleFunc("GET /-/index", s.handleIndex)

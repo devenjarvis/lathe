@@ -139,6 +139,10 @@ func Run(ctx context.Context, opts Options) error {
 		srv.SetAgent(agentCmd)
 	}
 	sh.notes = newNotifier(notes, logf)
+	// The update check (#149): the title-bar notice and Check for updates….
+	upd := newUpdater(app, sh, logf)
+	sh.updates = upd
+	srv.SetUpdates(upd)
 	// The menu bar goes in before any window exists (windows take it when
 	// they are created on Windows and Linux).
 	sh.setMenu(newMenuBar(app, sh, srv))
@@ -187,6 +191,7 @@ func Run(ctx context.Context, opts Options) error {
 	ran := make(chan struct{})
 	defer close(ran)
 	app.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) {
+		go upd.loop(sigCtx)
 		go func() {
 			select {
 			case <-sigCtx.Done():

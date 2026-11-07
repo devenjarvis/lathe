@@ -14,9 +14,11 @@ import (
 	"strings"
 
 	"github.com/devenjarvis/lathe/internal/agents"
+	"github.com/devenjarvis/lathe/internal/buildinfo"
 	"github.com/devenjarvis/lathe/internal/config"
 	"github.com/devenjarvis/lathe/internal/loginenv"
 	"github.com/devenjarvis/lathe/internal/store"
+	"github.com/devenjarvis/lathe/internal/update"
 )
 
 // The Settings window (issue #131): one page at /-/settings with Agent,
@@ -257,6 +259,9 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 		"TrashChoices": []choice{{"7", "7 days"}, {"30", "30 days"}, {"0", "Never"}},
 		"TrashCount":   s.trashCount(),
 		"LineWidths":   choices(config.LineWidths, lineWidthLabels),
+		// Version is the running release for Settings › Library › Updates,
+		// "" for a development build.
+		"Version": releaseVersion(),
 		// Shortcuts is the read-only list from the shortcut registry.
 		"Shortcuts": shortcutGroups(runtime.GOOS),
 	}
@@ -285,6 +290,7 @@ type settingsPatch struct {
 	NotifyExtend     *bool   `json:"notify_extend"`
 	NotifyCheck      *bool   `json:"notify_check"`
 	TrashDays        *int    `json:"trash_days"`
+	UpdateCheck      *bool   `json:"update_check"`
 }
 
 func (p *settingsPatch) apply(c *config.Config) error {
@@ -335,6 +341,7 @@ func (p *settingsPatch) apply(c *config.Config) error {
 	setOn(&c.RememberPlace, p.RememberPlace)
 	setOn(&c.PanelSuggestions, p.PanelSuggestions)
 	setOn(&c.KeepVerifiedCode, p.KeepVerifiedCode)
+	setOn(&c.UpdateCheck, p.UpdateCheck)
 	if p.PanelWindow != nil {
 		c.PanelWindow = *p.PanelWindow
 	}
@@ -532,6 +539,15 @@ func looksLikeCommand(s string) bool {
 		return true
 	}
 	return false
+}
+
+// releaseVersion is the running version when it is a release ("0.9.0"),
+// else "" (a development build).
+func releaseVersion() string {
+	if v, ok := update.Parse(buildinfo.Resolve()); ok {
+		return v.String()
+	}
+	return ""
 }
 
 // trashCount is how many tutorials are in the Trash, for Settings › Library's

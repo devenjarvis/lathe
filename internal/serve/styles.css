@@ -749,6 +749,42 @@ pre samp{background:none;padding:0;color:inherit;font-family:var(--font-mono);fo
 .place-saved[aria-busy="true"]{cursor:progress}
 #topBar .place-saved + .agent-toggle{margin-left:0}
 
+/* Update notice (desktop app, updates.go): a quiet pill in the title bar,
+   "Lathe 0.9 is available · Download" / "… · Run brew upgrade --cask lathe
+   Copy" / "Lathe 0.9 is ready · Restart", with × to hide it until the next
+   version. The action is red ("do this"); the rest stays muted. On the
+   yellow masthead its outline is the fixed navy ink. */
+.update-notice{display:inline-flex;align-items:center;gap:.4rem;flex-shrink:0;min-width:0;max-width:100%;font-size:.8125rem;font-weight:700;color:var(--text-muted);background:var(--surface);border:2px solid var(--rule);border-radius:var(--radius-pill);padding:.15rem .2rem .15rem .75rem;min-height:2.25rem;box-sizing:border-box;white-space:nowrap}
+.update-notice::before{content:"";width:.5rem;height:.5rem;border-radius:50%;background:var(--red);flex:none}
+.update-notice-sep,.update-notice-act{flex:none}
+.update-notice-text{color:var(--text);overflow:hidden;text-overflow:ellipsis;min-width:0}
+.update-notice-sep{color:var(--text-faint)}
+.update-notice-run{display:inline-flex;align-items:center;gap:.35rem;min-width:0}
+.update-notice-run code{font-size:.75rem;padding:.1rem .4rem;background:var(--surface-sunken);border-radius:var(--radius-sm);overflow:hidden;text-overflow:ellipsis}
+.update-notice-act{font:inherit;font-weight:850;color:var(--link);background:none;border:none;border-radius:var(--radius-pill);padding:.25rem .4rem;cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+.update-notice-act:hover{color:var(--text);background:var(--accent-soft)}
+.update-notice-act:disabled{cursor:progress;text-decoration:none;color:var(--text-subtle)}
+.update-notice-close{font:inherit;font-size:1rem;line-height:1;font-weight:800;color:var(--text-subtle);background:none;border:none;border-radius:50%;width:1.75rem;height:1.75rem;cursor:pointer;flex:none}
+.update-notice-close:hover{background:var(--accent-soft);color:var(--text)}
+.update-notice-narrow{display:none}
+/* In the list header the tools wrap under the notice rather than overflow. */
+body.list .header > .header-tools:has(> .update-notice){flex-wrap:wrap;flex-shrink:1;min-width:0;max-width:100%}
+/* The reading masthead is crowded (the title takes only the space left
+   over): the notice is capped so the title keeps room, and a Homebrew notice
+   there is "Lathe 0.9 · Copy brew command" (the button says what it copies). */
+#topBar .update-notice{background:var(--bg);border-color:#1C2140;max-width:min(20rem,34vw)}
+#topBar .update-notice-run,#topBar [data-kind="homebrew"] .update-notice-state{display:none}
+#topBar .update-notice-narrow{display:inline}
+/* Narrow windows: "Lathe 0.9 · Restart". */
+@media (max-width:760px){
+  .update-notice-state,.update-notice-run{display:none}
+  .update-notice-narrow{display:inline}
+  /* In the reading masthead only the action is left ("Restart"); its
+     accessible name carries the version. */
+  #topBar .update-notice-text,#topBar .update-notice-sep{display:none}
+  #topBar .update-notice{padding-left:.6rem}
+}
+
 /* Setup view: "Bring your agent". */
 .agent-setup{flex:1;overflow-y:auto;padding:1.1rem 1.1rem .9rem;display:flex;flex-direction:column;gap:1rem}
 .agent-setup h3{margin:0;font-size:1.15rem;font-weight:900;font-variation-settings:var(--casual)}

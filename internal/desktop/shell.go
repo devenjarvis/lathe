@@ -21,6 +21,8 @@ type shell struct {
 	app   *application.App
 	notes *notifier
 	logf  func(string, ...any)
+	// updates is the update check (updates.go), set before the menu.
+	updates *updater
 
 	mu      sync.Mutex
 	main    *application.WebviewWindow
