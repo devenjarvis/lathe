@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en"{{if .Native}} data-native{{end}}>
+<head>
+  {{template "head" .}}
+  <title>Settings — Lathe</title>
+</head>
+<body class="settings">
+{{/* The Settings window (settings.go). Each tab is a <section> with the tab's
+     id, so /-/settings#agent deep-links to it. Without scripts every section
+     shows, one under the other, and the tab bar jumps between them; the
+     script below turns them into tabs. Controls save as they change. */}}
+<a class="skip-link" href="#settingsMain">Skip to settings</a>
+<header class="settings-bar">
+  <div class="settings-bar-row">
+    <a class="back-link settings-back" href="/"><span aria-hidden="true">←</span> Library</a>
+    <h1 class="settings-title">Settings</h1>
+    <p class="settings-saved" id="settingsSaved" role="status" aria-live="polite"></p>
+  </div>
+  <nav class="settings-tabs" aria-label="Settings sections">
+    <div role="tablist" id="settingsTabs">
+    {{- range .Tabs}}
+      <a role="tab" id="tab-{{.ID}}" href="#{{.ID}}" aria-controls="{{.ID}}" data-tab="{{.ID}}">{{.Label}}</a>
+    {{- end}}
+    </div>
+  </nav>
+</header>
+<noscript><p class="settings-noscript">Settings save as you change them, which needs JavaScript. You can also edit <code>~/.lathe/config.json</code> by hand.</p></noscript>
+<main id="settingsMain" class="settings-main">
+
+<section id="agent" class="settings-panel" role="tabpanel" aria-labelledby="tab-agent">
+  <h2>Agent</h2>
+  <p class="settings-lead">Lathe runs your own coding agent for Ask, Verify, Add a part and Check my work. It never calls a model itself, so your agent's sign-in and plan apply.</p>
+
+  <form id="agentForm" class="settings-group" novalidate>
+    <fieldset class="agent-choices settings-agents">
+      <legend>Agents Lathe can host</legend>
+      {{- range .Agents}}
+      <label class="agent-choice settings-agent{{if .Current}} is-current{{end}}" data-agent="{{.ID}}">
+        <input type="radio" name="agent" value="{{.ID}}"{{if .Current}} checked{{end}}{{if not .Ready}} disabled{{end}}>
+        <span class="agent-choice-text">
+          <strong>{{.Name}}</strong>
+          {{- if .Current}}
+          <span class="settings-agent-status" data-agent-live data-state="{{.State}}"><span class="agent-dot" aria-hidden="true"></span><span class="settings-agent-live">{{.Status}}</span></span>
+          <span class="agent-choice-detail">{{.Command}}</span>
+          {{- else if .Ready}}
+          <span class="settings-agent-status is-found">Found on your PATH</span>
+          <span class="agent-choice-detail">{{.Command}}</span>
+          {{- else}}
+          <span class="settings-agent-status is-missing">{{if .Found}}{{.Program}} not found{{else}}Not installed{{end}}</span>
+          {{- if .InstallCmd}}
+          <span class="settings-install"><code>{{.Install}}</code><button type="button" class="btn btn-sm" data-copy="{{.Install}}" aria-label="Copy the install command for {{.Name}}">Copy</button></span>
+          {{- else}}
+          <span class="agent-choice-detail">{{.Install}}</span>
+          {{- end}}
+          {{- end}}
+        </span>
+      </label>
+      {{- end}}
+    </fieldset>
+    <div class="settings-actions">
+      <button type="submit" id="agentUse" class="btn btn-primary" disabled>Use this agent</button>
+      <button type="button" id="agentRestart" class="btn btn-ghost"{{if not .Current}} hidden{{end}}>Restart</button>
+      <p class="agent-error" id="agentError" role="alert"></p>
+    </div>
+  </form>
+
+  <div class="settings-group">
+    <h3>Custom command</h3>
+    {{- if .CustomCommand}}
+    <p>Lathe is hosting <code>{{.CustomCommand}}</code>, given with <code>--agent</code>.</p>
+    {{- else}}
+    <p>To host an agent that isn't listed, start Lathe with its ACP command. For safety, a page can't start a command line it supplies.</p>
+    {{- end}}
+    <div class="agent-fallback-cmd"><code>lathe serve --agent "&lt;command&gt;"</code><button type="button" class="btn btn-sm" data-copy='lathe serve --agent ""' aria-label="Copy the lathe serve --agent command">Copy</button></div>
+  </div>
+
+  <div class="settings-group">
+    <h3>Folders to search for agents</h3>
+    <p class="agent-hint">Searched before your <code>PATH</code>. Add the folder an agent is installed in when Lathe can't find it, which is common when the app starts from the Dock.</p>
+    <ul class="settings-paths" id="agentPathList">
+      {{- range .AgentPath}}
+      <li data-path="{{.Raw}}"><code>{{.Raw}}</code>{{if .Missing}}<span class="settings-missing">not found</span>{{end}}<button type="button" class="link-btn" data-remove-path="{{.Raw}}" aria-label="Remove {{.Raw}}">Remove</button></li>
+      {{- end}}
+    </ul>
+    <p class="agent-hint" id="agentPathEmpty"{{if .AgentPath}} hidden{{end}}>No extra folders.</p>
+    <form id="agentPathForm" class="settings-inline" novalidate>
+      <label for="agentPathInput" class="visually-hidden">Folder to add</label>
+      <input id="agentPathInput" type="text" autocomplete="off" spellcheck="false" placeholder="~/.npm-global/bin">
+      <button type="submit" class="btn btn-ghost btn-sm">Add folder</button>
+      {{- if .Native}}
+      <button type="button" id="agentPathPick" class="btn btn-ghost btn-sm">Choose folder…</button>
+      {{- end}}
+    </form>
+    <p class="agent-error" id="agentPathError" role="alert"></p>
+  </div>
+
+  <div class="settings-group agent-fallback">
+    <p class="agent-fallback-title">Rather use your own terminal?</p>
+    <div class="agent-fallback-cmd"><code>/lathe-work</code><button type="button" class="btn btn-sm" data-copy="/lathe-work" aria-label="Copy /lathe-work">Copy</button></div>
+    <p class="agent-hint">Run it in any agent session while Lathe is open, and the buttons hand their work to it. <span id="workerState">{{if .WorkerConnected}}A /lathe-work session is connected now.{{else}}No /lathe-work session is connected.{{end}}</span></p>
+  </div>
+</section>
+
+<section id="voices" class="settings-panel" role="tabpanel" aria-labelledby="tab-voices">
+  <h2>Voices</h2>
+  <p class="settings-lead">A voice sets the tone a tutorial is written in. New tutorials use <strong>{{.DefaultVoice}}</strong> unless you name another.</p>
+  <ul class="settings-voices">
+    {{- range .Voices}}
+    <li><span class="settings-voice-name">{{.Name}}</span>{{if .Default}}<span class="settings-chip">Default</span>{{end}}<span class="settings-chip is-quiet">{{if .Builtin}}Built in{{else}}Yours{{end}}</span>{{if .Description}}<span class="settings-voice-desc">{{.Description}}</span>{{end}}</li>
+    {{- else}}
+    <li>No voices found.</li>
+    {{- end}}
+  </ul>
+  <p class="agent-hint">Make your own with <code>/lathe-voice</code> in your agent. Change the default with <code>lathe voice set-default &lt;name&gt;</code>.</p>
+</section>
+
+<section id="library" class="settings-panel" role="tabpanel" aria-labelledby="tab-library">
+  <h2>Library</h2>
+  <div class="settings-group">
+    <h3>Tutorials folder</h3>
+    <div class="settings-inline"><code class="settings-path" title="{{.TutorialsDir}}">{{.TutorialsShort}}</code>
+      {{- if .CanReveal}}<button type="button" id="revealTutorials" class="btn btn-ghost btn-sm">Show in Finder</button>{{else}}<button type="button" class="btn btn-ghost btn-sm" data-copy="{{.TutorialsDir}}" aria-label="Copy the tutorials folder path">Copy path</button>{{end}}</div>
+    <p class="agent-error" id="revealError" role="alert"></p>
+  </div>
+  <div class="settings-group">
+    <h3><label for="codeRootInput">Code folder</label></h3>
+    <p class="agent-hint" id="codeRootHint">Where you type each tutorial's code. A new tutorial suggests <code id="codeRootExample">{{.CodeRootExample}}</code>.</p>
+    <form id="codeRootForm" class="settings-inline" novalidate>
+      <input id="codeRootInput" type="text" autocomplete="off" spellcheck="false" value="{{.Settings.CodeRoot}}" aria-describedby="codeRootHint">
+      <button type="submit" class="btn btn-ghost btn-sm">Save</button>
+    </form>
+    <p class="agent-error" id="codeRootError" role="alert"></p>
+  </div>
+  <div class="settings-group">
+    <label class="settings-check"><input type="checkbox" data-setting="keep_verified_code"{{if .Settings.KeepVerifiedCode}} checked{{end}}><span><strong>Keep verified code</strong><span class="agent-hint">After a verify run, keep its code with the tutorial, one git tag per part, so you can compare yours against it.</span></span></label>
+  </div>
+</section>
+
+<section id="reading" class="settings-panel" role="tabpanel" aria-labelledby="tab-reading">
+  <h2>Reading</h2>
+  <fieldset class="settings-group settings-seg-group">
+    <legend>Appearance</legend>
+    <div class="settings-seg">
+      {{- $ap := .Settings.Appearance}}
+      {{- range .Appearances}}
+      <label><input type="radio" name="appearance" value="{{.Value}}" data-setting="appearance"{{if eq $ap .Value}} checked{{end}}><span>{{.Label}}</span></label>
+      {{- end}}
+    </div>
+    {{- if not $ap}}<p class="agent-hint">Not chosen yet: each browser uses its own dark-mode toggle.</p>{{end}}
+  </fieldset>
+  <fieldset class="settings-group settings-seg-group">
+    <legend>Text size</legend>
+    <div class="settings-seg">
+      {{- $ts := .Settings.TextSize}}
+      {{- range .TextSizes}}
+      <label><input type="radio" name="text_size" value="{{.Value}}" data-setting="text_size"{{if eq $ts .Value}} checked{{end}}><span>{{.Label}}</span></label>
+      {{- end}}
+    </div>
+    {{- if .Native}}<p class="agent-hint">Or press <kbd>⌘</kbd><kbd>+</kbd> and <kbd>⌘</kbd><kbd>−</kbd> while reading.</p>{{end}}
+  </fieldset>
+  <fieldset class="settings-group settings-seg-group">
+    <legend>Line width</legend>
+    <div class="settings-seg">
+      {{- $lw := .Settings.LineWidth}}
+      {{- range .LineWidths}}
+      <label><input type="radio" name="line_width" value="{{.Value}}" data-setting="line_width"{{if eq $lw .Value}} checked{{end}}><span>{{.Label}}</span></label>
+      {{- end}}
+    </div>
+  </fieldset>
+  <div class="settings-group settings-checks">
+    <label class="settings-check"><input type="checkbox" data-setting="remember_place"{{if .Settings.RememberPlace}} checked{{end}}><span><strong>Remember my place</strong><span class="agent-hint">Reopen a tutorial at the part you saved.</span></span></label>
+    <label class="settings-check"><input type="checkbox" data-setting="panel_suggestions"{{if .Settings.PanelSuggestions}} checked{{end}}><span><strong>Suggestions in the agent panel</strong><span class="agent-hint">Offer questions to ask about the part you're reading.</span></span></label>
+    <label class="settings-check"><input type="checkbox" data-setting="panel_window"{{if .Settings.PanelWindow}} checked{{end}}><span><strong>Agent panel in its own window</strong><span class="agent-hint">Open the panel in a separate window instead of beside the article.</span></span></label>
+  </div>
+  <fieldset class="settings-group settings-checks">
+    <legend>Notify me when</legend>
+    <label class="settings-check"><input type="checkbox" data-setting="notify_verify"{{if .Settings.NotifyVerify}} checked{{end}}><span><strong>A verify run finishes</strong></span></label>
+    <label class="settings-check"><input type="checkbox" data-setting="notify_extend"{{if .Settings.NotifyExtend}} checked{{end}}><span><strong>A new part is written</strong></span></label>
+    <label class="settings-check"><input type="checkbox" data-setting="notify_check"{{if .Settings.NotifyCheck}} checked{{end}}><span><strong>Check my work has feedback</strong></span></label>
+    {{- if not .Native}}<p class="agent-hint">Notifications appear in the desktop app.</p>{{end}}
+  </fieldset>
+</section>
+
+<section id="shortcuts" class="settings-panel" role="tabpanel" aria-labelledby="tab-shortcuts">
+  <h2>Shortcuts</h2>
+  {{- range .Shortcuts}}
+  <h3>{{.Name}}</h3>
+  <dl class="settings-shortcuts">
+    {{- range .Items}}
+    <div><dt>{{.Label}}</dt><dd><kbd>{{.Combo}}</kbd></dd></div>
+    {{- end}}
+  </dl>
+  {{- else}}
+  <p class="settings-lead">The full list of keyboard shortcuts will appear here.</p>
+  <dl class="settings-shortcuts">
+    <div><dt>Open Settings</dt><dd><kbd>⌘</kbd><kbd>,</kbd></dd></div>
+    {{- if .Native}}
+    <div><dt>Larger text</dt><dd><kbd>⌘</kbd><kbd>+</kbd></dd></div>
+    <div><dt>Smaller text</dt><dd><kbd>⌘</kbd><kbd>−</kbd></dd></div>
+    <div><dt>Default text size</dt><dd><kbd>⌘</kbd><kbd>0</kbd></dd></div>
+    {{- end}}
+  </dl>
+  {{- end}}
+</section>
+
+</main>
+<script>
+(function(){
+  var root = document.documentElement;
+  var saved = document.getElementById('settingsSaved');
+  var savedTimer;
+  function flash(text){
+    clearTimeout(savedTimer);
+    saved.textContent = text;
+    savedTimer = setTimeout(function(){ saved.textContent = ''; }, 2500);
+  }
+  function postJSON(url, body){
+    return fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json', 'Accept': 'application/json'}, body: JSON.stringify(body)})
+      .then(function(r){
+        if (!r.ok) return r.text().then(function(t){ throw new Error((t || ('HTTP ' + r.status)).trim()); });
+        return r.status === 204 ? null : r.json();
+      });
+  }
+  function save(patch){
+    return window.lathePrefs.save(patch).then(function(st){ flash('Saved'); return st; })
+      .catch(function(err){ flash('Not saved: ' + err.message); throw err; });
+  }
+
+  // ---- Tabs ---------------------------------------------------------------
+  var tabs = Array.prototype.slice.call(document.querySelectorAll('[role="tab"]'));
+  var panels = tabs.map(function(t){ return document.getElementById(t.getAttribute('aria-controls')); });
+  root.classList.add('settings-js');
+  function show(id, focus){
+    var found = false;
+    tabs.forEach(function(t, i){
+      var on = t.getAttribute('data-tab') === id;
+      found = found || on;
+      t.setAttribute('aria-selected', on ? 'true' : 'false');
+      t.tabIndex = on ? 0 : -1;
+      panels[i].hidden = !on;
+      if (on && focus) t.focus();
+    });
+    if (!found) show(tabs[0].getAttribute('data-tab'), focus);
+  }
+  tabs.forEach(function(t, i){
+    t.addEventListener('click', function(ev){
+      ev.preventDefault();
+      var id = t.getAttribute('data-tab');
+      show(id);
+      if (location.hash !== '#' + id) history.replaceState(null, '', '#' + id);
+    });
+    t.addEventListener('keydown', function(ev){
+      var n = null;
+      if (ev.key === 'ArrowRight') n = (i + 1) % tabs.length;
+      else if (ev.key === 'ArrowLeft') n = (i - 1 + tabs.length) % tabs.length;
+      else if (ev.key === 'Home') n = 0;
+      else if (ev.key === 'End') n = tabs.length - 1;
+      if (n === null) return;
+      ev.preventDefault();
+      tabs[n].click();
+      tabs[n].focus();
+    });
+  });
+  function fromHash(){ show((location.hash || '#agent').slice(1)); }
+  window.addEventListener('hashchange', fromHash);
+  fromHash();
+
+  // ---- Copy buttons -----------------------------------------------------
+  document.addEventListener('click', function(ev){
+    var b = ev.target.closest && ev.target.closest('[data-copy]');
+    if (!b) return;
+    var text = b.getAttribute('data-copy');
+    var done = function(){ var l = b.textContent; b.textContent = 'Copied'; setTimeout(function(){ b.textContent = l; }, 1500); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, function(){});
+  });
+
+  // ---- Simple settings: checkboxes and radio groups save on change ------
+  document.querySelectorAll('[data-setting]').forEach(function(input){
+    input.addEventListener('change', function(){
+      var key = input.getAttribute('data-setting');
+      var patch = {};
+      patch[key] = input.type === 'checkbox' ? input.checked : input.value;
+      input.disabled = true;
+      save(patch).catch(function(){ if (input.type === 'checkbox') input.checked = !input.checked; })
+        .then(function(){ input.disabled = false; });
+    });
+  });
+  // Another window (or ⌘+ / the masthead toggle) changed a reading setting:
+  // keep the radios in step.
+  function syncRadios(p){
+    ['appearance', 'text_size', 'line_width'].forEach(function(k){
+      if (!p[k]) return;
+      var r = document.querySelector('input[name="' + k + '"][value="' + p[k] + '"]');
+      if (r) r.checked = true;
+    });
+  }
+  try { new BroadcastChannel('lathe-settings').onmessage = function(ev){ if (ev.data) syncRadios(ev.data); }; } catch (e) {}
+  var baseSave = window.lathePrefs.save;
+  window.lathePrefs.save = function(p){ return baseSave(p).then(function(st){ syncRadios(st); return st; }); };
+
+  // ---- Library: code folder and Show in Finder --------------------------
+  var crForm = document.getElementById('codeRootForm');
+  var crInput = document.getElementById('codeRootInput');
+  var crError = document.getElementById('codeRootError');
+  crForm.addEventListener('submit', function(ev){
+    ev.preventDefault();
+    crError.textContent = '';
+    save({code_root: crInput.value.trim()}).then(function(st){
+      crInput.value = st.code_root;
+      document.getElementById('codeRootExample').textContent = st.code_root.replace(/\/+$/, '') + '/digital-synth-zig';
+    }).catch(function(err){ crError.textContent = err.message; });
+  });
+  var reveal = document.getElementById('revealTutorials');
+  if (reveal) reveal.addEventListener('click', function(){
+    document.getElementById('revealError').textContent = '';
+    postJSON('/-/native/reveal', {what: 'tutorials'}).catch(function(err){ document.getElementById('revealError').textContent = err.message; });
+  });
+
+  // ---- Agent: pick, restart, live status --------------------------------
+  var form = document.getElementById('agentForm');
+  var useBtn = document.getElementById('agentUse');
+  var restart = document.getElementById('agentRestart');
+  var agentError = document.getElementById('agentError');
+  function picked(){ return form.querySelector('input[name="agent"]:checked'); }
+  function current(){ return form.querySelector('.settings-agent.is-current'); }
+  function syncUse(){
+    var sel = picked();
+    var cur = current();
+    var same = sel && cur && cur.getAttribute('data-agent') === sel.value;
+    useBtn.disabled = !sel || same;
+    useBtn.textContent = sel && !same ? 'Use ' + sel.parentNode.querySelector('strong').textContent : (same ? 'In use' : 'Use this agent');
+  }
+  form.addEventListener('change', syncUse);
+  syncUse();
+  form.addEventListener('submit', function(ev){
+    ev.preventDefault();
+    var sel = picked();
+    if (!sel) return;
+    agentError.textContent = '';
+    useBtn.disabled = true;
+    postJSON('/-/agent', {id: sel.value}).then(function(){ location.reload(); })
+      .catch(function(err){ agentError.textContent = err.message; syncUse(); });
+  });
+  restart.addEventListener('click', function(){
+    agentError.textContent = '';
+    restart.disabled = true;
+    restart.setAttribute('aria-busy', 'true');
+    postJSON('/-/agent/restart', {}).then(function(){ flash('Restarting the agent'); poll(); })
+      .catch(function(err){ agentError.textContent = err.message; })
+      .then(function(){ restart.disabled = false; restart.removeAttribute('aria-busy'); });
+  });
+  var live = document.querySelector('[data-agent-live]');
+  var workerState = document.getElementById('workerState');
+  function describe(a){
+    var parts = [];
+    if (a.state === 'starting') parts.push('Starting…');
+    else if (a.state === 'ready') parts.push(a.working ? 'Running · ' + a.working : 'Running');
+    else parts.push(a.error ? 'Stopped: ' + a.error : 'Stopped');
+    if (a.model) parts.push(a.model);
+    if (a.isolation && a.isolation.state && a.isolation.state !== 'unknown') parts.push(a.isolation.state === 'enforced' ? 'isolation enforced' : 'isolation soft');
+    return parts.join(' · ');
+  }
+  var pollTimer;
+  function poll(){
+    clearTimeout(pollTimer);
+    fetch('/-/worker', {headers: {'Accept': 'application/json'}})
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){
+        if (!d) return;
+        workerState.textContent = d.connected ? 'A /lathe-work session is connected now.' : 'No /lathe-work session is connected.';
+        if (live && d.agent) {
+          live.querySelector('.settings-agent-live').textContent = describe(d.agent);
+          live.setAttribute('data-state', d.agent.state);
+        }
+      })
+      .catch(function(){})
+      .then(function(){ pollTimer = setTimeout(poll, document.hidden ? 15000 : 3000); });
+  }
+  poll();
+
+  // ---- Agent search folders ---------------------------------------------
+  var list = document.getElementById('agentPathList');
+  var empty = document.getElementById('agentPathEmpty');
+  var pathForm = document.getElementById('agentPathForm');
+  var pathInput = document.getElementById('agentPathInput');
+  var pathError = document.getElementById('agentPathError');
+  function renderPaths(dirs){
+    list.textContent = '';
+    dirs.forEach(function(d){
+      var li = document.createElement('li');
+      var code = document.createElement('code');
+      code.textContent = d;
+      var rm = document.createElement('button');
+      rm.type = 'button';
+      rm.className = 'link-btn';
+      rm.textContent = 'Remove';
+      rm.setAttribute('data-remove-path', d);
+      rm.setAttribute('aria-label', 'Remove ' + d);
+      li.appendChild(code);
+      li.appendChild(rm);
+      list.appendChild(li);
+    });
+    empty.hidden = dirs.length > 0;
+  }
+  function changePath(body){
+    pathError.textContent = '';
+    return postJSON('/-/settings/agent-path', body).then(function(res){
+      renderPaths(res.agentPath);
+      flash(body.add ? 'Added. Reopen Settings to look for agents there.' : 'Removed. Takes effect when Lathe restarts.');
+    }).catch(function(err){ pathError.textContent = err.message; throw err; });
+  }
+  pathForm.addEventListener('submit', function(ev){
+    ev.preventDefault();
+    var v = pathInput.value.trim();
+    if (!v) { pathError.textContent = 'Enter a folder path.'; return; }
+    changePath({add: v}).then(function(){ pathInput.value = ''; }, function(){});
+  });
+  list.addEventListener('click', function(ev){
+    var b = ev.target.closest && ev.target.closest('[data-remove-path]');
+    if (b) changePath({remove: b.getAttribute('data-remove-path')}).catch(function(){});
+  });
+  var pick = document.getElementById('agentPathPick');
+  if (pick) pick.addEventListener('click', function(){
+    pick.disabled = true;
+    postJSON('/-/native/pick-folder', {'for': 'agent-path'})
+      .then(function(res){ if (res && res.path) return changePath({add: res.path}); })
+      .catch(function(err){ pathError.textContent = err.message; })
+      .then(function(){ pick.disabled = false; });
+  });
+})();
+</script>
+{{- if .Native}}
+{{template "nativeLinks"}}
+{{- end}}
+</body>
+</html>

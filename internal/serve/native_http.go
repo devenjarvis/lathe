@@ -22,6 +22,7 @@ import (
 //	POST /-/native/pick-folder  {"slug"}  → {"path", "display"} ("" when cancelled)
 //	POST /-/native/window       {"path"}  → 204
 //	POST /-/native/open-url     {"url"}   → 204 (links to other sites; nativeLinks in components.html)
+//	POST /-/native/reveal       {"what"}  → 204 (Settings: show the tutorials folder in Finder; needs a FolderRevealer)
 //
 // Notifications need no endpoint: the server posts one when a Verify, Extend
 // or Check my work run ends (notifyJob).
@@ -49,8 +50,25 @@ func (s *Server) handleNativePickFolder(w http.ResponseWriter, r *http.Request) 
 	}
 	var payload struct {
 		Slug string `json:"slug"`
+		// For is "agent-path" when the Settings window's Agent tab picks a
+		// folder to search for agents; no tutorial is involved then.
+		For string `json:"for"`
 	}
 	if !readJSONBody(w, r, maxNativeBody, &payload) {
+		return
+	}
+	if payload.For == "agent-path" {
+		home, _ := os.UserHomeDir()
+		path, err := n.PickFolder("Choose a folder to search for agents", home)
+		if err != nil {
+			http.Error(w, "could not open the folder picker: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		display := ""
+		if path != "" {
+			display = displayPath(path)
+		}
+		writeJSON(w, map[string]string{"path": path, "display": display})
 		return
 	}
 	if payload.Slug == "" {
@@ -85,7 +103,8 @@ func (s *Server) handleNativePickFolder(w http.ResponseWriter, r *http.Request) 
 
 // handleNativeWindow opens the agent panel's pop-out in an app window, where
 // window.open has nothing to open. Only the pop-out of a real part is
-// accepted ("/{slug}/{part}?agent=popout"), so a page can't make the shell
+// accepted ("/{slug}/{part}?agent=popout"), plus the Settings window
+// ("/-/settings", optionally with a #tab), so a page can't make the shell
 // open anything else.
 func (s *Server) handleNativeWindow(w http.ResponseWriter, r *http.Request) {
 	n := s.nativeShell()
@@ -101,6 +120,14 @@ func (s *Server) handleNativeWindow(w http.ResponseWriter, r *http.Request) {
 		Path string `json:"path"`
 	}
 	if !readJSONBody(w, r, maxNativeBody, &payload) {
+		return
+	}
+	if settingsWindowPath(payload.Path) {
+		if err := n.OpenWindow(payload.Path, "Settings"); err != nil {
+			http.Error(w, "could not open a window: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 	tut, ok := s.popoutTutorial(payload.Path)
@@ -239,6 +266,9 @@ type jobOutcome struct {
 func (s *Server) notifyJob(o jobOutcome) {
 	n := s.nativeShell()
 	if n == nil {
+		return
+	}
+	if !notifyEnabled(o.job) {
 		return
 	}
 	title, body, ok := jobNotice(o)
@@ -391,4 +421,71 @@ func (s *Server) workJobFinished(job queue.Job) {
 		return
 	}
 	s.notifyJob(jobOutcome{job: kind, tutDir: tutDir, part: job.Part, since: job.CreatedAt})
+}
+
+// settingsWindowPath reports whether path is the Settings window, optionally
+// opened at one of its tabs ("/-/settings#agent").
+func settingsWindowPath(path string) bool {
+	rest, ok := strings.CutPrefix(path, "/-/settings")
+	if !ok {
+		return false
+	}
+	if rest == "" {
+		return true
+	}
+	tab, ok := strings.CutPrefix(rest, "#")
+	if !ok {
+		return false
+	}
+	for _, t := range settingsTabs {
+		if t.ID == tab {
+			return true
+		}
+	}
+	return false
+}
+
+// FolderRevealer is an optional part of a Native shell: it shows a folder in
+// the system file manager (Finder, Explorer, …). It is a separate interface
+// so a shell without it still satisfies Native.
+type FolderRevealer interface {
+	RevealFolder(path string) error
+}
+
+// revealer returns the installed shell's FolderRevealer, or nil.
+func (s *Server) revealer() FolderRevealer {
+	if fr, ok := s.nativeShell().(FolderRevealer); ok {
+		return fr
+	}
+	return nil
+}
+
+// handleNativeReveal shows one of Lathe's own folders in the file manager.
+// The page names the folder ("tutorials"), never a path, so it can't make
+// the shell open anything else.
+func (s *Server) handleNativeReveal(w http.ResponseWriter, r *http.Request) {
+	fr := s.revealer()
+	if fr == nil {
+		http.NotFound(w, r)
+		return
+	}
+	if !sameOrigin(r) {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+	var payload struct {
+		What string `json:"what"`
+	}
+	if !readJSONBody(w, r, maxNativeBody, &payload) {
+		return
+	}
+	if payload.What != "tutorials" {
+		http.Error(w, "unknown folder", http.StatusBadRequest)
+		return
+	}
+	if err := fr.RevealFolder(s.tutorialsDir); err != nil {
+		http.Error(w, "could not show the folder: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }

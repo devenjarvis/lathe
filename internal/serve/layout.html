@@ -254,6 +254,7 @@
   <section id="agentSetup" class="agent-setup" aria-labelledby="agentSetupTitle"{{if .AgentName}} hidden{{end}}>
     <h3 id="agentSetupTitle">Bring your agent</h3>
     <p>Lathe runs your coding agent here, in a normal interactive session. Lathe never calls a model itself, so your agent's own sign-in and plan apply.</p>
+    <p class="agent-hint">More in {{template "settingsLink" "agent"}}</p>
     <form id="agentSetupForm" novalidate>
       <fieldset id="agentChoices" class="agent-choices">
         <legend>Found on your PATH</legend>
@@ -265,7 +266,7 @@
       </details>
       <div class="agent-field">
         <label for="workspaceSetupInput">Where are you typing the code?</label>
-        {{if .Native}}<div class="agent-field-row">{{end}}<input id="workspaceSetupInput" type="text" autocomplete="off" spellcheck="false" value="{{.WorkspaceShort}}" placeholder="~/code/{{.Tutorial.Slug}}" aria-describedby="workspaceSetupHint">{{if .Native}}<button type="button" id="workspaceSetupPick" class="btn btn-ghost btn-sm" data-native-pick="setup">Choose folder…</button></div>{{end}}
+        {{if .Native}}<div class="agent-field-row">{{end}}<input id="workspaceSetupInput" type="text" autocomplete="off" spellcheck="false" value="{{.WorkspaceShort}}" placeholder="{{.WorkspaceSuggest}}" aria-describedby="workspaceSetupHint">{{if .Native}}<button type="button" id="workspaceSetupPick" class="btn btn-ghost btn-sm" data-native-pick="setup">Choose folder…</button></div>{{end}}
         <p class="agent-hint" id="workspaceSetupHint">Optional. Lathe creates the folder and runs <code>git init</code> if it's empty.</p>
       </div>
       <div class="agent-setup-actions">
@@ -934,7 +935,7 @@
         var current = document.documentElement.getAttribute('data-theme') || 'light';
         var next = current === 'dark' ? 'light' : 'dark';
         document.documentElement.setAttribute('data-theme', next);
-        try { localStorage.setItem('lathe-theme', next); } catch (e) {}
+        if (window.latheSaveAppearance) window.latheSaveAppearance(next); else try { localStorage.setItem('lathe-theme', next); } catch (e) {}
         refresh();
         document.dispatchEvent(new CustomEvent('lathe:themechange', {detail:{theme:next}}));
       });

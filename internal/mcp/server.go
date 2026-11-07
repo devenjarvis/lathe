@@ -24,6 +24,7 @@ import (
 	"strings"
 
 	"github.com/devenjarvis/lathe/internal/acp"
+	"github.com/devenjarvis/lathe/internal/config"
 	"github.com/devenjarvis/lathe/internal/store"
 	"github.com/devenjarvis/lathe/internal/voice"
 )
@@ -466,7 +467,9 @@ func runVerifyResult(s *Server, raw json.RawMessage) (string, error) {
 		return "", err
 	}
 	msg := fmt.Sprintf("Recorded %s for %q.", status, slug)
-	if a.Code != "" {
+	if a.Code != "" && !config.KeepVerifiedCode() {
+		msg += " Not keeping the code snapshot: \"Keep verified code\" is off in Settings."
+	} else if a.Code != "" {
 		if err := store.SaveCode(dir, a.Code); err != nil {
 			return "", fmt.Errorf("recorded %s, but could not save the code snapshot: %w", status, err)
 		}

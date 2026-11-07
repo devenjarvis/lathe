@@ -113,23 +113,56 @@ func (s *shell) OpenWindow(path, title string) error {
 	if title == "" {
 		title = AppName
 	}
-	name := "window:" + path
+	name, settings := windowKey(path)
 	if w, ok := s.app.Window.GetByName(name); ok {
+		if settings {
+			// Already open: go to the asked-for tab.
+			if ww, ok := w.(*application.WebviewWindow); ok {
+				ww.SetURL(path)
+			}
+		}
 		w.Restore()
 		w.Show()
 		w.Focus()
 		return nil
 	}
+	width, height, minW, minH := popWidth, popHeight, popMinWidth, popMinHeight
+	if settings {
+		width, height, minW, minH = settingsWidth, settingsHeight, settingsMinWidth, settingsMinHeight
+	}
 	s.app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Name:             name,
 		Title:            title,
 		URL:              path,
-		Width:            popWidth,
-		Height:           popHeight,
-		MinWidth:         popMinWidth,
-		MinHeight:        popMinHeight,
+		Width:            width,
+		Height:           height,
+		MinWidth:         minW,
+		MinHeight:        minH,
 		BackgroundColour: paper,
 		Linux:            application.LinuxWindow{Icon: appIcon},
 	})
 	return nil
 }
+
+// openSettings opens the Settings window (or focuses it), at tab when one is
+// named ("agent", "reading", …).
+//
+// TODO(#132): the Lathe › Settings… menu item (⌘,) should call this.
+func (s *shell) openSettings(tab string) {
+	path := SettingsPath
+	if tab != "" {
+		path += "#" + tab
+	}
+	if err := s.OpenWindow(path, "Settings"); err != nil {
+		s.logf("could not open Settings: %v", err)
+	}
+}
+
+// RevealFolder shows a folder in the system file manager (Finder on macOS).
+// It makes the shell a serve.FolderRevealer, for Settings › Library's "Show
+// in Finder".
+func (s *shell) RevealFolder(path string) error {
+	return s.app.Browser.OpenFile(path)
+}
+
+var _ serve.FolderRevealer = (*shell)(nil)

@@ -12,7 +12,7 @@
     <h1>Lathe</h1>
     <p class="subtitle">{{if .Total}}{{.Total}} tutorial{{if ne .Total 1}}s{{end}}{{if .ShelfCount}} on {{.ShelfCount}} shel{{if ne .ShelfCount 1}}ves{{else}}f{{end}}{{else}} in your library{{end}}.{{else}}Hands-on tutorials you build yourself, written by your coding agent.{{end}}</p>
   </div>
-  {{template "themeToggle" $}}
+  <div class="header-tools">{{template "settingsLink" ""}}{{template "themeToggle" $}}</div>
 </div>
 <div class="library">
   {{template "libraryNav" .}}
@@ -120,7 +120,7 @@
         var current = document.documentElement.getAttribute('data-theme') || 'light';
         var next = current === 'dark' ? 'light' : 'dark';
         document.documentElement.setAttribute('data-theme', next);
-        try { localStorage.setItem('lathe-theme', next); } catch (e) {}
+        if (window.latheSaveAppearance) window.latheSaveAppearance(next); else try { localStorage.setItem('lathe-theme', next); } catch (e) {}
         refresh();
       });
     });
