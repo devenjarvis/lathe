@@ -3,6 +3,7 @@ package desktop
 import (
 	"errors"
 	"fmt"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -106,7 +107,7 @@ func shQuote(s string) string {
 // text) to move to dir and put the command at the prompt: print -z in zsh,
 // history -s in bash. It returns "" for other shells.
 func typedLine(kind, dir, stage string) string {
-	file := shQuote(filepath.Join(stage, "command"))
+	file := shQuote(path.Join(stage, "command"))
 	cd := "cd " + shQuote(dir) + " && clear && "
 	switch kind {
 	case "zsh":
@@ -344,7 +345,7 @@ func planLinuxTerminal(env launchEnv, terminal, dir, command string) (terminalPl
 		case "bash":
 			plan.files = bashStartup(env.stage)
 			plan.files["command"] = command
-			cmd = []string{env.shell, "--rcfile", filepath.Join(env.stage, "bashrc"), "-i"}
+			cmd = []string{env.shell, "--rcfile", path.Join(env.stage, "bashrc"), "-i"}
 			plan.outcome.History = true
 			plan = clipboardOnly(plan, command)
 		default:
