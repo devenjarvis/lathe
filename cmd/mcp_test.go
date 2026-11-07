@@ -467,3 +467,63 @@ func TestMCPCommandServesStdio(t *testing.T) {
 		t.Errorf("tags = %v", got)
 	}
 }
+
+func TestMCPVoiceDraftSessionDraftsAndSavesOnlyTheApprovedDraft(t *testing.T) {
+	home := t.TempDir()
+	setHome(t, home)
+	if _, err := voice.ReserveDraft("field-notes"); err != nil {
+		t.Fatal(err)
+	}
+	c := newMCPServerClient(t, &mcp.Server{VoiceDraft: "field-notes", Version: "test"})
+	if got, want := strings.Join(c.tools(), " "), "lathe_voice_draft lathe_voice_show lathe_voice_add"; got != want {
+		t.Errorf("--voice-draft tools = %s, want %s", got, want)
+	}
+	// Tutorial tools are not offered at all.
+	var rpcOut map[string]any
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := c.conn.Call(ctx, "tools/call", map[string]any{"name": "lathe_store", "arguments": map[string]any{"path": "/tmp"}}, &rpcOut); err == nil {
+		t.Error("lathe_store should be unknown in a voice-draft session")
+	}
+
+	if text := c.mustCall("lathe_voice_show", map[string]any{"name": "plainspoken"}); !strings.Contains(text, "## Stance and register") || strings.Contains(text, "## Sample") {
+		t.Errorf("voice show = %.200q", text)
+	}
+	spec := "---\nname: field-notes\ndescription: Lab notebook.\n---\n\n# Field notes\n\n## Stance and register\n\n- Short labelled lines.\n\n## Sample\n\nNote: the buffer wraps.\n"
+	if text, isErr := c.call("lathe_voice_draft", map[string]any{"spec": "# no sample"}); !isErr || !strings.Contains(text, "## Sample") {
+		t.Errorf("draft without sample = %q (isError %v)", text, isErr)
+	}
+	if text := c.mustCall("lathe_voice_draft", map[string]any{"spec": spec}); !strings.Contains(text, "draft 1") {
+		t.Errorf("draft = %q", text)
+	}
+	c.mustCall("lathe_voice_draft", map[string]any{"spec": strings.Replace(spec, "Short", "Shorter", 1)})
+
+	// Before Save voice, and for any other name, saving is refused.
+	if text, isErr := c.call("lathe_voice_add", map[string]any{}); !isErr || !strings.Contains(text, "Save voice") {
+		t.Errorf("add before approval = %q (isError %v)", text, isErr)
+	}
+	if err := voice.Approve("field-notes", voice.Approval{Draft: 1}); err != nil {
+		t.Fatal(err)
+	}
+	if text, isErr := c.call("lathe_voice_add", map[string]any{"name": "other"}); !isErr || !strings.Contains(text, "scoped") {
+		t.Errorf("add another name = %q (isError %v)", text, isErr)
+	}
+	if text, isErr := c.call("lathe_voice_add", map[string]any{"name": "field-notes", "spec": spec}); !isErr || !strings.Contains(text, "no spec") {
+		t.Errorf("add with a spec = %q (isError %v)", text, isErr)
+	}
+	if text := c.mustCall("lathe_voice_add", map[string]any{"name": "field-notes"}); !strings.Contains(text, "Saved draft 1") {
+		t.Errorf("add = %q", text)
+	}
+	v, err := voice.Resolve("field-notes")
+	if err != nil || !strings.Contains(v.Body(), "- Short labelled lines.") {
+		t.Errorf("saved voice = %q, %v; want draft 1 exactly", v.Body(), err)
+	}
+}
+
+func TestMCPCommandVoiceDraftRefusesSlug(t *testing.T) {
+	mcpVoiceDraft, mcpSlug = "terse", "synth"
+	t.Cleanup(func() { mcpVoiceDraft, mcpSlug = "", "" })
+	if err := mcpCmd.RunE(mcpCmd, nil); err == nil || !strings.Contains(err.Error(), "--voice-draft") {
+		t.Errorf("lathe mcp --voice-draft --slug = %v, want an error", err)
+	}
+}

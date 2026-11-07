@@ -125,6 +125,17 @@ func TestJobPolicies(t *testing.T) {
 		t.Errorf("NewPolicy without workspace or voice reads %v, want only the scratch dir", bare.Read)
 	}
 
+	vp := VoicePolicy()
+	if _, err := vp.CheckRead(voiceFile); !errors.Is(err, ErrOutsidePolicy) {
+		t.Errorf("voice read = %v, want refused", err)
+	}
+	if _, err := vp.CheckWrite(voiceFile); !errors.Is(err, ErrOutsidePolicy) {
+		t.Errorf("voice write = %v, want refused", err)
+	}
+	if _, err := vp.CheckExec(""); !errors.Is(err, ErrOutsidePolicy) {
+		t.Errorf("voice exec = %v, want refused", err)
+	}
+
 	var none *Policy
 	if _, err := none.CheckRead(filepath.Join(tut, "x")); !errors.Is(err, ErrOutsidePolicy) {
 		t.Errorf("nil policy read = %v, want refused", err)

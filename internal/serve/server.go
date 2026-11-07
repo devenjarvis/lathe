@@ -228,6 +228,11 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /-/voices/duplicate", s.handleVoiceDuplicate)
 	mux.HandleFunc("POST /-/voices/delete", s.handleVoiceDelete)
 	mux.HandleFunc("POST /-/voices/restore", s.handleVoiceRestore)
+	mux.HandleFunc("POST /-/voices/new", s.handleVoiceNew)
+	mux.HandleFunc("GET /-/voices/new/{id}", s.handleVoiceNewState)
+	mux.HandleFunc("POST /-/voices/new/{id}/refine", s.handleVoiceNewRefine)
+	mux.HandleFunc("POST /-/voices/new/{id}/save", s.handleVoiceNewSave)
+	mux.HandleFunc("POST /-/voices/new/{id}/cancel", s.handleVoiceNewCancel)
 	// Desktop shell (native_http.go): 404 unless SetNative installed one.
 	mux.HandleFunc("POST /-/native/pick-folder", s.handleNativePickFolder)
 	mux.HandleFunc("POST /-/native/window", s.handleNativeWindow)
