@@ -1,8 +1,10 @@
 {{define "shortcuts"}}
 {{/* The shortcut registry (internal/shortcuts) and the page's key handlers
      and desktop menu commands (shortcuts.js), then the Go to anything palette
-     (palette.html), which runs library.goto. Included on every page. */}}
+     (palette.html), which runs library.goto, and the New tutorial sheet
+     (newsheet.html), which runs library.new. Included on every page. */}}
 <script type="application/json" id="latheShortcuts">{{shortcutsJSON}}</script>
 <script>{{shortcutsJS}}</script>
 {{template "palette" .}}
+{{template "newSheetDialog" .}}
 {{end}}

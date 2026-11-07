@@ -74,6 +74,11 @@
       when: function () { return !popout && !!window.lathePalette; },
       run: function () { window.lathePalette.open(); }
     },
+    // New tutorial: the sheet (newsheet.js, included with this script).
+    'library.new': {
+      when: function () { return !popout && !!window.latheNewSheet; },
+      run: function () { window.latheNewSheet.open({}); }
+    },
     // The library page (list.html) says which cover is current.
     'library.trash': {
       when: function () { return !!window.latheLibrary && window.latheLibrary.target(); },

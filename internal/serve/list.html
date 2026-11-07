@@ -12,7 +12,7 @@
     <h1>Lathe</h1>
     <p class="subtitle">{{if .Total}}{{.Total}} tutorial{{if ne .Total 1}}s{{end}}{{if .ShelfCount}} on {{.ShelfCount}} shel{{if ne .ShelfCount 1}}ves{{else}}f{{end}}{{else}} in your library{{end}}.{{else}}Hands-on tutorials you build yourself, written by your coding agent.{{end}}</p>
   </div>
-  <div class="header-tools">{{template "paletteButton" $}}{{template "settingsLink" ""}}{{template "themeToggle" $}}</div>
+  <div class="header-tools">{{template "newButton"}}{{template "paletteButton" $}}{{template "settingsLink" ""}}{{template "themeToggle" $}}</div>
 </div>
 <div class="library">
   {{template "libraryNav" .}}
@@ -296,20 +296,6 @@
       });
     });
   })();
-  // The New tutorial cover's Copy button (hidden until this runs).
-  (function(){
-    document.querySelectorAll('.new-cover-copy').forEach(function(btn){
-      if (!navigator.clipboard || !navigator.clipboard.writeText) return;
-      btn.hidden = false;
-      btn.addEventListener('click', function(){
-        navigator.clipboard.writeText(btn.getAttribute('data-copy')).then(function(){
-          btn.textContent = 'Copied';
-          setTimeout(function(){ btn.textContent = 'Copy'; }, 1600);
-        });
-      });
-    });
-  })();
-
   // ---- The library's actions: the toast, the cover ⋯ menu, Move to Trash
   // and Undo, drag a cover onto a shelf, the shelf ⋯ menu. Every one of them
   // also works with scripts off (plain forms and links answered with a
@@ -989,18 +975,14 @@
 {{end}}
 
 {{/* newCover — the blank "New tutorial" cover that opens Home's first row.
-     For now it hands over the /lathe command to run in the reader's agent
-     (the copy button needs scripts; the command stays selectable without). */}}
+     A link to the /-/new page; newsheet.js opens the New tutorial sheet
+     over Home instead. */}}
 {{define "newCover"}}
-  <article class="new-cover" aria-labelledby="newCoverTitle">
+  <a class="new-cover" href="/-/new" data-new-open>
     <span class="new-cover-plus" aria-hidden="true">+</span>
-    <h3 class="new-cover-title" id="newCoverTitle">New tutorial</h3>
-    <p class="new-cover-hint">Run this in your coding agent, with the topic you want to learn:</p>
-    <div class="new-cover-cmd">
-      <code>/lathe <var>topic</var></code>
-      <button type="button" class="new-cover-copy" data-copy="/lathe " hidden>Copy</button>
-    </div>
-  </article>
+    <span class="new-cover-title">New tutorial</span>
+    <span class="new-cover-hint">Say what you want to build. Your agent writes Part 1, and you type the code in.</span>
+  </a>
 {{end}}
 
 {{/* libraryNav — the library sidebar (. is a libraryPage). A <details> that

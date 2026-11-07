@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -51,8 +52,11 @@ func (s *Server) handleNativePickFolder(w http.ResponseWriter, r *http.Request) 
 	var payload struct {
 		Slug string `json:"slug"`
 		// For is "agent-path" when the Settings window's Agent tab picks a
-		// folder to search for agents; no tutorial is involved then.
-		For string `json:"for"`
+		// folder to search for agents, and "new-workspace" when the New
+		// tutorial sheet picks the workspace (starting at Path, or the
+		// nearest folder of it that exists); no tutorial is involved then.
+		For  string `json:"for"`
+		Path string `json:"path"`
 	}
 	if !readJSONBody(w, r, maxNativeBody, &payload) {
 		return
@@ -60,6 +64,19 @@ func (s *Server) handleNativePickFolder(w http.ResponseWriter, r *http.Request) 
 	if payload.For == "agent-path" {
 		home, _ := os.UserHomeDir()
 		path, err := n.PickFolder("Choose a folder to search for agents", home)
+		if err != nil {
+			http.Error(w, "could not open the folder picker: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		display := ""
+		if path != "" {
+			display = displayPath(path)
+		}
+		writeJSON(w, map[string]string{"path": path, "display": display})
+		return
+	}
+	if payload.For == "new-workspace" {
+		path, err := n.PickFolder("Choose where you'll type the code", nearestDir(payload.Path))
 		if err != nil {
 			http.Error(w, "could not open the folder picker: "+err.Error(), http.StatusInternalServerError)
 			return
@@ -99,6 +116,26 @@ func (s *Server) handleNativePickFolder(w http.ResponseWriter, r *http.Request) 
 		display = displayPath(path)
 	}
 	writeJSON(w, map[string]string{"path": path, "display": display})
+}
+
+// nearestDir is the folder picker's start for a typed path: the path, or
+// its nearest parent that exists, else the home dir.
+func nearestDir(p string) string {
+	home, _ := os.UserHomeDir()
+	p, err := store.ExpandPath(p)
+	if err != nil || !filepath.IsAbs(p) {
+		return home
+	}
+	for {
+		if fi, err := os.Stat(p); err == nil && fi.IsDir() {
+			return p
+		}
+		parent := filepath.Dir(p)
+		if parent == p {
+			return home
+		}
+		p = parent
+	}
 }
 
 // handleNativeWindow opens the agent panel's pop-out in an app window, where
