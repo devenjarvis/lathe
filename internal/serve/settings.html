@@ -131,6 +131,17 @@
     </form>
     <p class="agent-error" id="codeRootError" role="alert"></p>
   </div>
+  <fieldset class="settings-group settings-seg-group">
+    <legend>Trash</legend>
+    <p class="agent-hint" id="trashHint">Deleted tutorials wait in the Trash, so you can put them back. Delete them for good after:</p>
+    <div class="settings-seg" aria-describedby="trashHint">
+      {{- $td := .Settings.TrashDays}}
+      {{- range .TrashChoices}}
+      <label><input type="radio" name="trash_days" value="{{.Value}}" data-setting="trash_days" data-setting-int{{if eq (print $td) .Value}} checked{{end}}><span>{{.Label}}</span></label>
+      {{- end}}
+    </div>
+    <p class="settings-inline settings-trash-link"><a class="btn btn-ghost btn-sm" href="/?view=trash">Show Trash{{with .TrashCount}} · {{.}}{{end}}</a></p>
+  </fieldset>
   <div class="settings-group">
     <label class="settings-check"><input type="checkbox" data-setting="keep_verified_code"{{if .Settings.KeepVerifiedCode}} checked{{end}}><span><strong>Keep verified code</strong><span class="agent-hint">After a verify run, keep its code with the tutorial, one git tag per part, so you can compare yours against it.</span></span></label>
   </div>
@@ -270,7 +281,7 @@
     input.addEventListener('change', function(){
       var key = input.getAttribute('data-setting');
       var patch = {};
-      patch[key] = input.type === 'checkbox' ? input.checked : input.value;
+      patch[key] = input.type === 'checkbox' ? input.checked : (input.hasAttribute('data-setting-int') ? parseInt(input.value, 10) : input.value);
       input.disabled = true;
       save(patch).catch(function(){ if (input.type === 'checkbox') input.checked = !input.checked; })
         .then(function(){ input.disabled = false; });

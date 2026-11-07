@@ -98,8 +98,8 @@ func TestCombosWellFormed(t *testing.T) {
 					t.Errorf("%s: %q uses modifier %q (mac=%v)", s.ID, c.combo, m, c.mac)
 				}
 			}
-			if len(key) != 1 && key != "Enter" && key != "Home" {
-				t.Errorf("%s: %q: key %q must be one character, Enter or Home", s.ID, c.combo, key)
+			if len(key) != 1 && key != "Enter" && key != "Home" && key != "Backspace" {
+				t.Errorf("%s: %q: key %q must be one character, Enter, Home or Backspace", s.ID, c.combo, key)
 			}
 			if len(key) == 1 && key != strings.ToUpper(key) {
 				t.Errorf("%s: %q: write letter keys upper-case", s.ID, c.combo)
@@ -206,6 +206,7 @@ func TestDisplay(t *testing.T) {
 		{smaller.Display("darwin"), "⌘-"},
 		{smaller.Display("windows"), "Ctrl+-"},
 		{DisplayCombo("Cmd+Enter", true), "⌘↩"},
+		{DisplayCombo("Cmd+Backspace", true), "⌘⌫"},
 		{DisplayCombo("", true), ""},
 	} {
 		if c.got != c.want {
@@ -232,5 +233,29 @@ func TestJSON(t *testing.T) {
 	}
 	if strings.ContainsAny(string(raw), "<>") {
 		t.Error("JSON must be safe to inline in a <script>")
+	}
+}
+
+// Move to Trash is the library's (home scope), takes Finder's ⌘⌫ on macOS
+// only, and Undo is deliberately not a command: ⌘Z/Ctrl+Z stays reserved for
+// Edit › Undo (the library's toast handles it itself).
+func TestTrashCommand(t *testing.T) {
+	s, ok := ByID("library.trash")
+	if !ok {
+		t.Fatal("library.trash missing")
+	}
+	if s.Scope != ScopeHome || s.Handler != HandlerPage || s.Menu != MenuFile || s.Stub {
+		t.Errorf("library.trash = %+v", s)
+	}
+	if s.Mac != "Cmd+Backspace" || s.Other != "" {
+		t.Errorf("library.trash combos = %q / %q", s.Mac, s.Other)
+	}
+	if got := s.Display("darwin"); got != "⌘⌫" {
+		t.Errorf("display = %q", got)
+	}
+	for _, sc := range All() {
+		if sc.Mac == "Cmd+Z" || sc.Other == "Ctrl+Z" {
+			t.Errorf("%s binds the reserved Undo combo", sc.ID)
+		}
 	}
 }

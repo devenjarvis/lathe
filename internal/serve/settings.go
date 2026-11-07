@@ -10,11 +10,13 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/devenjarvis/lathe/internal/agents"
 	"github.com/devenjarvis/lathe/internal/config"
 	"github.com/devenjarvis/lathe/internal/loginenv"
+	"github.com/devenjarvis/lathe/internal/store"
 	"github.com/devenjarvis/lathe/internal/voice"
 )
 
@@ -229,8 +231,12 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 			{config.AppearanceLight, "Light"},
 			{config.AppearanceDark, "Dark"},
 		},
-		"TextSizes":  choices(config.TextSizes, textSizeLabels),
-		"LineWidths": choices(config.LineWidths, lineWidthLabels),
+		"TextSizes": choices(config.TextSizes, textSizeLabels),
+		// TrashChoices is the Trash retention (trash_days), in days; 0 is
+		// Never.
+		"TrashChoices": []choice{{"7", "7 days"}, {"30", "30 days"}, {"0", "Never"}},
+		"TrashCount":   s.trashCount(),
+		"LineWidths":   choices(config.LineWidths, lineWidthLabels),
 		// Shortcuts is the read-only list from the shortcut registry.
 		"Shortcuts": shortcutGroups(runtime.GOOS),
 	}
@@ -257,6 +263,7 @@ type settingsPatch struct {
 	NotifyVerify     *bool   `json:"notify_verify"`
 	NotifyExtend     *bool   `json:"notify_extend"`
 	NotifyCheck      *bool   `json:"notify_check"`
+	TrashDays        *int    `json:"trash_days"`
 }
 
 func (p *settingsPatch) apply(c *config.Config) error {
@@ -309,6 +316,17 @@ func (p *settingsPatch) apply(c *config.Config) error {
 	setOn(&c.KeepVerifiedCode, p.KeepVerifiedCode)
 	if p.PanelWindow != nil {
 		c.PanelWindow = *p.PanelWindow
+	}
+	if p.TrashDays != nil {
+		if !slices.Contains(config.TrashDayChoices, *p.TrashDays) {
+			return errBadRequest("trash_days must be 7, 30 or 0 (never)")
+		}
+		if *p.TrashDays == config.DefaultTrashDays {
+			c.TrashDays = nil
+		} else {
+			v := *p.TrashDays
+			c.TrashDays = &v
+		}
 	}
 	if p.NotifyVerify != nil || p.NotifyExtend != nil || p.NotifyCheck != nil {
 		if c.Notify == nil {
@@ -490,4 +508,14 @@ func looksLikeCommand(s string) bool {
 		return true
 	}
 	return false
+}
+
+// trashCount is how many tutorials are in the Trash, for Settings › Library's
+// Show Trash.
+func (s *Server) trashCount() int {
+	list, err := store.ListTrash(s.tutorialsDir)
+	if err != nil {
+		return 0
+	}
+	return len(list)
 }

@@ -69,6 +69,11 @@
   }
   var actions = {
     'library.home': {run: go('/')},
+    // The library page (list.html) says which cover is current.
+    'library.trash': {
+      when: function () { return !!window.latheLibrary && window.latheLibrary.target(); },
+      run: function () { window.latheLibrary.trashTarget(); }
+    },
     'reading.bigger': textStep(1),
     'reading.smaller': textStep(-1),
     'reading.actualsize': textStep(0),

@@ -3,6 +3,7 @@ package serve
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -371,4 +372,33 @@ type revealNative struct {
 func (r *revealNative) RevealFolder(path string) error {
 	r.revealed = append(r.revealed, path)
 	return nil
+}
+
+// Settings › Library's Trash retention: 7 / 30 / Never (0), default 30, and
+// the Show Trash link into the library.
+func TestSettingsTrashDays(t *testing.T) {
+	_, ts, _ := settingsServer(t)
+	if got := config.LoadSettings().TrashDays; got != config.DefaultTrashDays {
+		t.Fatalf("default trash_days = %d", got)
+	}
+	page := get(t, ts, "/-/settings")
+	for _, want := range []string{`name="trash_days" value="30" data-setting="trash_days" data-setting-int checked`, `value="0" data-setting="trash_days"`, `href="/?view=trash"`} {
+		if !strings.Contains(page, want) {
+			t.Errorf("Library tab lacks %s", want)
+		}
+	}
+	for _, days := range []int{7, 0, 30} {
+		code, body := postSettings(t, ts, "/-/settings", fmt.Sprintf(`{"trash_days":%d}`, days))
+		if code != http.StatusOK || config.LoadSettings().TrashDays != days {
+			t.Errorf("save trash_days=%d: %d %s", days, code, body)
+		}
+	}
+	if c, _ := config.ReadConfig(); c.TrashDays != nil {
+		t.Errorf("the default (30) should not be written: %v", *c.TrashDays)
+	}
+	for _, body := range []string{`{"trash_days":14}`, `{"trash_days":"30"}`} {
+		if code, _ := postSettings(t, ts, "/-/settings", body); code != http.StatusBadRequest {
+			t.Errorf("POST %s = %d, want 400", body, code)
+		}
+	}
 }

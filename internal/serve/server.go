@@ -163,9 +163,16 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /{$}", s.handleList)
 	mux.HandleFunc("GET /{slug}/", s.handleTutorial)
 	mux.HandleFunc("GET /{slug}/{part}", s.handlePart)
+	// The library's Trash and shelves (library.go, library_actions.go).
 	mux.HandleFunc("POST /-/delete/{slug}", s.handleDelete)
-	// Library shelves (library.go): "+ New shelf" in the list page's sidebar.
+	mux.HandleFunc("POST /-/trash/{id}/restore", s.handleTrashRestore)
+	mux.HandleFunc("POST /-/trash/{id}/delete", s.handleTrashDelete)
+	mux.HandleFunc("POST /-/trash/empty", s.handleTrashEmpty)
 	mux.HandleFunc("POST /-/shelves", s.handleShelfCreate)
+	mux.HandleFunc("POST /-/shelves/assign", s.handleShelfAssign)
+	mux.HandleFunc("POST /-/shelves/{id}/rename", s.handleShelfRename)
+	mux.HandleFunc("POST /-/shelves/{id}/describe", s.handleShelfDescribe)
+	mux.HandleFunc("POST /-/shelves/{id}/delete", s.handleShelfDelete)
 	mux.HandleFunc("POST /-/ask/{slug}/{part}", s.handleAsk)
 	mux.HandleFunc("POST /-/progress/{slug}/{part}", s.handleProgress)
 	mux.HandleFunc("POST /-/extend/{slug}", s.handleExtend)
@@ -287,11 +294,13 @@ func (s *Server) handleList(w http.ResponseWriter, r *http.Request) {
 		s.writeListJSON(w, tutorials, shelves)
 		return
 	}
-	page, ok := buildLibrary(tutorials, shelves, r.URL.Query())
+	env := s.libraryEnvFor()
+	page, ok := buildLibrary(tutorials, shelves, r.URL.Query(), env)
 	if !ok {
 		http.NotFound(w, r)
 		return
 	}
+	withToast(page, r.URL.Query(), tutorials, shelves, env.Trash)
 	var buf bytes.Buffer
 	if err := s.listTmpl.Execute(&buf, map[string]any{
 		"Library":      page,
@@ -519,29 +528,6 @@ func requestHost(r *http.Request) string {
 		return host
 	}
 	return strings.Trim(raw, "[]")
-}
-
-func (s *Server) handleDelete(w http.ResponseWriter, r *http.Request) {
-	if !sameOrigin(r) {
-		http.Error(w, "forbidden", http.StatusForbidden)
-		return
-	}
-	slug := r.PathValue("slug")
-	tutDir, ok := s.safeTutorialPath(slug)
-	if !ok {
-		http.NotFound(w, r)
-		return
-	}
-	info, err := os.Stat(tutDir)
-	if err != nil || !info.IsDir() {
-		http.NotFound(w, r)
-		return
-	}
-	if err := os.RemoveAll(tutDir); err != nil {
-		http.Error(w, "delete failed", http.StatusInternalServerError)
-		return
-	}
-	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
 // SeriesEntry is a row in the "In this series" list rendered at the bottom of

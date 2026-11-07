@@ -22,7 +22,7 @@ import (
 //	POST /-/native/pick-folder  {"slug"}  → {"path", "display"} ("" when cancelled)
 //	POST /-/native/window       {"path"}  → 204
 //	POST /-/native/open-url     {"url"}   → 204 (links to other sites; nativeLinks in components.html)
-//	POST /-/native/reveal       {"what"}  → 204 (Settings: show the tutorials folder in Finder; needs a FolderRevealer)
+//	POST /-/native/reveal       {"what", "slug"} → 204 (show the tutorials folder, or a tutorial's workspace, in Finder; needs a FolderRevealer)
 //
 // Notifications need no endpoint: the server posts one when a Verify, Extend
 // or Check my work run ends (notifyJob).
@@ -475,15 +475,27 @@ func (s *Server) handleNativeReveal(w http.ResponseWriter, r *http.Request) {
 	}
 	var payload struct {
 		What string `json:"what"`
+		Slug string `json:"slug"`
 	}
 	if !readJSONBody(w, r, maxNativeBody, &payload) {
 		return
 	}
-	if payload.What != "tutorials" {
+	var dir string
+	switch payload.What {
+	case "tutorials":
+		dir = s.tutorialsDir
+	case "workspace":
+		// A tutorial's workspace (the library cover menu's Show workspace in
+		// Finder): only the folder recorded for that tutorial.
+		if dir = s.workspaceDir(payload.Slug); dir == "" {
+			http.Error(w, "This tutorial has no workspace folder yet.", http.StatusNotFound)
+			return
+		}
+	default:
 		http.Error(w, "unknown folder", http.StatusBadRequest)
 		return
 	}
-	if err := fr.RevealFolder(s.tutorialsDir); err != nil {
+	if err := fr.RevealFolder(dir); err != nil {
 		http.Error(w, "could not show the folder: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
