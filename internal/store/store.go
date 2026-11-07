@@ -71,6 +71,11 @@ func Store(srcPath string, opts StoreOptions) (*Tutorial, error) {
 	if err := os.RemoveAll(filepath.Join(destDir, CodeDirName)); err != nil {
 		return nil, fmt.Errorf("clear stale code snapshot: %w", err)
 	}
+	// A hosted run's progress (writing.json) described the run, not the
+	// stored tutorial.
+	if err := os.Remove(filepath.Join(destDir, WritingFile)); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return nil, fmt.Errorf("clear writing progress: %w", err)
+	}
 	// "Check my work" results were checked against the old parts.
 	if err := os.Remove(filepath.Join(destDir, ChecksFile)); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return nil, fmt.Errorf("clear stale checks: %w", err)

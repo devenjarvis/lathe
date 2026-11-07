@@ -34,6 +34,10 @@ func (s *Server) SetNative(n Native) {
 	s.nativeMu.Lock()
 	s.native = n
 	s.nativeMu.Unlock()
+	if n != nil {
+		// The Dock badge and "<agent> needs you" (native_notify.go).
+		s.attn.start(s)
+	}
 }
 
 // nativeShell returns the installed shell, or nil in a plain browser.

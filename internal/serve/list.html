@@ -12,7 +12,7 @@
     <h1>Lathe</h1>
     <p class="subtitle">{{if .Total}}{{.Total}} tutorial{{if ne .Total 1}}s{{end}}{{if .ShelfCount}} on {{.ShelfCount}} shel{{if ne .ShelfCount 1}}ves{{else}}f{{end}}{{else}} in your library{{end}}.{{else}}Hands-on tutorials you build yourself, written by your coding agent.{{end}}</p>
   </div>
-  <div class="header-tools">{{template "paletteButton" $}}{{template "settingsLink" ""}}{{template "themeToggle" $}}</div>
+  <div class="header-tools">{{template "updateNotice"}}{{template "newButton"}}{{template "paletteButton" $}}{{template "settingsLink" ""}}{{template "themeToggle" $}}</div>
 </div>
 <div class="library">
   {{template "libraryNav" .}}
@@ -23,6 +23,15 @@
       <input type="hidden" name="view" value="all">
       <input type="search" name="q" class="search-input" placeholder="Search all tutorials…" aria-label="Search all tutorials" autocomplete="off">
     </form>
+    {{end}}
+    {{if $.Welcome}}
+    <aside class="welcome-callout" aria-labelledby="welcomeCalloutHeading">
+      <div class="welcome-callout-text">
+        <h2 id="welcomeCalloutHeading">New to Lathe?</h2>
+        <p>Three short steps: pick your coding agent, choose where code folders go, then make your first tutorial.</p>
+      </div>
+      <a class="btn btn-primary" href="/-/welcome">Set up Lathe</a>
+    </aside>
     {{end}}
     <section class="shelf" aria-labelledby="pickUpHeading">
       <div class="shelf-head">
@@ -60,6 +69,7 @@
       </div>
       {{if .Editable}}{{template "shelfMenu" .}}{{end}}
     </div>
+    {{with .Split}}{{template "splitBanner" .}}{{end}}
     {{if .Cards}}
     <div class="controls">
       <form class="toolbar" method="GET" action="/" role="search">
@@ -296,20 +306,6 @@
       });
     });
   })();
-  // The New tutorial cover's Copy button (hidden until this runs).
-  (function(){
-    document.querySelectorAll('.new-cover-copy').forEach(function(btn){
-      if (!navigator.clipboard || !navigator.clipboard.writeText) return;
-      btn.hidden = false;
-      btn.addEventListener('click', function(){
-        navigator.clipboard.writeText(btn.getAttribute('data-copy')).then(function(){
-          btn.textContent = 'Copied';
-          setTimeout(function(){ btn.textContent = 'Copy'; }, 1600);
-        });
-      });
-    });
-  })();
-
   // ---- The library's actions: the toast, the cover ⋯ menu, Move to Trash
   // and Undo, drag a cover onto a shelf, the shelf ⋯ menu. Every one of them
   // also works with scripts off (plain forms and links answered with a
@@ -740,9 +736,30 @@
       var c = a.closest && a.closest('.tutorial');
       return c && !c.hasAttribute('data-trashed') ? c : null;
     }
+    // Open a cover's tutorial in its own app window: ⌘↩ (the menu's Open
+    // in new window) on the focused cover, or ⌘-click / Ctrl+click on it.
+    // In a browser those keep their usual meaning (a new tab).
+    function openWindow(card){
+      var slug = card && card.getAttribute('data-slug');
+      if (!slug || !window.lathePaletteOpenWindow) return;
+      window.lathePaletteOpenWindow('/' + encodeURIComponent(slug) + '/').catch(function(){
+        showToast('Could not open a separate window');
+      });
+    }
+    if (root.hasAttribute('data-native')) {
+      document.addEventListener('click', function(ev){
+        if (!(ev.metaKey || ev.ctrlKey) || ev.button !== 0) return;
+        var a = ev.target.closest && ev.target.closest('.tutorial a.tutorial-link');
+        if (!a) return;
+        ev.preventDefault();
+        openWindow(a.closest('.tutorial'));
+      });
+    }
     window.latheLibrary = {
       target: function(){ return !!target(); },
-      trashTarget: function(){ var c = target(); if (c) trash(c.getAttribute('data-slug')); }
+      trashTarget: function(){ var c = target(); if (c) trash(c.getAttribute('data-slug')); },
+      windowTarget: function(){ var c = target(); return !!c && c.getAttribute('data-status') !== 'writing'; },
+      openTargetWindow: function(){ openWindow(target()); }
     };
     // The desktop menu's Move to Trash follows focus.
     var refreshTimer;
@@ -835,9 +852,85 @@
     }
   });
 </script>
+<script>
+  // Writing covers stay live: each [data-writing] cover polls its
+  // reservation (GET /-/new/{slug}/progress?draft=0) and redraws its step
+  // segments and the "Needs you" link. Once the agent stores it (or the run
+  // ends without storing) the page reloads, so it becomes a normal cover (or
+  // goes). Scripts off, the cover shows the state it was rendered with.
+  (function(){
+    var covers = document.querySelectorAll('.writing-cover[data-writing][data-live="true"]');
+    if (!covers.length || !window.fetch) return;
+    function el(tag, cls, t){ var n = document.createElement(tag); if (cls) n.className = cls; if (t !== undefined) n.textContent = t; return n; }
+    function draw(cover, d){
+      var segs = cover.querySelectorAll('.writing-seg');
+      (d.steps || []).forEach(function(s, i){ if (segs[i]) segs[i].setAttribute('data-state', s.state); });
+      var n = cover.querySelector('.writing-cover-step-n');
+      if (n) n.textContent = d.active + '/4';
+      var lab = cover.querySelector('.writing-cover-step-label');
+      if (lab) lab.textContent = d.step || '';
+      var hidden = cover.querySelector('.tutorial-link .visually-hidden');
+      if (hidden) hidden.textContent = ', being written: step ' + d.active + ' of 4, ' + (d.step || '');
+      var actions = cover.querySelector('.tutorial-actions');
+      var cur = actions.querySelector('.writing-needs, .writing-cover-state');
+      var next;
+      if (d.needs) {
+        next = el('a', 'writing-needs', 'Needs you: ' + d.needs.label + ' ');
+        next.href = '/' + encodeURIComponent(d.slug) + '/#needs';
+        var arrow = el('span', '', '→');
+        arrow.setAttribute('aria-hidden', 'true');
+        next.appendChild(arrow);
+      } else {
+        next = el('span', 'writing-cover-state', 'Being written');
+      }
+      if (!cur || cur.outerHTML !== next.outerHTML) {
+        if (cur) actions.replaceChild(next, cur); else actions.insertBefore(next, actions.firstChild);
+      }
+    }
+    var timer = null;
+    function poll(){
+      clearTimeout(timer);
+      var reload = false;
+      Promise.all(Array.prototype.map.call(covers, function(cover){
+        var slug = cover.getAttribute('data-slug');
+        return fetch('/-/new/' + encodeURIComponent(slug) + '/progress?draft=0', {headers: {'Accept': 'application/json'}, cache: 'no-store'})
+          .then(function(r){ return r.ok ? r.json() : null; })
+          .then(function(d){
+            if (!d) return;
+            if (d.state !== 'writing') { reload = true; return; }
+            draw(cover, d);
+          })
+          .catch(function(){});
+      })).then(function(){
+        if (reload) { location.reload(); return; }
+        timer = setTimeout(poll, document.hidden ? 15000 : 3000);
+      });
+    }
+    document.addEventListener('visibilitychange', function(){ if (!document.hidden) poll(); });
+    timer = setTimeout(poll, 3000);
+  })();
+</script>
 {{template "shortcuts" .}}
 {{if .Native}}{{template "nativeLinks" .}}{{end}}
 {{template "liveNudge" .}}
+{{template "shelfJobs"}}
+<script>
+  // Split preview: a toggle with scripts (the :target link works without).
+  (function(){
+    var toggle = document.getElementById('splitPreviewToggle');
+    var panel = document.getElementById('splitPreview');
+    if (!toggle || !panel) return;
+    toggle.setAttribute('aria-expanded', 'false');
+    function set(open){
+      panel.classList.toggle('is-open', open);
+      toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+      toggle.textContent = open ? 'Hide preview' : 'Preview split';
+      if (open) panel.focus();
+    }
+    toggle.addEventListener('click', function(ev){ ev.preventDefault(); set(!panel.classList.contains('is-open')); });
+    panel.querySelector('[data-split-close]').addEventListener('click', function(ev){ ev.preventDefault(); set(false); toggle.focus(); });
+  })();
+</script>
 </body>
 </html>
 
@@ -845,7 +938,7 @@
      carries its size and title; the paper foot carries progress, chips, the
      status badge and the ⋯ menu. data-* feed the client search/filter;
      data-shelf feeds the bfcache refresh and the drag-to-shelf. */}}
-{{define "cover"}}
+{{define "cover"}}{{if .Writing}}{{template "writingCover" .}}{{else}}
   <div class="tutorial{{if .Hidden}} hidden{{end}}" data-title="{{.Title}}" data-slug="{{.Slug}}" data-topic="{{.Topic}}" data-tags="{{range .Tags}}{{.}},{{end}}" data-repo="{{.RepoDisplay}}" data-tools="{{range .Tools}}{{.Name}}{{if .Version}} {{.Version}}{{end}},{{end}}" data-status="{{.Status}}" data-created="{{.Created.Format "2006-01-02T15:04:05Z07:00"}}" data-series="{{.IsSeries}}" data-shelf="{{.ShelfID}}" data-shelf-name="{{.ShelfName}}" data-cover="{{coverFor .Slug}}">
     <div class="tutorial-body">
       <a class="tutorial-link" href="/{{.Slug}}/">{{.Title}}</a>
@@ -869,6 +962,34 @@
     </div>
     <div class="tutorial-actions">
       {{template "badge" .Status}}
+      {{template "coverMenu" .}}
+    </div>
+  </div>
+{{end}}{{end}}
+
+{{/* writingCover — a tutorial the hosted agent is writing (. is a libCard
+     with .Writing): a dark "Writing Part 1" cover with the four steps as
+     segments, the step it is on, and a yellow "Needs you: …" link while the
+     agent waits on the reader. The list script polls it live
+     (data-writing); once stored it reloads into a normal cover. */}}
+{{define "writingCover"}}{{$w := .Writing}}
+  <div class="tutorial writing-cover{{if .Hidden}} hidden{{end}}" data-writing data-title="{{.Title}}" data-slug="{{.Slug}}" data-topic="{{.Topic}}" data-tags="{{range .Tags}}{{.}},{{end}}" data-repo="{{.RepoDisplay}}" data-tools="{{range .Tools}}{{.Name}}{{if .Version}} {{.Version}}{{end}},{{end}}" data-status="{{.Status}}" data-created="{{.Created.Format "2006-01-02T15:04:05Z07:00"}}" data-series="false" data-shelf="{{.ShelfID}}" data-shelf-name="{{.ShelfName}}" data-live="{{$w.Live}}">
+    <div class="tutorial-body">
+      <div class="meta"><span class="writing-pulse" aria-hidden="true"></span>Writing Part 1</div>
+      <a class="tutorial-link" href="/{{.Slug}}/">{{.Title}}<span class="visually-hidden">, being written: step {{$w.Active}} of 4, {{$w.Step}}</span></a>
+      <div class="writing-cover-steps">
+        <ol class="writing-segs" aria-hidden="true">{{range $w.Steps}}<li class="writing-seg" data-state="{{.State}}" title="{{.Label}}"></li>{{end}}</ol>
+        <p class="writing-cover-step" aria-hidden="true"><span class="writing-cover-step-n">{{$w.Active}}/4</span> <span class="writing-cover-step-label">{{$w.Step}}</span></p>
+      </div>
+    </div>
+    <div class="tutorial-actions">
+      {{- if $w.Needs}}
+      <a class="writing-needs" href="{{$w.NeedsHref}}">Needs you: {{$w.Needs.Label}} <span aria-hidden="true">→</span></a>
+      {{- else if not $w.Live}}
+      <span class="writing-cover-state">Stopped</span>
+      {{- else}}
+      <span class="writing-cover-state">Being written</span>
+      {{- end}}
       {{template "coverMenu" .}}
     </div>
   </div>
@@ -978,6 +1099,49 @@
      redirect's ?trashed= etc., else an empty, hidden container the page
      script fills). Undo is a form, so it works with scripts off; with
      scripts, ⌘Z / Ctrl+Z also undoes while the toast shows. */}}
+{{/* splitBanner — a shelf past the split threshold (Settings › Library):
+     the agent's proposed split with Preview split / Not now, or, before
+     there is one, Suggest a split. The preview is a :target panel, so it
+     opens with scripts off too; nothing moves until "Split into two
+     shelves". */}}
+{{define "splitBanner"}}
+<section class="split-banner" aria-labelledby="splitBannerText">
+  <div class="split-banner-row">
+    <p class="split-banner-text" id="splitBannerText"><strong>{{.Count}} tutorials is a lot for one shelf.</strong>
+      {{- if .Sides}}{{$a := index .Sides 0}}{{$b := index .Sides 1}} Split it into {{$a.Name}} ({{len $a.Cards}}) and {{$b.Name}} ({{len $b.Cards}})?
+      {{- else}} Your agent can suggest a way to split it in two.{{end}}</p>
+    <div class="split-banner-actions">
+      {{- if .Sides}}
+      <a class="btn btn-sm btn-primary" href="#splitPreview" id="splitPreviewToggle" aria-controls="splitPreview">Preview split</a>
+      {{- else}}
+      <button type="button" class="btn btn-sm btn-primary" data-shelf-job data-action="/-/shelves/{{.ShelfID}}/split/suggest" data-status="splitJob">Suggest a split</button>
+      {{- end}}
+      <form method="POST" action="/-/shelves/{{.ShelfID}}/split/dismiss"><button type="submit" class="btn btn-sm">Not now</button></form>
+    </div>
+  </div>
+  <div class="shelf-job" id="splitJob" data-starting="Your agent is reading the shelf…"{{with .Run}} data-run-id="{{.ID}}"{{else}} hidden{{end}}></div>
+  {{- if .Sides}}
+  <div class="split-preview" id="splitPreview" tabindex="-1" aria-label="Proposed split">
+    <div class="split-cols">
+      {{- $name := .ShelfName}}
+      {{- range .Sides}}
+      <section class="split-col">
+        <h3>{{.Name}} <span class="shelf-count">{{len .Cards}}</span></h3>
+        <p class="split-col-note">{{if .Keeps}}{{if eq .Name $name}}Stays on this shelf{{else}}Stays here; the shelf is renamed {{.Name}}{{end}}{{else if .Existing}}Joins your {{.Name}} shelf{{else}}A new shelf, right after this one{{end}}</p>
+        <ul>{{range .Cards}}<li><a href="/{{.Slug}}/">{{.Title}}</a></li>{{end}}</ul>
+      </section>
+      {{- end}}
+    </div>
+    <form class="split-preview-actions" method="POST" action="/-/shelves/{{.ShelfID}}/split">
+      <button type="submit" class="btn btn-primary">Split into two shelves</button>
+      <button type="button" class="btn btn-ghost" data-shelf-job data-action="/-/shelves/{{.ShelfID}}/split/suggest" data-status="splitJob">Suggest another split</button>
+      <a class="btn btn-ghost" href="#libraryMain" data-split-close>Cancel</a>
+    </form>
+  </div>
+  {{- end}}
+</section>
+{{end}}
+
 {{define "toast"}}
 <div class="toast" id="libraryToast" role="status" aria-live="polite" data-undo-key="{{.UndoKey}}" data-trash-key="{{.TrashKey}}"{{if .Mac}} data-mac{{end}}{{if not .Toast}} hidden{{end}}>
   <span class="toast-msg">{{with .Toast}}{{.Message}}{{end}}</span>
@@ -989,18 +1153,14 @@
 {{end}}
 
 {{/* newCover — the blank "New tutorial" cover that opens Home's first row.
-     For now it hands over the /lathe command to run in the reader's agent
-     (the copy button needs scripts; the command stays selectable without). */}}
+     A link to the /-/new page; newsheet.js opens the New tutorial sheet
+     over Home instead. */}}
 {{define "newCover"}}
-  <article class="new-cover" aria-labelledby="newCoverTitle">
+  <a class="new-cover" href="/-/new" data-new-open>
     <span class="new-cover-plus" aria-hidden="true">+</span>
-    <h3 class="new-cover-title" id="newCoverTitle">New tutorial</h3>
-    <p class="new-cover-hint">Run this in your coding agent, with the topic you want to learn:</p>
-    <div class="new-cover-cmd">
-      <code>/lathe <var>topic</var></code>
-      <button type="button" class="new-cover-copy" data-copy="/lathe " hidden>Copy</button>
-    </div>
-  </article>
+    <span class="new-cover-title">New tutorial</span>
+    <span class="new-cover-hint">Say what you want to build. Your agent writes Part 1, and you type the code in.</span>
+  </a>
 {{end}}
 
 {{/* libraryNav — the library sidebar (. is a libraryPage). A <details> that

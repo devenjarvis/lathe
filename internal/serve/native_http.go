@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -20,7 +21,9 @@ import (
 // server.
 //
 //	POST /-/native/pick-folder  {"slug"}  → {"path", "display"} ("" when cancelled)
-//	POST /-/native/window       {"path"}  → 204
+//	POST /-/native/window       {"path"}  → 204 (a tutorial, a pop-out or Settings; native_window.go)
+//	POST /-/native/view         {"client", "scroll"} → 204 (scroll position for restore on launch)
+//	POST /-/native/drop/…       folder drops (native_drop.go)
 //	POST /-/native/open-url     {"url"}   → 204 (links to other sites; nativeLinks in components.html)
 //	POST /-/native/reveal       {"what", "slug"} → 204 (show the tutorials or voices folder, or a tutorial's workspace, in Finder; needs a FolderRevealer)
 //
@@ -51,8 +54,13 @@ func (s *Server) handleNativePickFolder(w http.ResponseWriter, r *http.Request) 
 	var payload struct {
 		Slug string `json:"slug"`
 		// For is "agent-path" when the Settings window's Agent tab picks a
-		// folder to search for agents; no tutorial is involved then.
-		For string `json:"for"`
+		// folder to search for agents, and "new-workspace" when the New
+		// tutorial sheet picks the workspace (starting at Path, or the
+		// nearest folder of it that exists), and "code-root" when the
+		// first-launch setup picks the code folder (the same way); no
+		// tutorial is involved then.
+		For  string `json:"for"`
+		Path string `json:"path"`
 	}
 	if !readJSONBody(w, r, maxNativeBody, &payload) {
 		return
@@ -60,6 +68,24 @@ func (s *Server) handleNativePickFolder(w http.ResponseWriter, r *http.Request) 
 	if payload.For == "agent-path" {
 		home, _ := os.UserHomeDir()
 		path, err := n.PickFolder("Choose a folder to search for agents", home)
+		if err != nil {
+			http.Error(w, "could not open the folder picker: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		display := ""
+		if path != "" {
+			display = displayPath(path)
+		}
+		writeJSON(w, map[string]string{"path": path, "display": display})
+		return
+	}
+	if payload.For == "new-workspace" || payload.For == "code-root" {
+		title := "Choose where you'll type the code"
+		if payload.For == "code-root" {
+			// The first-launch setup's code folder (welcome.go).
+			title = "Choose where code folders go"
+		}
+		path, err := n.PickFolder(title, nearestDir(payload.Path))
 		if err != nil {
 			http.Error(w, "could not open the folder picker: "+err.Error(), http.StatusInternalServerError)
 			return
@@ -101,11 +127,32 @@ func (s *Server) handleNativePickFolder(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, map[string]string{"path": path, "display": display})
 }
 
-// handleNativeWindow opens the agent panel's pop-out in an app window, where
-// window.open has nothing to open. Only the pop-out of a real part is
-// accepted ("/{slug}/{part}?agent=popout"), plus the Settings window
-// ("/-/settings", optionally with a #tab), so a page can't make the shell
-// open anything else.
+// nearestDir is the folder picker's start for a typed path: the path, or
+// its nearest parent that exists, else the home dir.
+func nearestDir(p string) string {
+	home, _ := os.UserHomeDir()
+	p, err := store.ExpandPath(p)
+	if err != nil || !filepath.IsAbs(p) {
+		return home
+	}
+	for {
+		if fi, err := os.Stat(p); err == nil && fi.IsDir() {
+			return p
+		}
+		parent := filepath.Dir(p)
+		if parent == p {
+			return home
+		}
+		p = parent
+	}
+}
+
+// handleNativeWindow opens an app window, where window.open has nothing to
+// open. Only these are accepted, so a page can't make the shell open
+// anything else: a tutorial's reading page ("/{slug}/" or "/{slug}/{part}",
+// optionally with a heading #id; see tutorialPage), the agent panel's
+// pop-out of a real part ("/{slug}/{part}?agent=popout"), and the Settings
+// window ("/-/settings", optionally with a #tab).
 func (s *Server) handleNativeWindow(w http.ResponseWriter, r *http.Request) {
 	n := s.nativeShell()
 	if n == nil {
@@ -130,9 +177,19 @@ func (s *Server) handleNativeWindow(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
+	if tut, ok := s.tutorialPage(payload.Path); ok {
+		// A tutorial in its own window (⌘↩ on a cover or a palette result,
+		// ⌘-click on a cover). The shell keeps one window per tutorial.
+		if err := n.OpenWindow(payload.Path, tutorialName(tut)); err != nil {
+			http.Error(w, "could not open a window: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
 	tut, ok := s.popoutTutorial(payload.Path)
 	if !ok {
-		http.Error(w, "not an agent panel pop-out path", http.StatusBadRequest)
+		http.Error(w, "not a tutorial page or agent panel pop-out path", http.StatusBadRequest)
 		return
 	}
 	if err := n.OpenWindow(payload.Path, "Agent · "+tutorialName(tut)); err != nil {
@@ -254,6 +311,9 @@ type jobOutcome struct {
 	// than that is not this job's (the worker path, where no after hook
 	// tells).
 	since time.Time
+	// title names the tutorial when it may be gone from disk (a new
+	// tutorial whose run ended without storing it).
+	title string
 }
 
 // notifyJob posts the system notification for a finished job, when a desktop
@@ -275,7 +335,7 @@ func (s *Server) notifyJob(o jobOutcome) {
 	if !ok {
 		return
 	}
-	go n.Notify(title, body)
+	s.postNotice(n, Notice{Title: title, Body: body, Action: s.jobAction(o)})
 }
 
 // jobNotice words a finished job's notification from what it left on disk.
@@ -283,6 +343,9 @@ func (s *Server) notifyJob(o jobOutcome) {
 // gone.
 func jobNotice(o jobOutcome) (title, body string, ok bool) {
 	tut, err := store.ReadMetadata(o.tutDir)
+	if o.job == jobNew {
+		return newNotice(o, tut, err)
+	}
 	if err != nil {
 		return "", "", false
 	}
@@ -357,6 +420,24 @@ func jobNotice(o jobOutcome) (title, body string, ok bool) {
 	return "", "", false
 }
 
+// newNotice words a new tutorial's notification: "Part 1 is ready: <title>"
+// once the agent stored it, else that it stopped (the reservation is gone by
+// then, so the title comes from the run).
+func newNotice(o jobOutcome, tut *store.Tutorial, readErr error) (string, string, bool) {
+	if readErr == nil && tut.Status != store.StatusWriting && len(tut.Parts) > 0 {
+		return "Part 1 is ready: " + tutorialName(tut), "Open it in Lathe to start reading.", true
+	}
+	name := strings.TrimSpace(o.title)
+	if name == "" {
+		name = filepath.Base(o.tutDir)
+	}
+	body := o.note
+	if body == "" {
+		body = "It stopped before storing the tutorial."
+	}
+	return "Writing stopped: " + name, body, true
+}
+
 // verifyFailure is a one-line "where and why" for a failed verify, in the
 // failure callout's terms.
 func verifyFailure(tutDir string, vr *store.VerifyResult) string {
@@ -389,7 +470,7 @@ func (s *Server) runFinished(run *agentRun, final runEvent, cancelled bool) {
 	}
 	s.maybeAutoVerify(run, final)
 	switch run.job {
-	case jobVerify, jobExtend, jobCheck:
+	case jobVerify, jobExtend, jobCheck, jobNew:
 	default:
 		return
 	}
@@ -397,6 +478,7 @@ func (s *Server) runFinished(run *agentRun, final runEvent, cancelled bool) {
 		job:     run.job,
 		tutDir:  run.target.tutDir,
 		part:    run.target.part,
+		title:   run.target.title,
 		stopped: final.Type != "done" || final.Message != "",
 		note:    final.Message,
 	})

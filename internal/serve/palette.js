@@ -5,7 +5,7 @@
 // It searches GET /-/index (tutorials, their parts and h2/h3 sections, tags,
 // shelves) in the browser and adds actions: the registry commands this page
 // can run (window.latheShortcuts.available), a tag view, a /lathe command for
-// a new tutorial and, on a reading page with the agent panel, asking the
+// a new tutorial (the New tutorial sheet, topic prefilled) and, on a reading page with the agent panel, asking the
 // agent about the query in this part. Typing ">" first lists actions only.
 //
 // The input is a combobox over a grouped listbox: the options never take
@@ -233,7 +233,7 @@
   function queryActions(q, tokens) {
     var out = [];
     if (!q) return out;
-    out.push({kind: 'new', label: 'New tutorial about “' + q + '”…', command: '/lathe ' + q});
+    out.push({kind: 'new', label: 'New tutorial about “' + q + '”…', command: '/lathe ' + q, topic: q});
     if (index) {
       // The two most used tags that match.
       index.tags.filter(function (g) { return match(tokens, [[g.tag, 1]], true); }).slice(0, 2).forEach(function (g) {
@@ -475,8 +475,13 @@
         } catch (e) {}
         return;
       case 'new':
-        // Starting a tutorial from the app isn't built yet (#138): hand over
-        // the /lathe command to run in the coding agent.
+        // The New tutorial sheet, with the topic filled in (newsheet.js).
+        if (window.latheNewSheet) {
+          close(false);
+          window.latheNewSheet.open({topic: it.topic});
+          return;
+        }
+        // No sheet on this page: hand over the /lathe command instead.
         var node = items[active].node;
         copy(it.command).then(function () {
           statusEl.textContent = 'Copied ' + it.command + '. Run it in your coding agent.';
@@ -565,6 +570,8 @@
     b.addEventListener('pointerenter', function () { if (!index) load(); }, {once: true});
   });
 
-  window.lathePalette = {open: open, close: close, isOpen: function () { return dlg.open; }};
+  window.lathePalette = {open: open, close: close, isOpen: function () { return dlg.open; },
+    // The menu's Open in new window (⌘↩) while the palette is open.
+    openInWindow: function () { choose(true); }};
   if (window.latheShortcuts && window.latheShortcuts.refresh) window.latheShortcuts.refresh();
 })();

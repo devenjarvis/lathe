@@ -32,31 +32,7 @@
   <p class="settings-lead">Lathe runs your own coding agent for Ask, Verify, Add a part and Check my work. It never calls a model itself, so your agent's sign-in and plan apply.</p>
 
   <form id="agentForm" class="settings-group" novalidate>
-    <fieldset class="agent-choices settings-agents">
-      <legend>Agents Lathe can host</legend>
-      {{- range .Agents}}
-      <label class="agent-choice settings-agent{{if .Current}} is-current{{end}}" data-agent="{{.ID}}">
-        <input type="radio" name="agent" value="{{.ID}}"{{if .Current}} checked{{end}}{{if not .Ready}} disabled{{end}}>
-        <span class="agent-choice-text">
-          <strong>{{.Name}}</strong>
-          {{- if .Current}}
-          <span class="settings-agent-status" data-agent-live data-state="{{.State}}"><span class="agent-dot" aria-hidden="true"></span><span class="settings-agent-live">{{.Status}}</span></span>
-          <span class="agent-choice-detail">{{.Command}}</span>
-          {{- else if .Ready}}
-          <span class="settings-agent-status is-found">Found on your PATH</span>
-          <span class="agent-choice-detail">{{.Command}}</span>
-          {{- else}}
-          <span class="settings-agent-status is-missing">{{if .Found}}{{.Program}} not found{{else}}Not installed{{end}}</span>
-          {{- if .InstallCmd}}
-          <span class="settings-install"><code>{{.Install}}</code><button type="button" class="btn btn-sm" data-copy="{{.Install}}" aria-label="Copy the install command for {{.Name}}">Copy</button></span>
-          {{- else}}
-          <span class="agent-choice-detail">{{.Install}}</span>
-          {{- end}}
-          {{- end}}
-        </span>
-      </label>
-      {{- end}}
-    </fieldset>
+    {{template "agentChoices" .Agents}}
     <div class="settings-actions">
       <button type="submit" id="agentUse" class="btn btn-primary" disabled>Use this agent</button>
       <button type="button" id="agentRestart" class="btn btn-ghost"{{if not .Current}} hidden{{end}}>Restart</button>
@@ -92,6 +68,11 @@
       {{- end}}
     </form>
     <p class="agent-error" id="agentPathError" role="alert"></p>
+  </div>
+
+  <div class="settings-group">
+    <h3>Setup</h3>
+    <p class="agent-hint">The short setup Lathe shows on first launch: pick an agent, choose where code folders go, then make a first tutorial. <a href="/-/welcome" data-welcome-link>Run setup again</a></p>
   </div>
 
   <div class="settings-group agent-fallback">
@@ -189,11 +170,104 @@
       </article>
       {{- end}}
 
-      <article class="voice-detail" data-voice="new" aria-labelledby="voice-title-new"{{if ne .VoicePane "new"}} hidden{{end}}>
+      {{- /* New voice (voice_new.go): describe it on the left; the hosted
+           agent's draft of the ring buffer sample on the right, refined
+           with chips or free text, then Save voice. With no agent set up the
+           right side offers /lathe-voice instead. */}}
+      <article class="voice-detail voice-new" data-voice="new" aria-labelledby="voice-title-new"{{if ne .VoicePane "new"}} hidden{{end}}>
         <header class="voice-head"><h3 id="voice-title-new">New voice</h3></header>
-        <p>Your agent drafts a voice with you: it asks how the prose should sound, writes the spec and a sample paragraph, and saves it once you approve.</p>
-        <div class="agent-fallback-cmd"><code>/lathe-voice &lt;name&gt;</code><button type="button" class="btn btn-sm" data-copy="/lathe-voice " aria-label="Copy /lathe-voice">Copy</button></div>
-        <p class="agent-hint">Or start from a built-in: pick one and choose <strong>Duplicate and edit</strong>. Custom voices live in <code>{{.VoicesDir}}</code>.</p>
+        <div class="voice-new-grid" id="voiceNew" data-agent="{{.AgentName}}" data-default="{{.DefaultVoice}}">
+          <form class="voice-new-form" id="vnForm" novalidate aria-labelledby="vnFormTitle">
+            <p class="voice-sounds" id="vnFormTitle">Describe it</p>
+            <div class="voice-field">
+              <label for="vnName">Name</label>
+              <input id="vnName" type="text" autocomplete="off" spellcheck="false" maxlength="40" placeholder="field-notes" aria-describedby="vnNameHint">
+              <p class="agent-hint" id="vnNameHint">Lowercase letters, digits and hyphens.</p>
+            </div>
+            <div class="voice-field">
+              <label for="vnDescribe">How should it sound?</label>
+              <textarea id="vnDescribe" rows="4" maxlength="2000" placeholder="Like a lab notebook. Short labelled lines: what happens, why it matters, how to check it. No jokes and no first person."></textarea>
+            </div>
+            <fieldset class="voice-field">
+              <legend>Start from</legend>
+              <div class="settings-seg">
+                {{- range .BuiltinVoices}}
+                <label><input type="radio" name="vnBase" value="{{.Name}}"{{if eq .Name "plainspoken"}} checked{{end}}><span>{{.Name}}</span></label>
+                {{- end}}
+                <label><input type="radio" name="vnBase" value=""><span>Blank</span></label>
+              </div>
+            </fieldset>
+            <details class="voice-new-writing">
+              <summary>Paste writing you like <span class="voice-new-optional">(optional)</span></summary>
+              <label for="vnWriting" class="visually-hidden">Writing you like</label>
+              <textarea id="vnWriting" rows="5" maxlength="12000" placeholder="A few paragraphs in the tone you want. The agent matches the tone, not the words."></textarea>
+            </details>
+            <div class="voice-new-always">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>
+              <p><strong>Always on.</strong> A voice changes tone only. Sources, accuracy checks and verification work the same in every voice.</p>
+            </div>
+            {{- if .AgentName}}
+            <div class="settings-actions">
+              <button type="submit" class="btn btn-primary" id="vnDraft">Draft it</button>
+            </div>
+            {{- end}}
+            <p class="agent-error" id="vnError" role="alert"></p>
+          </form>
+
+          <section class="voice-new-preview" aria-labelledby="vnPreviewTitle">
+            <div class="voice-new-preview-head">
+              <h4 class="voice-sounds" id="vnPreviewTitle">Preview<span id="vnDraftNo"></span></h4>
+              {{- if .AgentName}}
+              <span class="voice-new-by" id="vnBy" data-state="ready"><span class="agent-dot" aria-hidden="true"></span><span id="vnByText">Drafts with {{.AgentName}}</span></span>
+              {{- end}}
+            </div>
+            <div class="voice-new-card" id="vnCard" aria-live="polite" aria-busy="false">
+              <p class="voice-new-card-title">The ring buffer</p>
+              <div class="voice-new-sample" id="vnSample">
+                {{- if .AgentName}}
+                <p class="voice-new-empty">Describe the voice and choose <strong>Draft it</strong>. {{.AgentName}} writes the paragraph every voice is compared on, in the new voice.</p>
+                {{- else}}
+                <p class="voice-new-empty">No agent is set up, so Lathe can't draft here. Choose one under <a href="#agent">Agent</a>, or run this in your agent's terminal. It asks how the voice should sound, shows you drafts and saves the one you approve.</p>
+                <div class="agent-fallback-cmd"><code id="vnCmd">/lathe-voice &lt;name&gt;</code><button type="button" class="btn btn-sm" id="vnCmdCopy" data-copy="/lathe-voice " aria-label="Copy the /lathe-voice command">Copy</button></div>
+                {{- end}}
+              </div>
+            </div>
+            <div class="voice-new-reply" id="vnReply" hidden></div>
+            <div class="voice-new-handoff" id="vnHandoff" hidden>
+              <p id="vnHandoffText"></p>
+              <div class="agent-fallback-cmd"><code id="vnHandoffCmd"></code><button type="button" class="btn btn-sm" id="vnHandoffCopy" aria-label="Copy the command">Copy</button></div>
+            </div>
+            {{- if .AgentName}}
+            <div class="voice-new-adjust">
+              <p class="voice-sounds" id="vnAdjustLabel">Adjust</p>
+              <div class="voice-new-chips" role="group" aria-labelledby="vnAdjustLabel">
+                <button type="button" class="voice-new-chip" data-refine="Shorter" disabled>Shorter</button>
+                <button type="button" class="voice-new-chip" data-refine="Warmer" disabled>Warmer</button>
+                <button type="button" class="voice-new-chip" data-refine="Less jargon" disabled>Less jargon</button>
+                <button type="button" class="voice-new-chip" data-refine="More examples" disabled>More examples</button>
+              </div>
+              <form class="settings-inline voice-new-refine" id="vnRefineForm" novalidate>
+                <label for="vnRefine" class="visually-hidden">Tell the agent what to change</label>
+                <input id="vnRefine" type="text" autocomplete="off" maxlength="2000" placeholder="Or say what to change…" disabled>
+                <button type="submit" class="btn btn-ghost btn-sm" disabled>Redraft</button>
+              </form>
+            </div>
+            {{- end}}
+            <details class="voice-new-file" id="vnFile">
+              <summary>Voice file <code id="vnPath">{{.VoicesDir}}/&lt;name&gt;.md</code></summary>
+              <p class="agent-hint">Lathe puts its fixed guardrail in front of every voice when it's used. The guardrail isn't part of the file and can't be edited.</p>
+              <pre class="voice-new-spec" id="vnSpec" tabindex="0"><span class="voice-new-optional">No draft yet.</span></pre>
+            </details>
+            {{- if .AgentName}}
+            <div class="voice-new-actions">
+              <label class="voice-new-default"><input type="checkbox" id="vnDefault"> Make it my default</label>
+              <button type="button" class="btn btn-ghost" id="vnCancel">Cancel</button>
+              <button type="button" class="btn btn-primary" id="vnSave" disabled>Save voice</button>
+            </div>
+            <p class="voice-new-status" id="vnStatus" role="status" aria-live="polite"></p>
+            {{- end}}
+          </section>
+        </div>
       </article>
 
       <article class="voice-detail voice-compare" data-voice="compare" aria-labelledby="voice-title-compare"{{if ne .VoicePane "compare"}} hidden{{end}}>
@@ -246,12 +320,71 @@
     </div>
     <p class="settings-inline settings-trash-link"><a class="btn btn-ghost btn-sm" href="/?view=trash">Show Trash{{with .TrashCount}} · {{.}}{{end}}</a></p>
   </fieldset>
+  <div class="settings-group" id="sortShelves">
+    <h3>Shelves</h3>
+    <p class="agent-hint" id="sortHint">Your agent proposes a shelf for every tutorial: your shelves first, a new one only where several tutorials share a subject. You review the list, and nothing moves until you apply it.</p>
+    {{- with .Sorted}}
+    <p class="sort-done" role="status">{{if eq . "0"}}Nothing needed to move.{{else if eq . "1"}}Moved 1 tutorial.{{else}}Moved {{.}} tutorials.{{end}} <a href="/">Open the library</a></p>
+    {{- end}}
+    {{- with .SortReview}}
+    <form class="sort-review" id="sortReview" method="POST" action="/-/shelves/sort/apply">
+      <p class="sort-review-summary"><strong>{{if .Moves}}{{.Moves}} tutorial{{if ne .Moves 1}}s{{end}} would move{{else}}Everything is already where your agent would put it{{end}}</strong>{{with .NewShelves}} · {{len .}} new shel{{if ne (len .) 1}}ves{{else}}f{{end}}: {{range $i, $n := .}}{{if $i}}, {{end}}{{$n}}{{end}}{{end}}</p>
+      {{- if .Moves}}
+      <table class="sort-table">
+        <thead><tr><th scope="col"><span class="visually-hidden">Move</span></th><th scope="col">Tutorial</th><th scope="col">Now</th><th scope="col">Proposed</th></tr></thead>
+        <tbody>
+        {{- range .Rows}}{{if not .Same}}
+          <tr>
+            <td><input type="checkbox" name="slug" value="{{.Slug}}" checked aria-label="Move {{.Title}} to {{.To}}"></td>
+            <th scope="row">{{.Title}}</th>
+            <td class="sort-from">{{.From}}</td>
+            <td class="sort-to"><span aria-hidden="true">→ </span>{{.To}}{{if .New}} <span class="settings-chip">New</span>{{end}}</td>
+          </tr>
+        {{- end}}{{end}}
+        </tbody>
+      </table>
+      {{- end}}
+      {{- if lt .Moves (len .Rows)}}
+      <details class="sort-same">
+        <summary>{{sub (len .Rows) .Moves}} stay where they are</summary>
+        <ul>{{range .Rows}}{{if .Same}}<li>{{.Title}} <span class="sort-from">· {{.From}}</span></li>{{end}}{{end}}</ul>
+      </details>
+      {{- end}}
+      <div class="settings-actions">
+        {{- if .Moves}}<button type="submit" class="btn btn-primary" id="sortApply" data-moves="{{.Moves}}">Apply {{.Moves}} move{{if ne .Moves 1}}s{{end}}</button>{{end}}
+        <button type="submit" class="btn btn-ghost" formaction="/-/shelves/sort/discard">Discard</button>
+        <button type="button" class="btn btn-ghost" data-shelf-job data-action="/-/shelves/sort" data-status="sortJob">Ask again</button>
+      </div>
+    </form>
+    {{- else}}
+    <div class="settings-inline">
+      <button type="button" class="btn btn-primary" data-shelf-job data-action="/-/shelves/sort" data-status="sortJob"{{if not .LibraryTotal}} disabled{{end}}>Sort my shelves…</button>
+      <span class="agent-hint">{{if not .LibraryTotal}}Nothing to sort yet.{{else if .AgentLabel}}{{.AgentLabel}} sorts {{.LibraryTotal}} tutorial{{if ne .LibraryTotal 1}}s{{end}}.{{else}}No agent is set up, so Lathe gives you a command to paste.{{end}}</span>
+    </div>
+    {{- end}}
+    <div class="shelf-job" id="sortJob" data-starting="Your agent is reading your library…"{{with .SortRun}} data-run-id="{{.ID}}"{{else}} hidden{{end}}></div>
+  </div>
+  <fieldset class="settings-group settings-seg-group">
+    <legend>Suggest splitting a shelf</legend>
+    <p class="agent-hint" id="splitHint">When a shelf holds more tutorials than this, its page offers to split it in two. Your agent proposes the split; you preview both lists before anything moves.</p>
+    <div class="settings-seg" aria-describedby="splitHint">
+      {{- $sa := .Settings.ShelfSplitAt}}
+      {{- range .ShelfSplitChoices}}
+      <label><input type="radio" name="shelf_split_at" value="{{.Value}}" data-setting="shelf_split_at" data-setting-int{{if eq (print $sa) .Value}} checked{{end}}><span>{{.Label}}</span></label>
+      {{- end}}
+    </div>
+  </fieldset>
   <div class="settings-group">
     <label class="settings-check"><input type="checkbox" data-setting="keep_verified_code"{{if .Settings.KeepVerifiedCode}} checked{{end}}><span><strong>Keep verified code</strong><span class="agent-hint">After a verify run, keep its code with the tutorial, one git tag per part, so you can compare yours against it.</span></span></label>
   </div>
   <fieldset class="settings-group settings-checks" id="autoVerifyGroup">
     <legend>After writing</legend>
     <label class="settings-check"><input type="checkbox" data-setting="auto_verify"{{if .Settings.AutoVerify}} checked{{end}}><span><strong>Verify after writing a part</strong><span class="agent-hint">Your agent follows the new part in a scratch folder. Off by default.</span></span></label>
+  </fieldset>
+  <fieldset class="settings-group settings-checks" id="updatesGroup">
+    <legend>Updates</legend>
+    <label class="settings-check"><input type="checkbox" data-setting="update_check"{{if .Settings.UpdateCheck}} checked{{end}}><span><strong>Check for updates automatically</strong><span class="agent-hint">Once a day, Lathe asks GitHub for its newest release and shows a note in the title bar when one is out. Nothing about you or your library is sent.</span></span></label>
+    <p class="agent-hint">{{if .Version}}You have Lathe {{.Version}}.{{else}}This is a development build of Lathe, which doesn't check for updates.{{end}}{{if .Native}} Lathe › Check for updates… checks now.{{else}} Update checks run in the desktop app.{{end}}</p>
   </fieldset>
 </section>
 
@@ -286,6 +419,28 @@
       {{- end}}
     </div>
   </fieldset>
+  <fieldset class="settings-group settings-launchers" id="launchersGroup">
+    <legend>Open code in</legend>
+    <p class="agent-hint" id="launchersHint">{{if .Native}}Where a listing's <strong>Open in</strong> and a command's <strong>Run in Terminal</strong> go. Lathe types the command in; you press Return.{{else}}Open in editor and Run in Terminal are in the desktop app. These choices are saved for it.{{end}}</p>
+    <div class="settings-select-row">
+      <label for="editorSelect">Editor</label>
+      <select id="editorSelect" class="sort-select" data-setting="editor" aria-describedby="launchersHint">
+        {{- $ed := .Settings.Editor}}
+        {{- range .Launchers.Editors}}
+        <option value="{{.Value}}"{{if eq $ed .Value}} selected{{end}}>{{.Label}}</option>
+        {{- end}}
+      </select>
+    </div>
+    <div class="settings-select-row">
+      <label for="terminalSelect">Terminal</label>
+      <select id="terminalSelect" class="sort-select" data-setting="terminal" aria-describedby="launchersHint">
+        {{- $tm := .Settings.Terminal}}
+        {{- range .Launchers.Terminals}}
+        <option value="{{.Value}}"{{if eq $tm .Value}} selected{{end}}>{{.Label}}</option>
+        {{- end}}
+      </select>
+    </div>
+  </fieldset>
   <div class="settings-group settings-checks">
     <label class="settings-check"><input type="checkbox" data-setting="remember_place"{{if .Settings.RememberPlace}} checked{{end}}><span><strong>Remember my place</strong><span class="agent-hint">Reopen a tutorial at the part you saved.</span></span></label>
     <label class="settings-check"><input type="checkbox" data-setting="panel_suggestions"{{if .Settings.PanelSuggestions}} checked{{end}}><span><strong>Suggestions in the agent panel</strong><span class="agent-hint">Offer questions to ask about the part you're reading.</span></span></label>
@@ -296,6 +451,7 @@
     <label class="settings-check"><input type="checkbox" data-setting="notify_verify"{{if .Settings.NotifyVerify}} checked{{end}}><span><strong>A verify run finishes</strong></span></label>
     <label class="settings-check"><input type="checkbox" data-setting="notify_extend"{{if .Settings.NotifyExtend}} checked{{end}}><span><strong>A new part is written</strong></span></label>
     <label class="settings-check"><input type="checkbox" data-setting="notify_check"{{if .Settings.NotifyCheck}} checked{{end}}><span><strong>Check my work has feedback</strong></span></label>
+    <label class="settings-check"><input type="checkbox" data-setting="notify_needs_you"{{if .Settings.NotifyNeedsYou}} checked{{end}}><span><strong>Your agent needs you</strong><span class="agent-hint">It asks for permission or waits for your answer.</span></span></label>
     {{- if not .Native}}<p class="agent-hint">Notifications appear in the desktop app.</p>{{end}}
   </fieldset>
 </section>
@@ -310,7 +466,7 @@
     {{- end}}
   </dl>
   {{- end}}
-  <p class="agent-hint">The menu bar shows the same keys. Items that aren't built yet (Go to anything, New tutorial) appear once they are.</p>
+  <p class="agent-hint">The menu bar shows the same keys. Items that aren't built yet appear once they are.</p>
 </section>
 
 </main>
@@ -713,6 +869,185 @@
       .then(function(){ undoBtn.disabled = false; });
   });
   toast.addEventListener('keydown', function(ev){ if (ev.key === 'Escape') hideToast(); });
+
+  // ---- New voice: drafted by the hosted agent (voice_new.go) ------------
+  // POST /-/voices/new starts a draft series; GET /-/voices/new/{id} is
+  // polled while the agent works; refine, save and cancel post to the run.
+  var vn = document.getElementById('voiceNew');
+  var vnSaved = null;
+  try { vnSaved = sessionStorage.getItem('lathe-voice-saved'); sessionStorage.removeItem('lathe-voice-saved'); } catch (e) {}
+  if (vnSaved) flash('Saved ' + vnSaved + '.');
+  (function(){
+    if (!vn) return;
+    var agent = vn.getAttribute('data-agent');
+    var $ = function(id){ return document.getElementById(id); };
+    var form = $('vnForm'), nameIn = $('vnName'), describe = $('vnDescribe'), writing = $('vnWriting');
+    var err = $('vnError'), sample = $('vnSample'), card = $('vnCard'), draftNo = $('vnDraftNo');
+    var spec = $('vnSpec'), path = $('vnPath'), reply = $('vnReply');
+    var handoff = $('vnHandoff');
+    var pathDir = path.textContent.replace(/\/<name>\.md$/, '');
+    function base(){ var r = form.querySelector('input[name="vnBase"]:checked'); return r ? r.value : ''; }
+    function cleanName(){ return nameIn.value.trim().toLowerCase(); }
+    nameIn.addEventListener('input', function(){
+      var n = cleanName() || '<name>';
+      if (!run) path.textContent = pathDir + '/' + n + '.md';
+      var cmd = $('vnCmd');
+      if (cmd) { cmd.textContent = '/lathe-voice ' + (cleanName() || '<name>'); $('vnCmdCopy').setAttribute('data-copy', '/lathe-voice ' + cleanName()); }
+    });
+    function showHandoff(text, command){
+      $('vnHandoffText').textContent = text;
+      $('vnHandoffCmd').textContent = command;
+      $('vnHandoffCopy').setAttribute('data-copy', command);
+      handoff.hidden = false;
+    }
+    if (!agent) {
+      form.addEventListener('submit', function(ev){ ev.preventDefault(); });
+      return;
+    }
+
+    var draftBtn = $('vnDraft'), saveBtn = $('vnSave'), cancelBtn = $('vnCancel'), status = $('vnStatus');
+    var by = $('vnBy'), byText = $('vnByText'), refineForm = $('vnRefineForm'), refineIn = $('vnRefine');
+    var chips = Array.prototype.slice.call(vn.querySelectorAll('[data-refine]'));
+    var run = null, view = null, pollTimer = null, sent = null;
+
+    function setBusy(busy, label){
+      card.setAttribute('aria-busy', busy ? 'true' : 'false');
+      card.classList.toggle('is-drafting', !!busy);
+      by.setAttribute('data-state', busy ? 'working' : 'ready');
+      status.textContent = label || '';
+    }
+    function canAct(){ return view && view.state === 'waiting'; }
+    function sync(){
+      var waiting = canAct();
+      chips.forEach(function(c){ c.disabled = !waiting || !view.drafts.length; });
+      refineIn.disabled = !waiting;
+      refineForm.querySelector('button').disabled = !waiting;
+      saveBtn.disabled = !waiting || !view.drafts.length;
+      cancelBtn.disabled = view.state === 'saving';
+      draftBtn.disabled = !!run && !waiting;
+      draftBtn.textContent = run ? 'Draft again' : 'Draft it';
+    }
+    function paint(v){
+      view = v;
+      var last = v.drafts.length ? v.drafts[v.drafts.length - 1] : null;
+      if (last) {
+        sample.textContent = '';
+        last.sample.forEach(function(p){ var el = document.createElement('p'); el.textContent = p; sample.appendChild(el); });
+        draftNo.textContent = ' · draft ' + last.n;
+        byText.textContent = 'Drafted by ' + v.agent + ' · draft ' + last.n;
+        spec.textContent = last.spec;
+      }
+      path.textContent = v.path;
+      if (v.reply) { reply.innerHTML = v.reply; reply.hidden = false; } else { reply.hidden = true; }
+      handoff.hidden = true;
+      switch (v.state) {
+        case 'drafting': setBusy(true, last ? v.agent + ' is writing draft ' + (last.n + 1) + '…' : v.agent + ' is drafting…'); break;
+        case 'saving': setBusy(true, 'Saving ' + v.name + '…'); saveBtn.textContent = 'Saving…'; break;
+        case 'waiting': setBusy(false, v.message || (last ? '' : v.agent + ' is waiting for your answer.')); saveBtn.textContent = 'Save voice'; break;
+        case 'saved':
+          setBusy(false, 'Saved.');
+          try { sessionStorage.setItem('lathe-voice-saved', v.name); } catch (e) {}
+          goVoice(v.name);
+          return;
+        default:
+          setBusy(false, '');
+          run = null;
+          nameIn.readOnly = false;
+          showHandoff((v.message || 'The agent stopped before saving.') + ' Your drafts are not saved. You can draft again, or run this in your agent\'s terminal:', v.command || ('/lathe-voice ' + v.name));
+      }
+      sync();
+    }
+    function poll(){
+      clearTimeout(pollTimer);
+      if (!run) return;
+      fetch('/-/voices/new/' + run, {headers: {'Accept': 'application/json'}})
+        .then(function(r){ if (!r.ok) throw new Error('The draft went away (HTTP ' + r.status + ').'); return r.json(); })
+        .then(function(v){
+          paint(v);
+          if (run && (v.state === 'drafting' || v.state === 'saving')) pollTimer = setTimeout(poll, 800);
+        })
+        .catch(function(e){ err.textContent = e.message; run = null; nameIn.readOnly = false; setBusy(false, ''); sync(); });
+    }
+    function brief(){ return {describe: describe.value.trim(), writing: writing.value.trim(), base: base()}; }
+
+    form.addEventListener('submit', function(ev){
+      ev.preventDefault();
+      err.textContent = '';
+      var b = brief();
+      if (run) {
+        // Draft again: send what changed on the left as the next request.
+        var body = {text: 'Draft it again from the brief.'};
+        if (b.describe !== sent.describe) body.describe = b.describe;
+        if (b.writing !== sent.writing) body.writing = b.writing;
+        if (b.base !== sent.base) body.text = 'Draft it again, starting from ' + (b.base || 'a blank spec') + ' instead.';
+        refine(body);
+        sent = b;
+        return;
+      }
+      var name = cleanName();
+      if (!name) { err.textContent = 'Give the voice a name.'; nameIn.focus(); return; }
+      if (!b.describe) { err.textContent = 'Say how it should sound.'; describe.focus(); return; }
+      draftBtn.disabled = true;
+      setBusy(true, 'Starting ' + agent + '…');
+      postJSON('/-/voices/new', {name: name, describe: b.describe, base: b.base, writing: b.writing}).then(function(res){
+        if (res.mode === 'handoff') {
+          setBusy(false, '');
+          draftBtn.disabled = false;
+          showHandoff((res.notice ? res.notice + ' ' : '') + 'Run this in your agent\'s terminal instead:', res.command);
+          return;
+        }
+        run = res.runId;
+        sent = b;
+        nameIn.readOnly = true;
+        path.textContent = res.path;
+        view = {state: 'drafting', drafts: []};
+        sync();
+        poll();
+      }).catch(function(e){ setBusy(false, ''); draftBtn.disabled = false; err.textContent = e.message; });
+    });
+
+    function refine(body){
+      if (!canAct()) return;
+      err.textContent = '';
+      view.state = 'drafting';
+      sync();
+      setBusy(true, agent + ' is redrafting…');
+      postJSON('/-/voices/new/' + run + '/refine', body).then(function(){ poll(); })
+        .catch(function(e){ err.textContent = e.message; poll(); });
+    }
+    chips.forEach(function(c){ c.addEventListener('click', function(){ refine({text: c.getAttribute('data-refine')}); }); });
+    refineForm.addEventListener('submit', function(ev){
+      ev.preventDefault();
+      var t = refineIn.value.trim();
+      if (!t) { refineIn.focus(); return; }
+      refine({text: t});
+      refineIn.value = '';
+    });
+    saveBtn.addEventListener('click', function(){
+      if (!canAct() || !view.drafts.length) return;
+      var n = view.drafts[view.drafts.length - 1].n;
+      err.textContent = '';
+      view.state = 'saving';
+      sync();
+      saveBtn.textContent = 'Saving…';
+      setBusy(true, 'Saving ' + view.name + '…');
+      postJSON('/-/voices/new/' + run + '/save', {draft: n, makeDefault: $('vnDefault').checked}).then(function(){ poll(); })
+        .catch(function(e){ err.textContent = e.message; saveBtn.textContent = 'Save voice'; poll(); });
+    });
+    cancelBtn.addEventListener('click', function(){
+      var back = function(){ pickVoice(vn.getAttribute('data-default'), true); };
+      if (!run) { form.reset(); back(); return; }
+      var id = run;
+      run = null;
+      clearTimeout(pollTimer);
+      cancelBtn.disabled = true;
+      postJSON('/-/voices/new/' + id + '/cancel', {}).catch(function(){}).then(function(){ goVoice(vn.getAttribute('data-default')); });
+    });
+    // Leaving the page mid-series stops it, so the name isn't held.
+    window.addEventListener('pagehide', function(){
+      if (run && navigator.sendBeacon) navigator.sendBeacon('/-/voices/new/' + run + '/cancel', new Blob(['{}'], {type: 'application/json'}));
+    });
+  })();
 })();
 </script>
 <script>
@@ -733,5 +1068,19 @@
 {{- if .Native}}
 {{template "nativeLinks"}}
 {{- end}}
+{{template "shelfJobs"}}
+<script>
+  // Sort review: the Apply button counts the ticked moves.
+  (function(){
+    var form = document.getElementById('sortReview');
+    var apply = document.getElementById('sortApply');
+    if (!form || !apply) return;
+    form.addEventListener('change', function(){
+      var n = form.querySelectorAll('input[name="slug"]:checked').length;
+      apply.textContent = n ? 'Apply ' + n + ' move' + (n === 1 ? '' : 's') : 'Apply';
+      apply.disabled = n === 0;
+    });
+  })();
+</script>
 </body>
 </html>

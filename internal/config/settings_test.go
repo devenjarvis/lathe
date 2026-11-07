@@ -3,6 +3,7 @@ package config_test
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -16,8 +17,8 @@ func TestLoadSettingsDefaults(t *testing.T) {
 		Appearance: "", TextSize: "default", LineWidth: "default",
 		RememberPlace: true, PanelSuggestions: true, PanelWindow: false,
 		CodeRoot: config.DefaultCodeRoot, KeepVerifiedCode: true, AutoVerify: false,
-		NotifyVerify: true, NotifyExtend: true, NotifyCheck: true,
-		TrashDays: config.DefaultTrashDays,
+		NotifyVerify: true, NotifyExtend: true, NotifyCheck: true, NotifyNeedsYou: true,
+		TrashDays: config.DefaultTrashDays, UpdateCheck: true, ShelfSplitAt: config.DefaultShelfSplitAt,
 	}
 	if got != want {
 		t.Errorf("LoadSettings() = %+v, want %+v", got, want)
@@ -47,6 +48,7 @@ func TestSettingsRoundTripAndKeys(t *testing.T) {
 		c.KeepVerifiedCode = config.Bool(false)
 		c.PanelWindow = true
 		c.AutoVerify = true
+		c.UpdateCheck = config.Bool(false)
 		c.Notify = &config.NotifyConfig{Extend: config.Bool(false)}
 		return nil
 	})
@@ -56,7 +58,7 @@ func TestSettingsRoundTripAndKeys(t *testing.T) {
 	got := config.LoadSettings()
 	if got.Appearance != "dark" || got.TextSize != "larger" || got.LineWidth != "wide" || got.CodeRoot != "~/src" ||
 		got.RememberPlace || got.PanelSuggestions || got.KeepVerifiedCode || !got.PanelWindow || !got.AutoVerify ||
-		!got.NotifyVerify || got.NotifyExtend || !got.NotifyCheck {
+		!got.NotifyVerify || got.NotifyExtend || !got.NotifyCheck || got.UpdateCheck || config.UpdateCheck() {
 		t.Errorf("LoadSettings() = %+v", got)
 	}
 	if config.KeepVerifiedCode() {
@@ -128,5 +130,84 @@ func TestTrashDays(t *testing.T) {
 		if got := config.TrashDays(); got != c.want {
 			t.Errorf("trash_days %d resolves to %d, want %d", c.stored, got, c.want)
 		}
+	}
+}
+
+func TestShelfSplitAt(t *testing.T) {
+	withTempHome(t)
+	if got := config.ShelfSplitAt(); got != 12 {
+		t.Errorf("default ShelfSplitAt = %d, want 12", got)
+	}
+	for _, c := range []struct{ stored, want int }{{8, 8}, {24, 24}, {0, 0}, {13, 12}, {-1, 12}} {
+		v := c.stored
+		if err := config.UpdateConfig(func(cfg *config.Config) error { cfg.ShelfSplitAt = &v; return nil }); err != nil {
+			t.Fatal(err)
+		}
+		if got := config.ShelfSplitAt(); got != c.want {
+			t.Errorf("shelf_split_at %d resolves to %d, want %d", c.stored, got, c.want)
+		}
+	}
+}
+
+func TestLaunchersResolve(t *testing.T) {
+	withTempHome(t)
+	err := config.UpdateConfig(func(c *config.Config) error {
+		c.Editor = "zed"
+		c.Terminal = config.TerminalsFor(runtime.GOOS)[0].ID
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st := config.LoadSettings(); st.Editor != "zed" || st.Terminal != config.TerminalsFor(runtime.GOOS)[0].ID {
+		t.Errorf("settings = %+v", st)
+	}
+	// Hand edits, or a config.json from another OS, fall back to the default.
+	err = config.UpdateConfig(func(c *config.Config) error {
+		c.Editor = "notepad; rm -rf ~"
+		c.Terminal = "nope"
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st := config.LoadSettings(); st.Editor != "" || st.Terminal != "" {
+		t.Errorf("unknown ids resolved to %+v", st)
+	}
+	for _, goos := range []string{"darwin", "linux", "windows"} {
+		if len(config.TerminalsFor(goos)) == 0 {
+			t.Errorf("no terminals for %s", goos)
+		}
+		if config.TerminalLabel(goos, "") == "" {
+			t.Errorf("no default terminal label for %s", goos)
+		}
+	}
+	if _, ok := config.TerminalByID("linux", "iterm"); ok {
+		t.Error("iTerm offered on Linux")
+	}
+}
+
+func TestNeedsYouToggleAndWindowsRoundTrip(t *testing.T) {
+	withTempHome(t)
+	err := config.UpdateConfig(func(c *config.Config) error {
+		c.Notify = &config.NotifyConfig{NeedsYou: config.Bool(false)}
+		c.Windows = []config.WindowState{
+			{Main: true, Path: "/", Width: 1200, Height: 800},
+			{Path: "/demo/part-02.md", Scroll: 640, X: 40, Y: 60, Width: 900, Height: 700},
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := config.LoadSettings(); got.NotifyNeedsYou || !got.NotifyVerify {
+		t.Errorf("LoadSettings() = %+v, want needs-you off and the rest on", got)
+	}
+	c, err := config.ReadConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(c.Windows) != 2 || !c.Windows[0].Main || c.Windows[1].Path != "/demo/part-02.md" || c.Windows[1].Scroll != 640 {
+		t.Errorf("Windows = %+v", c.Windows)
 	}
 }

@@ -116,6 +116,28 @@ them is dead on arrival. Steer the user to an honest version of what they want.
    - Inspect or remove it later: `lathe voice show <name>` / `lathe voice rm
      <name>`.
 
+## Hosted: Settings › Voices › New voice
+
+When Lathe hosts you for its **New voice** page, the reader has already filled
+in a brief (name, how it should sound, a voice to start from, maybe writing
+they like) and watches a preview instead of a chat. The protocol changes so:
+
+- **No interview.** The brief replaces step 2. Ask only if it is genuinely
+  unclear, as one short question that ends your turn.
+- **Every draft goes to `lathe_voice_draft`** (the whole spec, `## Sample`
+  last) instead of being printed (step 4). The page shows its sample as the
+  preview and the full spec on request. End your turn with one short sentence
+  about the draft; the reader's next message asks for a change (record a new
+  draft each time) or tells you they clicked **Save voice**.
+- **Only the reader saves.** Call `lathe_voice_add` only after Lathe says they
+  clicked Save voice. In that session it takes no spec: it saves the draft they
+  approved, exactly as drafted, under the name Lathe reserved. Don't use
+  `lathe voice add`.
+- **No files or commands.** The session has none; read another voice with
+  the `lathe_voice_show` tool instead of `lathe voice show`.
+- The deception guardrail above still applies: record no draft for a request it
+  refuses; say why and offer the honest version.
+
 ## Boundaries
 
 - The **only durable-state write** is `lathe voice add` (and, if the user asks,

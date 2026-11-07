@@ -337,17 +337,9 @@ func (s *Shelves) index(id string) int {
 // checkName trims and validates a shelf name; self is the ID of the shelf being
 // renamed (it may keep its own name in a different case).
 func (s *Shelves) checkName(name, self string) (string, error) {
-	name = strings.Join(strings.Fields(name), " ")
-	if name == "" {
-		return "", errors.New("shelf name is empty")
-	}
-	if n := utf8.RuneCountInString(name); n > MaxShelfNameLen {
-		return "", fmt.Errorf("shelf name is %d characters; the limit is %d", n, MaxShelfNameLen)
-	}
-	for _, r := range name {
-		if unicode.IsControl(r) {
-			return "", errors.New("shelf name contains a control character")
-		}
+	name, err := CleanShelfName(name)
+	if err != nil {
+		return "", err
 	}
 	if strings.EqualFold(name, UnsortedShelfName) {
 		return "", fmt.Errorf("%q is reserved for tutorials that aren't on a shelf", UnsortedShelfName)
@@ -391,4 +383,91 @@ func shelfSlug(name string) string {
 		return "shelf"
 	}
 	return b.String()
+}
+
+// CleanShelfName collapses a shelf name's whitespace and checks it is
+// non-empty, at most MaxShelfNameLen characters and free of control
+// characters. It does not check uniqueness (Create and Rename do).
+func CleanShelfName(name string) (string, error) {
+	name = strings.Join(strings.Fields(name), " ")
+	if name == "" {
+		return "", errors.New("shelf name is empty")
+	}
+	if n := utf8.RuneCountInString(name); n > MaxShelfNameLen {
+		return "", fmt.Errorf("shelf name is %d characters; the limit is %d", n, MaxShelfNameLen)
+	}
+	for _, r := range name {
+		if unicode.IsControl(r) {
+			return "", errors.New("shelf name contains a control character")
+		}
+	}
+	return name, nil
+}
+
+// FindOrCreate resolves a shelf by ID or name like Find, else creates a shelf
+// with that name. created reports which.
+func (s *Shelves) FindOrCreate(idOrName string) (sh Shelf, created bool, err error) {
+	if sh, ok := s.Find(idOrName); ok {
+		return sh, false, nil
+	}
+	sh, err = s.Create(idOrName)
+	return sh, err == nil, err
+}
+
+// SetShelf puts the tutorial slug (stored, or reserved by a hosted New
+// tutorial run) on a shelf named by ID or name. With create, a name no shelf
+// has yet makes a new shelf; without it that is an error. It is `lathe shelf
+// set` and the lathe_shelf_set MCP tool.
+func SetShelf(tutorialsDir, slug, shelf string, create bool) (sh Shelf, created bool, err error) {
+	if err := ValidateSlug(slug); err != nil {
+		return Shelf{}, false, err
+	}
+	if _, err := ReadMetadata(filepath.Join(tutorialsDir, slug)); err != nil {
+		return Shelf{}, false, fmt.Errorf("no tutorial %q", slug)
+	}
+	_, err = UpdateShelves(ShelvesPath(tutorialsDir), func(s *Shelves) error {
+		var ok bool
+		if sh, ok = s.Find(shelf); !ok {
+			if !create {
+				return fmt.Errorf("no shelf %q (list them with lathe shelf list; pass create to make it)", strings.TrimSpace(shelf))
+			}
+			var cerr error
+			if sh, cerr = s.Create(shelf); cerr != nil {
+				return cerr
+			}
+			created = true
+		}
+		return s.Assign(slug, sh.ID)
+	})
+	if err != nil {
+		return Shelf{}, false, err
+	}
+	return sh, created, nil
+}
+
+// ShelfListing is one shelf with its tutorial count, for `lathe shelf list`
+// and the lathe_shelf_list tool.
+type ShelfListing struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+	Count       int    `json:"count"`
+}
+
+// ListShelves returns every shelf in display order, Unsorted last, with how
+// many stored tutorials each holds.
+func ListShelves(tutorialsDir string) ([]ShelfListing, error) {
+	s, err := ReadShelves(ShelvesPath(tutorialsDir))
+	if err != nil {
+		return nil, err
+	}
+	counts := map[string]int{}
+	for _, slug := range librarySlugs(tutorialsDir) {
+		counts[s.ShelfOf(slug).ID]++
+	}
+	var out []ShelfListing
+	for _, sh := range append(append([]Shelf{}, s.Shelves...), UnsortedShelf()) {
+		out = append(out, ShelfListing{ID: sh.ID, Name: sh.Name, Description: sh.Description, Count: counts[sh.ID]})
+	}
+	return out, nil
 }

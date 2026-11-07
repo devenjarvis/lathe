@@ -123,17 +123,21 @@ var registry = []Shortcut{
 	{ID: "app.settings", Label: "Settings…", Menu: MenuLathe, Group: GroupWindows, Scope: ScopeGlobal, Handler: HandlerShell,
 		Mac: "Cmd+,", Other: "Ctrl+,", Href: "/-/settings",
 		Note: "⌘, is the macOS settings convention; Ctrl+, is free on Windows, GNOME and KDE."},
-	{ID: "app.updates", Label: "Check for updates…", Menu: MenuLathe, Group: GroupWindows, Scope: ScopeGlobal, Handler: HandlerShell, Stub: true},
+	{ID: "app.welcome", Label: "Welcome to Lathe…", Menu: MenuLathe, Group: GroupWindows, Scope: ScopeGlobal, Handler: HandlerPage,
+		Href: "/-/welcome",
+		Note: "Reopens the first-launch setup (agent, code folder, first tutorial). No default combo."},
+	{ID: "app.updates", Label: "Check for updates…", Menu: MenuLathe, Group: GroupWindows, Scope: ScopeGlobal, Handler: HandlerShell},
 	{ID: "app.quit", Label: "Quit Lathe", Menu: MenuLathe, Group: GroupWindows, Scope: ScopeGlobal, Handler: HandlerNative,
 		Mac: "Cmd+Q", Other: "Ctrl+Q"},
 
 	// File
-	{ID: "library.new", Label: "New tutorial", Menu: MenuFile, Group: GroupLibrary, Scope: ScopeGlobal, Handler: HandlerPage, Stub: true,
-		Mac: "Cmd+N", Other: "Ctrl+N",
-		Note: "Browsers reserve ⌘N/Ctrl+N (new window), so in plain lathe serve only the app gets it."},
-	{ID: "library.open-window", Label: "Open in new window", Menu: MenuFile, Group: GroupWindows, Scope: ScopeGlobal, Handler: HandlerPage, Stub: true,
-		Mac: "Cmd+Enter", Other: "Ctrl+Enter",
-		Note: "Not bound while a stub: Windows menu accelerators fire before the page, and the agent composer takes Enter."},
+	{ID: "library.new", Label: "New tutorial…", Menu: MenuFile, Group: GroupLibrary, Scope: ScopeGlobal, Handler: HandlerPage,
+		Mac: "Cmd+N", Other: "Ctrl+N", Href: "/-/new",
+		Note: "Browsers reserve ⌘N/Ctrl+N (new window), so in plain lathe serve only the app gets it; the title bar's New tutorial button and ⌘K open the sheet there."},
+	{ID: "library.open-window", Label: "Open in new window", Menu: MenuFile, Group: GroupWindows, Scope: ScopeGlobal, Handler: HandlerPage,
+		Mac: "Cmd+Enter",
+		Note: "Opens the focused cover, or the ⌘K result, in its own window; the page enables it only then (never in a text field, so the agent composer keeps ⌘↩). " +
+			"⌘-click (Ctrl+click) on a cover does the same. No default on Windows and Linux: Windows fires a menu accelerator even when the item is disabled, which would take Ctrl+Enter from the composer; the ⌘K palette handles Ctrl+Enter itself."},
 	{ID: "library.trash", Label: "Move to Trash", Menu: MenuFile, Group: GroupLibrary, Scope: ScopeHome, Handler: HandlerPage,
 		Mac: "Cmd+Backspace",
 		Note: "Finder's Move to Trash. The page enables it only while a cover (or its ⋯ menu) has focus, never in a text field, where ⌘⌫ deletes to the line start. " +
@@ -172,15 +176,20 @@ var registry = []Shortcut{
 	{ID: "tutorial.extend", Label: "Write next part", Menu: MenuTutorial, Group: GroupAgent, Scope: ScopeTutorial, Handler: HandlerPage,
 		Mac: "Cmd+Shift+N", Other: "Ctrl+Shift+N",
 		Note: "New folder in Finder/Explorer only; browsers reserve it for a private window, so in plain lathe serve only the app gets it."},
-	{ID: "tutorial.workspace", Label: "Show workspace in Finder", OtherLabel: "Show workspace folder", Menu: MenuTutorial, Group: GroupLibrary, Scope: ScopeTutorial, Handler: HandlerShell, Stub: true},
+	// The workspace items run in the page, which knows its tutorial (and
+	// whether it has a workspace); the page asks the shell through
+	// /-/native/open-editor, /-/native/terminal and /-/native/reveal.
+	{ID: "tutorial.open-editor", Label: "Open workspace in editor", Menu: MenuTutorial, Group: GroupLibrary, Scope: ScopeTutorial, Handler: HandlerPage},
+	{ID: "tutorial.open-terminal", Label: "Open workspace in Terminal", OtherLabel: "Open workspace in terminal", Menu: MenuTutorial, Group: GroupLibrary, Scope: ScopeTutorial, Handler: HandlerPage},
+	{ID: "tutorial.workspace", Label: "Show workspace in Finder", OtherLabel: "Show workspace folder", Menu: MenuTutorial, Group: GroupLibrary, Scope: ScopeTutorial, Handler: HandlerPage},
 
 	// Agent
 	{ID: "agent.panel", Label: "Show panel", Menu: MenuAgent, Group: GroupAgent, Scope: ScopeTutorial, Handler: HandlerPage,
 		Mac: "Cmd+J", Other: "Ctrl+J",
 		Note: "Ctrl+J is Downloads in Windows and Linux browsers (the page can take it); free in the app."},
-	{ID: "agent.ask-selection", Label: "Ask about selection", Menu: MenuAgent, Group: GroupAgent, Scope: ScopeTutorial, Handler: HandlerPage, Stub: true,
+	{ID: "agent.ask-selection", Label: "Ask about selection", Menu: MenuAgent, Group: GroupAgent, Scope: ScopeTutorial, Handler: HandlerPage,
 		Mac: "Cmd+L", Other: "Ctrl+L",
-		Note: "⌘L/Ctrl+L focuses the address bar in browsers; unbound while a stub, so the browser keeps it."},
+		Note: "The editor convention for sending a selection to the chat (Cursor, Zed). ⌘L/Ctrl+L focuses the address bar in browsers; on a tutorial page lathe serve takes it (the address bar is a click away), and the app has no address bar. Not a system shortcut on macOS, Windows, GNOME or KDE."},
 	{ID: "agent.check", Label: "Check my work", Menu: MenuAgent, Group: GroupAgent, Scope: ScopeTutorial, Handler: HandlerPage,
 		Mac: "Cmd+Shift+K", Other: "Ctrl+Shift+K",
 		Note: "Firefox's web console on Windows and Linux (browser only); free in the app and in the OS."},

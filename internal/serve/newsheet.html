@@ -1,0 +1,128 @@
+{{/* The New tutorial sheet (#138, new_sheet.go). "newSheetDialog" is
+     included once per page from the "shortcuts" partial: an empty modal
+     <dialog> that drops from the title bar, and newsheet.js, which loads
+     GET /-/new?partial=1 ("newSheetForm") into it when ⌘N, a [data-new-open]
+     button or ⌘K's "New tutorial about “…”" opens it. With scripts off every
+     way in is a link to the /-/new page (new.html), which holds the same
+     form and posts it to POST /-/new as a plain form. */}}
+{{define "newSheetDialog"}}
+<dialog class="new-sheet" id="newSheet" aria-labelledby="newSheetTitle">
+  <div class="new-sheet-slot" id="newSheetSlot"><p class="new-sheet-loading">Loading…</p></div>
+</dialog>
+<script>{{newSheetJS}}</script>
+{{end}}
+
+{{/* newButton — the title bar's "New tutorial" button. A link to the
+     /-/new page; newsheet.js opens the sheet over the page instead. */}}
+{{define "newButton"}}<a class="new-open" href="/-/new" data-new-open aria-keyshortcuts="Meta+N Control+N"><span class="new-open-plus" aria-hidden="true">+</span><span class="new-open-label">New tutorial</span></a>{{end}}
+
+{{/* newSheetForm — the sheet itself (. is a newSheetView). */}}
+{{define "newSheetForm"}}
+<form class="new-sheet-form" id="newSheetForm" method="POST" action="/-/new" data-mode="{{.Agent.Mode}}"{{if .AutoWorkspace}} data-auto-workspace{{end}} novalidate>
+  <div class="new-sheet-head">
+    <h2 class="new-sheet-title" id="newSheetTitle">New tutorial</h2>
+    {{if not .Page}}<button type="button" class="new-sheet-esc" data-new-close aria-label="Close">esc</button>{{end}}
+  </div>
+  <div class="new-sheet-body">
+    <p class="agent-error new-sheet-error" id="newError" role="alert">{{.Error}}</p>
+    <div class="new-result" id="newResult" role="status"{{if not .Result}} hidden{{end}}>
+      {{with .Result}}
+      {{if eq .Mode "queued"}}
+      <p class="new-result-msg"><strong>Sent to your /lathe-work session.</strong> It writes Part 1 there and the tutorial lands in your library once it's stored.</p>
+      {{else}}
+      <p class="new-result-msg">{{if .Notice}}{{.Notice}} {{end}}<strong>Run this in your coding agent</strong> to write Part 1 with these answers:</p>
+      <div class="new-result-cmd"><code id="newResultCmd">{{.Command}}</code><button type="button" class="btn btn-ghost btn-sm" id="newResultCopy" hidden>Copy</button></div>
+      {{end}}
+      {{else}}
+      <p class="new-result-msg"></p>
+      <div class="new-result-cmd" hidden><code id="newResultCmd"></code><button type="button" class="btn btn-ghost btn-sm" id="newResultCopy" hidden>Copy</button></div>
+      {{end}}
+    </div>
+
+    <div class="new-field new-topic-field">
+      <label class="new-label" for="newTopic">What do you want to build?</label>
+      <textarea class="new-topic" id="newTopic" name="topic" rows="2" maxlength="500" required placeholder="e.g. a step sequencer in Rust" aria-describedby="newIdeas">{{.Topic}}</textarea>
+      {{if .Ideas}}
+      <p class="new-ideas" id="newIdeas"><span class="new-ideas-label">Or try</span>
+        {{range .Ideas}}<a class="new-idea" href="/-/new?topic={{.}}" data-idea="{{.}}">{{.}}</a>{{end}}
+      </p>
+      {{end}}
+    </div>
+
+    <div class="new-grid">
+      <div class="new-field">
+        <label class="new-label" for="newShelf">Goes on</label>
+        <select class="new-select" id="newShelf" name="shelf" aria-describedby="newShelfHint">
+          {{range .Shelves}}<option value="{{.ID}}"{{if .Selected}} selected{{end}}>{{.Name}}</option>{{end}}
+        </select>
+        <p class="new-hint" id="newShelfHint">{{if .Suggested}}Suggested: it matches what's on {{.Suggested}}.{{else}}No shelf matches yet, so it lands on Unsorted.{{end}}</p>
+      </div>
+      <fieldset class="new-field new-levels">
+        <legend class="new-label">Where you're starting from</legend>
+        <div class="new-seg">
+          {{range .Levels}}<label class="new-seg-opt" title="{{.Hint}}"><input type="radio" name="level" value="{{.Value}}"{{if .Checked}} checked{{end}}><span>{{.Label}}</span></label>{{end}}
+        </div>
+        <p class="new-hint">Leave it and the agent asks.</p>
+      </fieldset>
+    </div>
+
+    <fieldset class="new-field new-voices">
+      <div class="new-legend-row">
+        <legend class="new-label">Voice</legend>
+        <a class="new-manage" href="/-/settings#voices" data-settings-link>Manage voices…</a>
+      </div>
+      <div class="new-voice-list">
+        {{range .Voices}}
+        <label class="new-voice">
+          <input type="radio" name="voice" value="{{.Name}}"{{if .Checked}} checked{{end}}>
+          <span class="new-voice-head"><span class="new-voice-name">{{.Name}}</span>{{if .Default}}<span class="new-voice-default">Default</span>{{end}}</span>
+          {{if .Sample}}<span class="new-voice-sample">“{{.Sample}}”</span>{{else if .Description}}<span class="new-voice-sample">{{.Description}}</span>{{end}}
+        </label>
+        {{end}}
+      </div>
+    </fieldset>
+
+    <div class="new-field">
+      <label class="new-label" for="newWorkspace">Where you'll type the code</label>
+      <div class="agent-field-row">
+        {{if .AutoWorkspace}}<input type="hidden" name="workspaceAuto" value="{{.Workspace}}">{{end}}
+        <input class="new-input new-mono" id="newWorkspace" name="workspace" type="text" value="{{.Workspace}}" autocomplete="off" spellcheck="false" aria-describedby="newWorkspaceHint">
+        {{if .Native}}<button type="button" class="btn btn-ghost btn-sm" id="newPickFolder" data-pick-url="/-/native/pick-folder">Choose folder…</button>{{end}}
+      </div>
+      <p class="new-hint" id="newWorkspaceHint">{{if .Detected.Exists}}This folder exists; the agent reads it but never changes it.{{else}}Lathe makes the folder (and runs <code>git init</code>) when the agent starts. Empty for none.{{end}}</p>
+    </div>
+
+    <details class="new-more" id="newMore">
+      <summary><span class="new-more-title">Versions and repo</span> <span class="new-more-sum" id="newMoreSummary">{{if or .Versions .Repo}}{{.Versions}}{{if and .Versions .Repo}} · {{end}}{{.Repo}}{{else}}The agent detects them and checks with you{{end}}</span></summary>
+      <div class="new-more-body">
+        <p class="new-hint" id="newDetected">{{if or .Detected.Tools .Detected.Repo}}Found in the folder. Pinned versions are written against without asking.{{else}}Pin versions to skip that question, e.g. <code>zig 0.13.0, llvm 18</code>.{{end}}</p>
+        <div class="new-field">
+          <label class="new-label-sm" for="newVersions">Versions</label>
+          <input class="new-input new-mono" id="newVersions" name="versions" type="text" value="{{.Versions}}" autocomplete="off" spellcheck="false" placeholder="name version, name version">
+        </div>
+        <div class="new-grid new-grid-repo">
+          <div class="new-field">
+            <label class="new-label-sm" for="newRepo">Repo</label>
+            <input class="new-input new-mono" id="newRepo" name="repo" type="text" value="{{.Repo}}" autocomplete="off" spellcheck="false" placeholder="none: a standalone tutorial">
+          </div>
+          <div class="new-field">
+            <label class="new-label-sm" for="newRepoBranch">Branch</label>
+            <input class="new-input new-mono" id="newRepoBranch" name="repoBranch" type="text" value="{{.RepoBranch}}" autocomplete="off" spellcheck="false" placeholder="main">
+          </div>
+        </div>
+      </div>
+    </details>
+  </div>
+  <div class="new-sheet-foot">
+    <p class="new-agent" id="newAgent">
+      {{- if eq .Agent.Mode "agent"}}<span class="agent-dot" aria-hidden="true"></span> <strong>{{.Agent.Name}}</strong> writes Part 1{{with .Agent.Model}} · {{.}}{{end}} · It may ask a question or two
+      {{- else if eq .Agent.Mode "worker"}}<span class="agent-dot" aria-hidden="true"></span> Your <code>/lathe-work</code> session writes Part 1 · It may ask a question or two
+      {{- else}}No agent is set up, so you get a <code>/lathe</code> command to paste into your coding agent. <a href="/-/settings#agent" data-settings-link>Set up an agent…</a>{{end -}}
+    </p>
+    <div class="new-actions">
+      {{if .Page}}<a class="btn btn-ghost" href="/">Cancel</a>{{else}}<button type="button" class="btn btn-ghost" data-new-close>Cancel</button>{{end}}
+      <button type="submit" class="btn btn-primary" id="newSubmit">{{if eq .Agent.Mode "handoff"}}Get the command{{else}}Start writing{{end}}<kbd class="new-key" data-new-kbd aria-hidden="true">{{if .Mac}}⌘↩{{else}}Ctrl+↩{{end}}</kbd></button>
+    </div>
+  </div>
+</form>
+{{end}}

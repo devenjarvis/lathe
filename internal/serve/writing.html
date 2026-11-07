@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en"{{if .Native}} data-native{{end}}>
+<head>
+  {{template "head" .}}
+  {{/* Scripts off: reload every few seconds instead of polling. Once the
+       agent stores it, /{slug}/ redirects to Part 1. */}}
+  <noscript><meta http-equiv="refresh" content="5"></noscript>
+  <title>Writing {{.W.Title}} — Lathe</title>
+</head>
+<body class="writing-page">
+{{/* The progress page for a tutorial the hosted agent is writing (writing.go):
+     four numbered steps with the active one in yellow, the agent's question
+     when it needs the reader, the sources it has read and the draft as it
+     grows. The script polls GET /-/new/{slug}/progress; every control is a
+     form, so it all works with scripts off. */}}
+{{with .W}}
+<a class="skip-link" href="#writingMain">Skip to progress</a>
+<header class="writing-bar">
+  <a class="back-link" href="/"><span aria-hidden="true">←</span> Library</a>
+  <div class="header-tools">{{template "paletteButton" $}}{{template "settingsLink" ""}}</div>
+</header>
+<main id="writingMain" class="writing" tabindex="-1" data-slug="{{.Slug}}"{{with .Run}} data-run-id="{{.ID}}" data-run-started="{{.Started}}"{{end}} data-live="{{.Live}}">
+  <section class="writing-hero" aria-labelledby="writingTitle">
+    <p class="writing-kicker"><span class="writing-pulse" aria-hidden="true"></span>Writing Part 1</p>
+    <h1 class="writing-title" id="writingTitle">{{.Title}}</h1>
+    <ol class="writing-steps" id="writingSteps" aria-label="Progress">
+      {{- range .Steps}}
+      <li class="writing-step" data-state="{{.State}}"{{if eq .State "active"}} aria-current="step"{{end}}><span class="writing-step-n" aria-hidden="true">{{if eq .State "done"}}✓{{else}}{{.N}}{{end}}</span><span class="writing-step-label">{{.Label}}</span><span class="visually-hidden">{{if eq .State "done"}} (done){{else if eq .State "active"}} (now){{end}}</span></li>
+      {{- end}}
+    </ol>
+    <div class="writing-hero-foot">
+      <p class="writing-close" id="writingClose">{{if .Live}}You can close this window. Your agent keeps writing, and Lathe tells you when Part 1 is ready.{{else}}Your agent isn’t writing this any more: Lathe restarted while it ran, so nothing will be stored here.{{end}}</p>
+      {{- if .Live}}
+      <form method="POST" action="/-/new/{{.Slug}}/cancel" id="writingStop" class="writing-stop">
+        <button type="submit" class="btn btn-sm writing-stop-btn">Stop writing</button>
+      </form>
+      {{- else}}
+      <form method="POST" action="/-/delete/{{.Slug}}" class="writing-stop">
+        <button type="submit" class="btn btn-sm writing-stop-btn">Move to Trash</button>
+      </form>
+      {{- end}}
+    </div>
+  </section>
+
+  <section class="needs-card" id="needs" aria-labelledby="needsLabel" tabindex="-1"{{if not .Needs}} hidden{{end}}>
+    <p class="needs-kicker">Needs you</p>
+    <h2 class="needs-label" id="needsLabel">{{with .Needs}}{{.Label}}{{end}}</h2>
+    <div class="needs-question ask-rich" id="needsQuestion">{{with .Needs}}{{.QuestionHTML}}{{end}}</div>
+    <form method="POST" action="/-/new/{{.Slug}}/reply" class="needs-form" id="needsForm">
+      <div class="needs-replies" id="needsReplies">
+        {{- with .Needs}}{{range .Replies}}<button type="submit" class="btn btn-sm needs-reply" name="text" value="{{.}}">{{.}}</button>{{end}}{{end -}}
+      </div>
+      <label class="visually-hidden" for="needsText">Your reply</label>
+      <div class="needs-compose">
+        <textarea id="needsText" name="text" rows="2" placeholder="Or type your own reply…"></textarea>
+        <button type="submit" class="btn btn-primary btn-sm" id="needsSend">Send</button>
+      </div>
+      <p class="needs-error" id="needsError" role="alert"></p>
+    </form>
+  </section>
+
+  <div class="writing-grid">
+    <section class="writing-panel writing-sources" aria-labelledby="sourcesHeading">
+      <h2 id="sourcesHeading">Sources <span class="shelf-count" id="sourcesCount">{{len .Sources}}</span></h2>
+      <ol class="writing-source-list" id="writingSources">
+        {{- range .Sources}}
+        <li><a href="{{.URL}}" rel="noreferrer">{{if .Title}}{{.Title}}{{else}}{{.URL}}{{end}}</a><span class="writing-source-url">{{.URL}}</span></li>
+        {{- end}}
+      </ol>
+      <p class="writing-empty" id="sourcesEmpty"{{if .Sources}} hidden{{end}}>None yet. Each source shows here as your agent reads it.</p>
+    </section>
+    <section class="writing-panel writing-draft" aria-labelledby="draftHeading">
+      <h2 id="draftHeading">Draft{{if .DraftTitle}}<span class="writing-draft-title" id="draftTitle">: {{.DraftTitle}}</span>{{else}}<span class="writing-draft-title" id="draftTitle"></span>{{end}}</h2>
+      <ol class="writing-sections" id="writingSections" aria-label="Sections written so far">
+        {{- range .Sections}}<li>{{.}}</li>{{end -}}
+      </ol>
+      <p class="writing-empty" id="draftEmpty"{{if .DraftHTML}} hidden{{end}}>Part 1 hasn’t started yet. It appears here section by section as your agent writes it.</p>
+      <div class="writing-draft-body ask-rich" id="writingDraft"{{if not .DraftHTML}} hidden{{end}}>{{.DraftHTML}}</div>
+    </section>
+  </div>
+  <p class="visually-hidden" id="writingAnnouncer" role="status" aria-atomic="true"></p>
+</main>
+{{end}}
+<script>
+  // Live progress: poll GET /-/new/{slug}/progress and redraw what changed.
+  // Stored → open Part 1. Gone → say it stopped. Quick replies and the reply
+  // box post JSON to /-/new/{slug}/reply; a reply ending in … fills the box
+  // instead of sending, so the reader types the rest.
+  (function(){
+    var main = document.getElementById('writingMain');
+    if (!main || !window.fetch) return;
+    var slug = main.getAttribute('data-slug');
+    var base = '/-/new/' + encodeURIComponent(slug);
+    var steps = document.getElementById('writingSteps');
+    var needs = document.getElementById('needs');
+    var label = document.getElementById('needsLabel');
+    var question = document.getElementById('needsQuestion');
+    var replies = document.getElementById('needsReplies');
+    var form = document.getElementById('needsForm');
+    var text = document.getElementById('needsText');
+    var send = document.getElementById('needsSend');
+    var err = document.getElementById('needsError');
+    var sources = document.getElementById('writingSources');
+    var sourcesCount = document.getElementById('sourcesCount');
+    var sourcesEmpty = document.getElementById('sourcesEmpty');
+    var sections = document.getElementById('writingSections');
+    var draft = document.getElementById('writingDraft');
+    var draftEmpty = document.getElementById('draftEmpty');
+    var draftTitle = document.getElementById('draftTitle');
+    var close = document.getElementById('writingClose');
+    var stop = document.getElementById('writingStop');
+    var announcer = document.getElementById('writingAnnouncer');
+    var lastDraft = draft.innerHTML, lastNeeds = needs.hidden ? '' : label.textContent + '\n' + question.textContent;
+    var lastStep = (steps.querySelector('[data-state="active"] .writing-step-label') || {}).textContent || '';
+    var timer = null, sending = false;
+
+    function el(tag, cls, t){ var n = document.createElement(tag); if (cls) n.className = cls; if (t !== undefined) n.textContent = t; return n; }
+    function say(msg){ announcer.textContent = ''; setTimeout(function(){ announcer.textContent = msg; }, 30); }
+
+    function drawSteps(list){
+      steps.innerHTML = '';
+      list.forEach(function(s){
+        var li = el('li', 'writing-step');
+        li.setAttribute('data-state', s.state);
+        if (s.state === 'active') li.setAttribute('aria-current', 'step');
+        var n = el('span', 'writing-step-n', s.state === 'done' ? '✓' : String(s.n));
+        n.setAttribute('aria-hidden', 'true');
+        li.appendChild(n);
+        li.appendChild(el('span', 'writing-step-label', s.label));
+        li.appendChild(el('span', 'visually-hidden', s.state === 'done' ? ' (done)' : s.state === 'active' ? ' (now)' : ''));
+        steps.appendChild(li);
+      });
+    }
+    function drawSources(list){
+      sourcesCount.textContent = String(list.length);
+      sourcesEmpty.hidden = list.length > 0;
+      if (sources.children.length === list.length) return;
+      sources.innerHTML = '';
+      list.forEach(function(s){
+        var li = el('li');
+        var a = el('a', '', s.title || s.url);
+        a.href = s.url;
+        a.rel = 'noreferrer';
+        li.appendChild(a);
+        li.appendChild(el('span', 'writing-source-url', s.url));
+        sources.appendChild(li);
+      });
+    }
+    function drawDraft(d){
+      draftTitle.textContent = d.draftTitle ? ': ' + d.draftTitle : '';
+      sections.innerHTML = '';
+      (d.sections || []).forEach(function(s){ sections.appendChild(el('li', '', s)); });
+      var html = d.draftHTML || '';
+      draftEmpty.hidden = !!html;
+      draft.hidden = !html;
+      if (html !== lastDraft) { draft.innerHTML = html; lastDraft = html; }
+    }
+    function drawNeeds(n){
+      var key = n ? n.label + '\n' + (n.question || '') : '';
+      if (key === lastNeeds) return;
+      lastNeeds = key;
+      needs.hidden = !n;
+      if (!n) { text.value = ''; return; }
+      label.textContent = n.label;
+      question.innerHTML = n.questionHTML || '';
+      replies.innerHTML = '';
+      (n.replies || []).forEach(function(r){
+        var b = el('button', 'btn btn-sm needs-reply', r);
+        b.type = 'submit';
+        b.name = 'text';
+        b.value = r;
+        replies.appendChild(b);
+      });
+      err.textContent = '';
+      say('Your agent needs you: ' + n.label);
+    }
+
+    function show(d){
+      if (d.state === 'stored') { location.replace(d.href || '/' + encodeURIComponent(slug) + '/'); return false; }
+      if (d.state === 'gone') {
+        needs.hidden = true;
+        steps.setAttribute('data-stopped', '');
+        close.textContent = 'Writing stopped before Part 1 was stored, so nothing was saved.';
+        if (stop) stop.innerHTML = '<a class="btn btn-sm writing-stop-btn" href="/">Back to the library</a>';
+        say('Writing stopped. Nothing was saved.');
+        return false;
+      }
+      drawSteps(d.steps || []);
+      if (d.step && d.step !== lastStep) { lastStep = d.step; say('Now: ' + d.step); }
+      drawSources(d.sources || []);
+      drawDraft(d);
+      drawNeeds(d.needs);
+      return true;
+    }
+    function poll(){
+      clearTimeout(timer);
+      fetch(base + '/progress', {headers: {'Accept': 'application/json'}, cache: 'no-store'})
+        .then(function(r){ return r.ok ? r.json() : null; })
+        .then(function(d){ if (!d || show(d)) timer = setTimeout(poll, document.hidden ? 10000 : 2000); })
+        .catch(function(){ timer = setTimeout(poll, 5000); });
+    }
+    document.addEventListener('visibilitychange', function(){ if (!document.hidden) poll(); });
+
+    function reply(t){
+      t = String(t || '').trim();
+      if (!t || sending) return;
+      sending = true;
+      err.textContent = '';
+      form.querySelectorAll('button').forEach(function(b){ b.disabled = true; });
+      fetch(base + '/reply', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({text: t})})
+        .then(function(r){ if (!r.ok) return r.text().then(function(m){ throw new Error((m || 'HTTP ' + r.status).trim()); }); })
+        .then(function(){ lastNeeds = ''; needs.hidden = true; text.value = ''; say('Reply sent'); poll(); })
+        .catch(function(e){ err.textContent = 'Could not send your reply: ' + e.message; })
+        .then(function(){ sending = false; form.querySelectorAll('button').forEach(function(b){ b.disabled = false; }); });
+    }
+    form.addEventListener('submit', function(e){
+      e.preventDefault();
+      var b = e.submitter;
+      if (b && b.classList.contains('needs-reply')) {
+        if (/…$|\.\.\.$/.test(b.value)) {
+          text.value = b.value.replace(/(…|\.\.\.)$/, '').trim() + ' ';
+          text.focus();
+          return;
+        }
+        reply(b.value);
+        return;
+      }
+      reply(text.value);
+    });
+    text.addEventListener('keydown', function(e){
+      if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); reply(text.value); }
+    });
+    if (stop) stop.addEventListener('submit', function(e){
+      e.preventDefault();
+      var b = stop.querySelector('button');
+      if (b) { b.disabled = true; b.textContent = 'Stopping…'; }
+      fetch(stop.action, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'})
+        .then(function(){ location.href = '/'; })
+        .catch(function(){ if (b) { b.disabled = false; b.textContent = 'Stop writing'; } });
+    });
+    if (!needs.hidden && location.hash === '#needs') { try { needs.focus(); } catch (e) {} }
+    if (main.getAttribute('data-live') === 'true') timer = setTimeout(poll, 2000);
+  })();
+</script>
+{{template "shortcuts" .}}
+{{- if .Native}}
+{{template "nativeLinks"}}
+{{- end}}
+</body>
+</html>

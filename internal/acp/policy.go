@@ -89,6 +89,15 @@ func NewPolicy(scratchDir, workspaceDir, voiceFile string) *Policy {
 	}
 }
 
+// VoicePolicy is for drafting a new voice (Settings › Voices › New voice):
+// no files and no commands at all. Everything the run needs comes in the
+// prompt (the brief, the voice to start from, the /lathe-voice skill) or
+// through the session's scoped Lathe MCP tools (lathe_voice_show to read a
+// spec, lathe_voice_draft and lathe_voice_add to write).
+func VoicePolicy() *Policy {
+	return &Policy{Job: "voice"}
+}
+
 // ErrOutsidePolicy is wrapped by every rejection, so callers can tell a
 // policy refusal from an I/O error.
 var ErrOutsidePolicy = errors.New("outside this job's file policy")

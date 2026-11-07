@@ -47,6 +47,8 @@
 	<true/>
 	<key>NSSupportsAutomaticGraphicsSwitching</key>
 	<true/>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>Lathe opens Terminal or iTerm in your tutorial's workspace and types a command in for you to run.</string>
 	<key>NSHumanReadableCopyright</key>
 	<string>Copyright (c) 2026 Deven Jarvis. MIT License.</string>
 </dict>

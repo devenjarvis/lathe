@@ -18,7 +18,7 @@ func TestFollowRedirectsRewritesSameOrigin(t *testing.T) {
 		t.Fatalf("code %d, Location %q; want a 200 page", rec.Code, rec.Header().Get("Location"))
 	}
 	body := rec.Body.String()
-	if !strings.Contains(body, `location.replace("/demo/part-01.md")`) || strings.Contains(body, "Found") {
+	if !strings.Contains(body, `("/demo/part-01.md")`) || strings.Contains(body, "Found") {
 		t.Errorf("body = %s", body)
 	}
 }

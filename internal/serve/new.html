@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en"{{if .Native}} data-native{{end}}>
+<head>
+  {{template "head" .}}
+  <title>New tutorial — Lathe</title>
+</head>
+<body class="new-page">
+{{/* The /-/new page (new_sheet.go): the New tutorial sheet as a page of its
+     own. It is where every "New tutorial" link goes with scripts off, and
+     what a scripts-off submit answers with (an error, the worker note or the
+     /lathe command). With scripts on the sheet opens over the current page
+     instead, and newsheet.js runs this form the same way. */}}
+<a class="skip-link" href="#newTopic">Skip to the topic</a>
+<header class="settings-bar">
+  <div class="settings-bar-row">
+    <a class="back-link settings-back" href="/"><span aria-hidden="true">←</span> Library</a>
+    <h1 class="settings-title">Lathe</h1>
+  </div>
+</header>
+<main class="new-page-main">
+  <div class="new-sheet new-sheet-page">
+    {{template "newSheetForm" .Sheet}}
+  </div>
+</main>
+{{template "shortcuts" .}}
+</body>
+</html>

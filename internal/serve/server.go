@@ -28,7 +28,7 @@ import (
 	"github.com/devenjarvis/lathe/internal/voice"
 )
 
-//go:embed layout.html list.html components.html check.html settings.html shortcuts.html palette.html
+//go:embed layout.html list.html components.html check.html settings.html shortcuts.html palette.html newsheet.html new.html writing.html reading_tools.html drop.html agents.html welcome.html
 var templateFS embed.FS
 
 // styles.css is the entire design system (tokens + components). It's loaded
@@ -81,6 +81,12 @@ type Server struct {
 	nativeMu sync.RWMutex
 	// settingsTmpl renders the Settings window (/-/settings, settings.go).
 	settingsTmpl *template.Template
+	// newTmpl renders the New tutorial sheet: the /-/new page and the
+	// fragment the sheet loads (new_sheet.go).
+	newTmpl     *template.Template
+	writingTmpl *template.Template
+	// welcomeTmpl renders the first-launch setup (/-/welcome, welcome.go).
+	welcomeTmpl *template.Template
 	// cmds tracks the pages that take desktop menu commands, and which one
 	// is focused (native_menu.go).
 	cmds commandHub
@@ -89,6 +95,16 @@ type Server struct {
 	voiceTrash voiceTrash
 	// index caches the part outlines GET /-/index serves (index.go).
 	index indexCache
+	// updates is the desktop app's update checker, for the title-bar
+	// notice (updates.go).
+	updates *updateSlot
+	// views is what each desktop window shows, for restore on launch;
+	// attn keeps the Dock badge and "needs you" notifications current;
+	// drops holds folder drops waiting for the reader's answer
+	// (native_window.go, native_notify.go, native_drop.go).
+	views viewBook
+	attn  attentionRunner
+	drops dropBook
 }
 
 // staticVersion fingerprints the embedded static assets so every page can ask
@@ -130,8 +146,13 @@ func assetURL(name string) string {
 }
 
 func NewServer(tutorialsDir string) *Server {
+	updates := &updateSlot{}
 	funcMap := template.FuncMap{
+		// updateNotice is the desktop app's title-bar update notice, nil
+		// without one (updates.go).
+		"updateNotice": updates.notice,
 		"add":          func(a, b int) int { return a + b },
+		"sub":          func(a, b int) int { return a - b },
 		"cardProgress": cardProgress,
 		"asset":        assetURL,
 		// prefs is the reader's appearance and reading settings, read per
@@ -145,12 +166,19 @@ func NewServer(tutorialsDir string) *Server {
 		"shortcutsJS":   shortcutsJS,
 		// The Go to anything palette's script (index.go).
 		"paletteJS": paletteJS,
+		// The New tutorial sheet's script (new_sheet.go).
+		"newSheetJS": newSheetJS,
+		// The reading page's selection toolbar and listing menu.
+		"readingToolsJS": readingToolsJS,
 	}
 	// components.html is parsed into both template sets so its shared partials
 	// ({{define "head"}}, "badge", "themeToggle") are available to each page.
-	layoutTmpl := template.Must(template.New("layout.html").Funcs(funcMap).ParseFS(templateFS, "components.html", "shortcuts.html", "palette.html", "check.html", "layout.html"))
-	listTmpl := template.Must(template.New("list.html").Funcs(funcMap).ParseFS(templateFS, "components.html", "shortcuts.html", "palette.html", "list.html"))
-	settingsTmpl := template.Must(template.New("settings.html").Funcs(funcMap).ParseFS(templateFS, "components.html", "shortcuts.html", "palette.html", "settings.html"))
+	layoutTmpl := template.Must(template.New("layout.html").Funcs(funcMap).ParseFS(templateFS, "components.html", "shortcuts.html", "palette.html", "newsheet.html", "drop.html", "check.html", "reading_tools.html", "layout.html"))
+	listTmpl := template.Must(template.New("list.html").Funcs(funcMap).ParseFS(templateFS, "components.html", "shortcuts.html", "palette.html", "newsheet.html", "drop.html", "list.html"))
+	settingsTmpl := template.Must(template.New("settings.html").Funcs(funcMap).ParseFS(templateFS, "components.html", "shortcuts.html", "palette.html", "newsheet.html", "drop.html", "agents.html", "settings.html"))
+	newTmpl := template.Must(template.New("new.html").Funcs(funcMap).ParseFS(templateFS, "components.html", "shortcuts.html", "palette.html", "newsheet.html", "drop.html", "new.html"))
+	writingTmpl := template.Must(template.New("writing.html").Funcs(funcMap).ParseFS(templateFS, "components.html", "shortcuts.html", "palette.html", "newsheet.html", "drop.html", "writing.html"))
+	welcomeTmpl := template.Must(template.New("welcome.html").Funcs(funcMap).ParseFS(templateFS, "components.html", "shortcuts.html", "palette.html", "newsheet.html", "drop.html", "agents.html", "welcome.html"))
 	css, err := HighlightCSS()
 	if err != nil {
 		panic(fmt.Sprintf("lathe: failed to build syntax-highlight CSS: %v", err))
@@ -160,10 +188,14 @@ func NewServer(tutorialsDir string) *Server {
 		layoutTmpl:   layoutTmpl,
 		listTmpl:     listTmpl,
 		settingsTmpl: settingsTmpl,
+		newTmpl:      newTmpl,
+		writingTmpl:  writingTmpl,
+		welcomeTmpl:  welcomeTmpl,
 		highlightCSS: css,
 		designCSS:    template.CSS(stylesCSS),
 		jigScript:    template.JS(jig.Script()),
 		queue:        queue.New(),
+		updates:      updates,
 	}
 }
 
@@ -183,6 +215,12 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /-/shelves/{id}/rename", s.handleShelfRename)
 	mux.HandleFunc("POST /-/shelves/{id}/describe", s.handleShelfDescribe)
 	mux.HandleFunc("POST /-/shelves/{id}/delete", s.handleShelfDelete)
+	mux.HandleFunc("POST /-/shelves/sort", s.handleShelfSort)
+	mux.HandleFunc("POST /-/shelves/sort/apply", s.handleShelfSortApply)
+	mux.HandleFunc("POST /-/shelves/sort/discard", s.handleShelfSortDiscard)
+	mux.HandleFunc("POST /-/shelves/{id}/split", s.handleShelfSplitApply)
+	mux.HandleFunc("POST /-/shelves/{id}/split/suggest", s.handleShelfSplitSuggest)
+	mux.HandleFunc("POST /-/shelves/{id}/split/dismiss", s.handleShelfSplitDismiss)
 	mux.HandleFunc("POST /-/ask/{slug}/{part}", s.handleAsk)
 	mux.HandleFunc("POST /-/progress/{slug}/{part}", s.handleProgress)
 	mux.HandleFunc("POST /-/extend/{slug}", s.handleExtend)
@@ -193,8 +231,12 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /-/extend/{slug}/cancel", s.handleJobCancel(jobExtend))
 	// New tutorial (agent_new.go): run /lathe on the hosted agent into a
 	// reserved slug (else a worker job, else the /lathe handoff); stop it.
+	mux.HandleFunc("GET /-/new", s.handleNewSheet)
+	mux.HandleFunc("GET /-/new/suggest", s.handleNewSuggest)
 	mux.HandleFunc("POST /-/new", s.handleNew)
 	mux.HandleFunc("POST /-/new/{slug}/cancel", s.handleJobCancel(jobNew))
+	mux.HandleFunc("POST /-/new/{slug}/reply", s.handleNewReply)
+	mux.HandleFunc("GET /-/new/{slug}/progress", s.handleWritingProgress)
 	mux.HandleFunc("GET /-/status/{slug}/{part}", s.handleStatus)
 	// "Check my work": start a check of the reader's code against a part, and
 	// read the newest result back.
@@ -221,6 +263,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /-/agent/restart", s.handleAgentRestart)
 	mux.HandleFunc("POST /-/workspace/{slug}", s.handleWorkspace)
 	// The Settings window (settings.go).
+	mux.HandleFunc("GET /-/welcome", s.handleWelcome)
+	mux.HandleFunc("POST /-/welcome", s.handleWelcomePost)
 	mux.HandleFunc("GET /-/settings", s.handleSettings)
 	mux.HandleFunc("POST /-/settings", s.handleSettingsSave)
 	mux.HandleFunc("POST /-/settings/agent-path", s.handleAgentPath)
@@ -228,16 +272,27 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /-/voices/duplicate", s.handleVoiceDuplicate)
 	mux.HandleFunc("POST /-/voices/delete", s.handleVoiceDelete)
 	mux.HandleFunc("POST /-/voices/restore", s.handleVoiceRestore)
+	mux.HandleFunc("POST /-/voices/new", s.handleVoiceNew)
+	mux.HandleFunc("GET /-/voices/new/{id}", s.handleVoiceNewState)
+	mux.HandleFunc("POST /-/voices/new/{id}/refine", s.handleVoiceNewRefine)
+	mux.HandleFunc("POST /-/voices/new/{id}/save", s.handleVoiceNewSave)
+	mux.HandleFunc("POST /-/voices/new/{id}/cancel", s.handleVoiceNewCancel)
 	// Desktop shell (native_http.go): 404 unless SetNative installed one.
 	mux.HandleFunc("POST /-/native/pick-folder", s.handleNativePickFolder)
 	mux.HandleFunc("POST /-/native/window", s.handleNativeWindow)
 	mux.HandleFunc("POST /-/native/open-url", s.handleNativeOpenURL)
 	mux.HandleFunc("POST /-/native/reveal", s.handleNativeReveal)
+	mux.HandleFunc("POST /-/native/update", s.handleNativeUpdate)
+	// Editor, terminal and Compare (native_workspace.go).
+	s.workspaceRoutes(mux)
 	// Shortcut registry and desktop menu commands (native_menu.go).
 	mux.HandleFunc("GET /-/shortcuts", s.handleShortcuts)
 	mux.HandleFunc("GET /-/index", s.handleIndex)
 	mux.HandleFunc("GET /-/native/commands", s.handleNativeCommands)
 	mux.HandleFunc("POST /-/native/context", s.handleNativeContext)
+	mux.HandleFunc("POST /-/native/view", s.handleNativeView)
+	mux.HandleFunc("POST /-/native/drop/workspace", s.handleDropWorkspace)
+	mux.HandleFunc("POST /-/native/drop/add", s.handleDropAdd)
 	return mux
 }
 
@@ -314,11 +369,19 @@ func (s *Server) handleList(w http.ResponseWriter, r *http.Request) {
 		s.writeListJSON(w, tutorials, shelves)
 		return
 	}
+	// A first launch of the desktop app opens the setup (welcome.go).
+	if s.showWelcome(r, len(tutorials)) {
+		http.Redirect(w, r, "/-/welcome", http.StatusSeeOther)
+		return
+	}
 	env := s.libraryEnvFor()
 	page, ok := buildLibrary(tutorials, shelves, r.URL.Query(), env)
 	if !ok {
 		http.NotFound(w, r)
 		return
+	}
+	if page.Split != nil {
+		page.Split.Run = s.runningShelfJob(jobShelfSplit, page.Split.ShelfID)
 	}
 	withToast(page, r.URL.Query(), tutorials, shelves, env.Trash)
 	var buf bytes.Buffer
@@ -328,6 +391,9 @@ func (s *Server) handleList(w http.ResponseWriter, r *http.Request) {
 		"HighlightCSS": s.highlightCSS,
 		// Native: the desktop shell is present (data-native on <html>).
 		"Native": s.nativeShell() != nil,
+		// Welcome: Home's empty state offers the first-launch setup until
+		// it is done or skipped.
+		"Welcome": len(tutorials) == 0 && !config.Onboarded(),
 	}); err != nil {
 		log.Printf("lathe: list template: %v", err)
 		http.Error(w, "template error", http.StatusInternalServerError)
@@ -362,11 +428,9 @@ func (s *Server) handleTutorial(w http.ResponseWriter, r *http.Request) {
 	// the historical first-part redirect. The index.md fallback is only for
 	// legacy tutorials that were never split into parts.
 	if tut.Status == store.StatusWriting && len(tut.Parts) == 0 {
-		// A reservation (agent_new.go): nothing to read yet. Check back
-		// every few seconds; once stored, this redirects to Part 1.
-		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		w.Header().Set("Refresh", "5")
-		_, _ = fmt.Fprintf(w, "%s is still being written by your agent.\nThis page opens Part 1 once it is stored.\n", tut.Title)
+		// A reservation (agent_new.go): the progress page (writing.go).
+		// Once stored, this redirects to Part 1.
+		s.renderWriting(w, tut, tutDir)
 		return
 	}
 	if len(tut.Parts) > 0 {
@@ -705,8 +769,11 @@ func (s *Server) renderPart(w http.ResponseWriter, tut *store.Tutorial, tutDir, 
 		"HighlightCSS":      s.highlightCSS,
 		// Native: the desktop shell is present, so the page renders its
 		// affordances (data-native, "Choose folder…", the app-window pop-out).
-		"Native":            s.nativeShell() != nil,
-		"JigScript":         jigScript,
+		"Native":    s.nativeShell() != nil,
+		"JigScript": jigScript,
+		// ReadingTools: the selection toolbar, listing menu, Run in
+		// Terminal and the title bar's workspace menu (native_workspace.go).
+		"ReadingTools":      s.readingToolsFor(tut.Slug),
 		"PrevPart":          prevPart,
 		"NextPart":          nextPart,
 		"PrevTitle":         prevTitle,

@@ -77,6 +77,7 @@ type fakeBackend struct {
 	authCalls int
 	block     chan struct{} // if set, authorize waits on it
 	sent      []string
+	noActions error // if set, sendAction fails with it
 }
 
 func (f *fakeBackend) usable() error { return f.unusable }
@@ -89,6 +90,16 @@ func (f *fakeBackend) authorize() (bool, error) {
 	defer f.mu.Unlock()
 	f.authCalls++
 	return f.authOK, f.authErr
+}
+
+func (f *fakeBackend) sendAction(id, title, body, label, path string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.noActions != nil {
+		return f.noActions
+	}
+	f.sent = append(f.sent, id+"|"+title+"|"+body+"|"+label+"→"+path)
+	return nil
 }
 
 func (f *fakeBackend) send(id, title, body string) error {
@@ -266,5 +277,39 @@ func TestStubOrAvailable(t *testing.T) {
 		if err := Run(t.Context(), Options{}); !errors.Is(err, ErrNotBuilt) {
 			t.Errorf("stub Run = %v, want ErrNotBuilt", err)
 		}
+	}
+}
+
+func TestNotifierActionsFallBackToPlain(t *testing.T) {
+	b := &fakeBackend{authOK: true}
+	var log logLines
+	n := newNotifier(b, log.logf)
+	n.NotifyAction("Extend finished: Demo", "Part 3 is ready", "Open", "/demo/part-03.md")
+	n.close()
+	if want := "lathe-1|Extend finished: Demo|Part 3 is ready|Open→/demo/part-03.md"; strings.Join(b.sent, ",") != want {
+		t.Errorf("sent %v, want %s", b.sent, want)
+	}
+
+	// No buttons on this platform: the same notification, plainly, quietly.
+	b = &fakeBackend{authOK: true, noActions: errNoActions}
+	log = logLines{}
+	n = newNotifier(b, log.logf)
+	n.NotifyAction("Verify failed: Demo", "Part 2, step 3", "View report", "/demo/part-02.md#verifyRegion")
+	n.close()
+	if want := "lathe-1|Verify failed: Demo|Part 2, step 3"; strings.Join(b.sent, ",") != want {
+		t.Errorf("sent %v, want %s", b.sent, want)
+	}
+	if log.all() != "" {
+		t.Errorf("unexpected log: %s", log.all())
+	}
+
+	// Any other failure posts it plainly and says so.
+	b = &fakeBackend{authOK: true, noActions: errors.New("category refused")}
+	log = logLines{}
+	n = newNotifier(b, log.logf)
+	n.NotifyAction("Claude Code needs you", "Run zig build", "Answer", "/demo/part-01.md#agent")
+	n.close()
+	if len(b.sent) != 1 || !strings.Contains(log.all(), "without its Answer button") {
+		t.Errorf("sent %v, log %q", b.sent, log.all())
 	}
 }

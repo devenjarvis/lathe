@@ -14,9 +14,11 @@ import (
 	"strings"
 
 	"github.com/devenjarvis/lathe/internal/agents"
+	"github.com/devenjarvis/lathe/internal/buildinfo"
 	"github.com/devenjarvis/lathe/internal/config"
 	"github.com/devenjarvis/lathe/internal/loginenv"
 	"github.com/devenjarvis/lathe/internal/store"
+	"github.com/devenjarvis/lathe/internal/update"
 )
 
 // The Settings window (issue #131): one page at /-/settings with Agent,
@@ -169,6 +171,36 @@ type settingsAgent struct {
 	// State and Status are the current agent's live status ("ready",
 	// "Running · model"), refreshed by the page from GET /-/worker.
 	State, Status string
+	// Picked checks the card's radio: the current agent in Settings; the
+	// first-launch setup also pre-picks the one ready agent it found.
+	Picked bool
+}
+
+// agentCards lists the registry agents as Settings › Agent and the
+// first-launch setup show them (the shared "agentChoices" partial), with the
+// hosted agent's status, and the custom --agent command when the hosted
+// agent isn't a registry one.
+func (s *Server) agentCards() (cards []settingsAgent, cur *agentStatus, custom string) {
+	home, _ := os.UserHomeDir()
+	h := s.hostedAgent()
+	if h != nil {
+		st := h.status()
+		cur = &st
+		if _, ok := agents.ByCommand(h.command); !ok {
+			custom = h.command
+		}
+	}
+	for _, d := range agents.Detect(s.lookPath, home) {
+		c := settingsAgent{Detected: d, Program: firstField(d.Command)}
+		c.Current = h != nil && h.command == d.Command
+		c.Picked = c.Current
+		c.InstallCmd = looksLikeCommand(d.Install)
+		if c.Current && cur != nil {
+			c.State, c.Status = cur.State, describeAgent(*cur)
+		}
+		cards = append(cards, c)
+	}
+	return cards, cur, custom
 }
 
 type settingsPathDir struct {
@@ -181,27 +213,9 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, config.LoadSettings())
 		return
 	}
-	home, _ := os.UserHomeDir()
+	cards, cur, custom := s.agentCards()
+	// h is the hosted agent, for New voice and the shelf jobs' labels.
 	h := s.hostedAgent()
-	var cur *agentStatus
-	custom := ""
-	if h != nil {
-		st := h.status()
-		cur = &st
-		if _, ok := agents.ByCommand(h.command); !ok {
-			custom = h.command
-		}
-	}
-	var cards []settingsAgent
-	for _, d := range agents.Detect(s.lookPath, home) {
-		c := settingsAgent{Detected: d, Program: firstField(d.Command)}
-		c.Current = h != nil && h.command == d.Command
-		c.InstallCmd = looksLikeCommand(d.Install)
-		if c.Current && cur != nil {
-			c.State, c.Status = cur.State, describeAgent(*cur)
-		}
-		cards = append(cards, c)
-	}
 
 	var dirs []settingsPathDir
 	if c, err := config.ReadConfig(); err == nil {
@@ -241,6 +255,9 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 		"AllVoices":       append(append([]settingsVoice{}, builtinVoices...), yourVoices...),
 		"VoicesDir":       voicesDirDisplay(),
 		"VoicePane":       voicePane,
+		// AgentName is the hosted agent New voice drafts with ("" when none
+		// is set up: the pane offers /lathe-voice instead).
+		"AgentName":       agentName(h),
 		"DefaultVoice":    config.DefaultVoice(),
 		"TutorialsDir":    s.tutorialsDir,
 		"TutorialsShort":  displayPath(s.tutorialsDir),
@@ -256,7 +273,21 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 		// Never.
 		"TrashChoices": []choice{{"7", "7 days"}, {"30", "30 days"}, {"0", "Never"}},
 		"TrashCount":   s.trashCount(),
-		"LineWidths":   choices(config.LineWidths, lineWidthLabels),
+		// ShelfSplitChoices is the split-suggestion threshold
+		// (shelf_split_at); 0 is Never.
+		"ShelfSplitChoices": []choice{{"8", "8"}, {"12", "12"}, {"16", "16"}, {"24", "24"}, {"0", "Never"}},
+		"SortReview":        s.buildSortReview(),
+		"SortRun":           s.runningShelfJob(jobShelfSort, ""),
+		"LibraryTotal":      s.libraryTotal(),
+		"AgentLabel":        agentLabel(h),
+		"Sorted":            sortedNote(r.URL.Query().Get("sorted")),
+		"LineWidths":        choices(config.LineWidths, lineWidthLabels),
+		// Version is the running release for Settings › Library › Updates,
+		// "" for a development build.
+		"Version": releaseVersion(),
+		// Editors and Terminals: Settings › Reading's "Open code in"
+		// (native_workspace.go).
+		"Launchers": launcherChoices(runtime.GOOS),
 		// Shortcuts is the read-only list from the shortcut registry.
 		"Shortcuts": shortcutGroups(runtime.GOOS),
 	}
@@ -267,6 +298,13 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_, _ = buf.WriteTo(w)
+}
+
+func agentName(h *agentHost) string {
+	if h == nil {
+		return ""
+	}
+	return h.name
 }
 
 // settingsPatch is a POST /-/settings body: any subset of the keys. Unknown
@@ -284,7 +322,12 @@ type settingsPatch struct {
 	NotifyVerify     *bool   `json:"notify_verify"`
 	NotifyExtend     *bool   `json:"notify_extend"`
 	NotifyCheck      *bool   `json:"notify_check"`
+	NotifyNeedsYou   *bool   `json:"notify_needs_you"`
 	TrashDays        *int    `json:"trash_days"`
+	UpdateCheck      *bool   `json:"update_check"`
+	ShelfSplitAt     *int    `json:"shelf_split_at"`
+	Editor           *string `json:"editor"`
+	Terminal         *string `json:"terminal"`
 }
 
 func (p *settingsPatch) apply(c *config.Config) error {
@@ -335,6 +378,7 @@ func (p *settingsPatch) apply(c *config.Config) error {
 	setOn(&c.RememberPlace, p.RememberPlace)
 	setOn(&c.PanelSuggestions, p.PanelSuggestions)
 	setOn(&c.KeepVerifiedCode, p.KeepVerifiedCode)
+	setOn(&c.UpdateCheck, p.UpdateCheck)
 	if p.PanelWindow != nil {
 		c.PanelWindow = *p.PanelWindow
 	}
@@ -352,14 +396,29 @@ func (p *settingsPatch) apply(c *config.Config) error {
 			c.TrashDays = &v
 		}
 	}
-	if p.NotifyVerify != nil || p.NotifyExtend != nil || p.NotifyCheck != nil {
+	if p.ShelfSplitAt != nil {
+		if !slices.Contains(config.ShelfSplitChoices, *p.ShelfSplitAt) {
+			return errBadRequest("shelf_split_at must be 8, 12, 16, 24 or 0 (never)")
+		}
+		if *p.ShelfSplitAt == config.DefaultShelfSplitAt {
+			c.ShelfSplitAt = nil
+		} else {
+			v := *p.ShelfSplitAt
+			c.ShelfSplitAt = &v
+		}
+	}
+	if err := p.applyLaunchers(c); err != nil {
+		return err
+	}
+	if p.NotifyVerify != nil || p.NotifyExtend != nil || p.NotifyCheck != nil || p.NotifyNeedsYou != nil {
 		if c.Notify == nil {
 			c.Notify = &config.NotifyConfig{}
 		}
 		setOn(&c.Notify.Verify, p.NotifyVerify)
 		setOn(&c.Notify.Extend, p.NotifyExtend)
 		setOn(&c.Notify.Check, p.NotifyCheck)
-		if c.Notify.Verify == nil && c.Notify.Extend == nil && c.Notify.Check == nil {
+		setOn(&c.Notify.NeedsYou, p.NotifyNeedsYou)
+		if c.Notify.Verify == nil && c.Notify.Extend == nil && c.Notify.Check == nil && c.Notify.NeedsYou == nil {
 			c.Notify = nil
 		}
 	}
@@ -479,6 +538,8 @@ func notifyEnabled(job string) bool {
 		return st.NotifyExtend
 	case jobCheck:
 		return st.NotifyCheck
+	case noticeNeedsYou:
+		return st.NotifyNeedsYou
 	}
 	return true
 }
@@ -534,6 +595,15 @@ func looksLikeCommand(s string) bool {
 	return false
 }
 
+// releaseVersion is the running version when it is a release ("0.9.0"),
+// else "" (a development build).
+func releaseVersion() string {
+	if v, ok := update.Parse(buildinfo.Resolve()); ok {
+		return v.String()
+	}
+	return ""
+}
+
 // trashCount is how many tutorials are in the Trash, for Settings › Library's
 // Show Trash.
 func (s *Server) trashCount() int {
@@ -542,4 +612,34 @@ func (s *Server) trashCount() int {
 		return 0
 	}
 	return len(list)
+}
+
+// libraryTotal counts the stored tutorials.
+func (s *Server) libraryTotal() int {
+	tuts, err := s.readTutorials()
+	if err != nil {
+		return 0
+	}
+	return len(tuts)
+}
+
+// agentLabel names the hosted agent for a button hint ("Claude Code"), or
+// "" when none is configured.
+func agentLabel(h *agentHost) string {
+	if h == nil {
+		return ""
+	}
+	if h.name != "" {
+		return h.name
+	}
+	return "Your agent"
+}
+
+// sortedNote is ?sorted=<n> (the redirect after applying a sort), checked to
+// be a small number; "" otherwise.
+func sortedNote(v string) string {
+	if v == "" || len(v) > 5 || strings.Trim(v, "0123456789") != "" {
+		return ""
+	}
+	return v
 }

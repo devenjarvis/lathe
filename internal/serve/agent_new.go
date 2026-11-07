@@ -66,13 +66,23 @@ type newRequest struct {
 	// the agent may read it, and Lathe records it as the tutorial's
 	// workspace.
 	Workspace string `json:"workspace"`
+	// WorkspaceAuto says Workspace is the New tutorial sheet's own
+	// suggestion, not something the reader typed or picked: the server
+	// recomputes it from the topic (<code root>/<slug>), so a submit that
+	// beat the sheet's live update still gets the right folder.
+	WorkspaceAuto bool `json:"workspaceAuto"`
 	// Tools are pinned versions; when given the skill doesn't re-confirm
 	// them.
 	Tools []store.Tool `json:"tools"`
+	// Versions is the New tutorial sheet's free-text form of Tools ("zig
+	// 0.13.0, llvm 18"), used when Tools is empty.
+	Versions string `json:"versions"`
 	// Repo / RepoBranch pin the git remote the tutorial is for.
 	Repo       string `json:"repo"`
 	RepoBranch string `json:"repoBranch"`
-	// Shelf is a shelf id to file the tutorial on once it is stored.
+	// Shelf is a shelf id to file the tutorial on once it is stored
+	// ("unsorted" keeps it off every shelf). Empty lets the agent pick one
+	// (the /lathe skill's "Pick a shelf").
 	Shelf string `json:"shelf"`
 	// Slug, when set, is used exactly (409 if taken); else it is derived
 	// from the topic and made unique.
@@ -112,6 +122,8 @@ func (s *Server) validateNew(req newRequest) (*newInputs, error) {
 		return nil, errors.New("a field is too long")
 	case strings.ContainsAny(in.Repo+in.RepoBranch, " \t\r\n\""):
 		return nil, errors.New("repo and repoBranch must not contain spaces or quotes")
+	case len(req.Versions) > maxFieldLen:
+		return nil, errors.New("a field is too long")
 	case len(req.Tools) > maxNewTools:
 		return nil, fmt.Errorf("at most %d pinned versions", maxNewTools)
 	}
@@ -121,6 +133,12 @@ func (s *Server) validateNew(req newRequest) (*newInputs, error) {
 		}
 	}
 	in.Tools = store.NormalizeTools(req.Tools)
+	if len(in.Tools) == 0 {
+		in.Tools = parseVersions(req.Versions)
+		if len(in.Tools) > maxNewTools {
+			return nil, fmt.Errorf("at most %d pinned versions", maxNewTools)
+		}
+	}
 	for _, t := range in.Tools {
 		if strings.ContainsAny(t.Name+t.Version, " \t\r\n\":") {
 			return nil, fmt.Errorf("invalid pinned version %q: names and versions are single words", t.Name+":"+t.Version)
@@ -160,7 +178,7 @@ func (s *Server) validateNew(req newRequest) (*newInputs, error) {
 
 	if in.Shelf != "" {
 		if in.Shelf == store.UnsortedShelfID {
-			in.Shelf = ""
+			// The reader's choice: settleNew takes it off any shelf.
 		} else if sh, err := store.ReadShelves(s.shelvesPath()); err != nil {
 			return nil, err
 		} else if _, ok := sh.Get(in.Shelf); !ok {
@@ -213,6 +231,7 @@ func (in *newInputs) command() string {
 	if in.Repo != "" {
 		flag("repo-branch", in.RepoBranch)
 	}
+	flag("shelf", in.Shelf)
 	return b.String()
 }
 
@@ -227,13 +246,51 @@ func (s *Server) handleNew(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}
+	// The New tutorial sheet posts JSON; with scripts off it is a plain
+	// form, answered with a redirect or the /-/new page (new_sheet.go).
+	form := isFormPost(r)
 	var req newRequest
-	if !readJSONBody(w, r, maxNewBytes, &req) {
+	if form {
+		var ok bool
+		if req, ok = newFormRequest(w, r); !ok {
+			http.Error(w, "could not read the form", http.StatusBadRequest)
+			return
+		}
+	} else if !readJSONBody(w, r, maxNewBytes, &req) {
 		return
+	}
+	// reply answers a start: id is the run (agent) or the job (queued).
+	reply := func(mode, slug, id, command, notice string) {
+		if form {
+			s.newFormReply(w, r, req, mode, slug, command, notice, "", http.StatusOK)
+			return
+		}
+		switch mode {
+		case "agent":
+			writeJSON(w, map[string]string{"mode": "agent", "runId": id, "slug": slug})
+		case "queued":
+			writeQueued(w, id)
+		default:
+			if notice != "" {
+				writeHandoffNotice(w, command, notice)
+			} else {
+				writeHandoff(w, command)
+			}
+		}
+	}
+	fail := func(msg string, code int) {
+		if form {
+			s.newFormReply(w, r, req, "", "", "", "", msg, code)
+			return
+		}
+		http.Error(w, msg, code)
+	}
+	if req.WorkspaceAuto && strings.TrimSpace(req.Topic) != "" {
+		req.Workspace = newWorkspaceFor(req.Topic)
 	}
 	in, err := s.validateNew(req)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		fail(err.Error(), http.StatusBadRequest)
 		return
 	}
 	command := in.command()
@@ -243,23 +300,19 @@ func (s *Server) handleNew(w http.ResponseWriter, r *http.Request) {
 		run, slug, err := agent.startNew(s.tutorialsDir, s.shelvesPath(), in, command)
 		switch {
 		case err == nil:
-			writeJSON(w, map[string]string{"mode": "agent", "runId": run.id, "slug": slug})
+			reply("agent", slug, run.id, command, "")
 			return
 		case errors.Is(err, store.ErrSlugTaken), errors.Is(err, errJobBusy):
-			http.Error(w, "conflict: "+err.Error(), http.StatusConflict)
+			fail("conflict: "+err.Error(), http.StatusConflict)
 			return
 		}
 		notice = "The agent (" + agent.command + ") could not start: " + err.Error()
 	}
 	if s.queue.WorkerConnected() {
-		writeQueued(w, s.queue.Enqueue(queue.Job{Type: queue.JobNew, Command: command}))
+		reply("queued", "", s.queue.Enqueue(queue.Job{Type: queue.JobNew, Command: command}), command, "")
 		return
 	}
-	if notice != "" {
-		writeHandoffNotice(w, command, notice)
-		return
-	}
-	writeHandoff(w, command)
+	reply("handoff", "", "", command, notice)
 }
 
 // startNew reserves the tutorial's slug and starts the /lathe run for it in a
@@ -321,8 +374,9 @@ func (h *agentHost) startNew(tutorialsDir, shelvesPath string, in *newInputs, co
 	}
 	c.SetPolicy(sid, acp.NewPolicy(scratch, workspace, in.voiceFile))
 
-	prompt := newPrompt(slug, scratch, workspace, in, command)
-	run, err := h.launch(c, jobKey(slug), jobNew, jobTarget{tutDir: tutDir}, sid, prompt, command, jobRunTimeout, func() string {
+	shelves, _ := store.ListShelves(tutorialsDir)
+	prompt := newPrompt(slug, scratch, workspace, in, command, shelves)
+	run, err := h.launch(c, jobKey(slug), jobNew, jobTarget{tutDir: tutDir, draft: filepath.Join(scratch, slug), scratch: scratch, title: tut.Title}, sid, prompt, command, jobRunTimeout, func() string {
 		c.SetPolicy(sid, nil)
 		note := settleNew(tutDir, shelvesPath, in.Shelf)
 		_ = os.RemoveAll(scratch)
@@ -384,9 +438,34 @@ func (r *agentRun) wantsReply() bool {
 // returns false when the run was cancelled, the agent exited (agentDone), or
 // nobody answered in time.
 func (r *agentRun) waitReply(agentDone <-chan struct{}) (string, bool) {
+	ev := runEvent{Type: "input", Message: "The agent is waiting for your reply."}
+	// The label and quick replies the agent reported for this question
+	// (lathe_progress, just before it ended its turn), if any.
+	if r.target.tutDir != "" {
+		if w, err := store.ReadWriting(r.target.tutDir); err == nil && w != nil && w.Ask != nil {
+			r.mu.Lock()
+			fresh := w.Ask.At.After(r.repliedAt)
+			r.mu.Unlock()
+			if fresh {
+				ev.Title, ev.Replies = w.Ask.Label, w.Ask.Replies
+			}
+		}
+	}
 	r.mu.Lock()
 	r.waiting = true
-	r.appendLocked(runEvent{Type: "input", Message: "The agent is waiting for your reply."})
+	text := r.text.String()
+	if r.blockStart <= len(text) {
+		r.asked = strings.TrimSpace(text[r.blockStart:])
+	}
+	ev.Text = r.asked
+	r.mu.Unlock()
+	if ev.Text != "" {
+		if html, err := RenderMarkdown([]byte(ev.Text)); err == nil {
+			ev.HTML = string(html)
+		}
+	}
+	r.mu.Lock()
+	r.appendLocked(ev)
 	r.mu.Unlock()
 	defer func() {
 		r.mu.Lock()
@@ -422,6 +501,9 @@ func (r *agentRun) reply(text string) bool {
 		return false // an answer is already on its way
 	}
 	r.waiting = false
+	r.turnStart = r.text.Len()
+	r.asked = ""
+	r.repliedAt = time.Now()
 	r.appendLocked(runEvent{Type: "reply", Text: text})
 	return true
 }
@@ -464,7 +546,7 @@ func (s *Server) handleAgentReply(w http.ResponseWriter, r *http.Request) {
 // newPrompt is the whole prompt for a new-tutorial run: framing for the
 // hosted session, the pre-answered inputs, the voice, the /lathe skill text,
 // then the invocation the handoff would paste.
-func newPrompt(slug, scratch, workspace string, in *newInputs, command string) string {
+func newPrompt(slug, scratch, workspace string, in *newInputs, command string, shelves []store.ShelfListing) string {
 	var b strings.Builder
 	out := filepath.Join(scratch, slug)
 	b.WriteString("You are writing a new Lathe tutorial for the \"New tutorial\" button in the Lathe web reader, which hosts you. ")
@@ -479,8 +561,14 @@ func newPrompt(slug, scratch, workspace string, in *newInputs, command string) s
 		b.WriteString("- Lathe lets this session read, write and run commands only in the scratch dir; requests outside that are refused.\n")
 	}
 	fmt.Fprintf(&b, "- Store it with the lathe_store tool, path %s; it stores only into %s. Use `lathe store %s` if you don't have the tool. A run that ends without storing loses the reservation, and Lathe deletes the scratch dir after the run.\n", out, slug, quoteArg(out))
-	b.WriteString("- Lathe records the workspace and files the tutorial on its shelf itself; don't run `lathe start` or `lathe shelf`.\n")
+	b.WriteString("- Lathe records the workspace itself; don't run `lathe start`.\n")
+	if in.Shelf != "" {
+		b.WriteString("- The reader chose the tutorial's shelf, and Lathe files it there when the run ends: skip the skill's \"Pick a shelf\" step and don't call lathe_shelf_set or `lathe shelf`.\n")
+	} else {
+		b.WriteString("- Pick its shelf as the skill's \"Pick a shelf\" step says, after storing: an existing shelf from the list below when one fits, else a new one. Record it with the lathe_shelf_set tool (it defaults to this tutorial; pass create: true for a new shelf).\n")
+	}
 	b.WriteString("- The reader sees your plan live: keep a short plan (pin versions, research, write, check jigs, store) and update it as you go.\n")
+	b.WriteString("- The reader's progress page shows four steps (Pin versions → Research → Write Part 1 → Put it on your shelf), the sources you have read and your draft as it grows. Report each step and each source with the lathe_progress tool (see \"Report progress\" in the skill), and call it with ask and replies right before you end your turn on a question.\n")
 	b.WriteString("- Finish with a short summary for the reader (markdown): what Part 1 builds and the tutorial's slug.\n\n")
 
 	b.WriteString("Pre-answered inputs:\n")
@@ -518,6 +606,11 @@ func newPrompt(slug, scratch, workspace string, in *newInputs, command string) s
 		b.WriteString("- Repo: none — a standalone tutorial.\n")
 	}
 	b.WriteString("\n")
+	if in.Shelf == "" && len(shelves) > 0 {
+		b.WriteString("The reader's shelves (pick from these first):\n\n```json\n")
+		b.WriteString(jsonBlock(shelves))
+		b.WriteString("\n```\n\n")
+	}
 	fmt.Fprintf(&b, "<voice name=%q>\n%s\n</voice>\n\n", in.Voice, strings.TrimSpace(in.voice.Wrapped()))
 	writeSkill(&b, "lathe")
 	b.WriteString(command)

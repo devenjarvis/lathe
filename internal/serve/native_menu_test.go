@@ -48,14 +48,25 @@ func (m *menuNative) waitState(t *testing.T, ok func(MenuState) bool) MenuState 
 // commandStream is an open GET /-/native/commands.
 type commandStream struct {
 	client string
+	hello  string         // the hello event's data
 	events chan [2]string // event, data
 	cancel context.CancelFunc
 }
 
 func openCommands(t *testing.T, ts *httptest.Server, path string) *commandStream {
 	t.Helper()
+	return openCommandsIn(t, ts, path, "")
+}
+
+// openCommandsIn opens the stream as a page in app window window (the
+// x-wails-window-name header the shell's webview sends; "" for none).
+func openCommandsIn(t *testing.T, ts *httptest.Server, path, window string) *commandStream {
+	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, ts.URL+"/-/native/commands?path="+url.QueryEscape(path), nil)
+	if window != "" {
+		req.Header.Set("x-wails-window-name", window)
+	}
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
 		cancel()
@@ -87,6 +98,7 @@ func openCommands(t *testing.T, ts *httptest.Server, path string) *commandStream
 		t.Fatalf("first event = %v, want hello with a client", hello)
 	}
 	cs.client = h.Client
+	cs.hello = hello[1]
 	t.Cleanup(cancel)
 	return cs
 }
@@ -266,8 +278,8 @@ func TestMenuCommandsReachTheFocusedPage(t *testing.T) {
 	// Until it reports, the page can run nothing.
 	n.waitState(t, func(st MenuState) bool { return st.Path == "/series/part-01.md" && len(st.Enabled) == 0 })
 
-	// Unknown, stub, shell and native ids are dropped.
-	if code := postContext(t, ts, part.client, "reading.next", "agent.check", "nope", "library.new", "app.settings", "window.close"); code != http.StatusNoContent {
+	// Unknown, shell and native ids are dropped (the registry has no stubs left).
+	if code := postContext(t, ts, part.client, "reading.next", "agent.check", "nope", "app.settings", "window.close"); code != http.StatusNoContent {
 		t.Fatalf("context = %d", code)
 	}
 	st := n.waitState(t, func(st MenuState) bool { return len(st.Enabled) > 0 })
@@ -281,7 +293,7 @@ func TestMenuCommandsReachTheFocusedPage(t *testing.T) {
 	if ev := part.next(t); ev[0] != "command" || ev[1] != `{"id":"reading.next"}` {
 		t.Errorf("event = %v", ev)
 	}
-	for _, id := range []string{"reading.prev", "library.new", "app.settings", "nope"} {
+	for _, id := range []string{"reading.prev", "app.settings", "nope"} {
 		if srv.RunCommand(id) {
 			t.Errorf("RunCommand(%s) delivered", id)
 		}

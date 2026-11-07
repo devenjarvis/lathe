@@ -32,6 +32,10 @@ const (
 	// `/lathe <topic> …` invocation with the reader's pre-answered inputs.
 	// Slug is empty: the worker's session picks and stores it.
 	JobNew JobType = "new"
+	// JobShelf is "Sort my shelves…" or a shelf's "Suggest a split": run
+	// the /lathe-shelf protocol on Command (`/lathe-shelf sort` or
+	// `/lathe-shelf split <id>`), which records proposals only.
+	JobShelf JobType = "shelf"
 )
 
 // State tracks a job through its short life: queued (waiting for a worker),
