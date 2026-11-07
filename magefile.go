@@ -17,6 +17,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 )
 
@@ -92,7 +93,28 @@ func Build() error {
 func Desktop() error {
 	const pkg = "github.com/devenjarvis/lathe/internal/buildinfo"
 	ldflags := fmt.Sprintf("-X %s.Version=%s -X %s.Commit=%s", pkg, gitDescribe(), pkg, gitCommit())
-	return run("go", "build", "-tags", "desktop,production", "-ldflags", ldflags, "-o", "lathe-desktop", ".")
+	cmd := exec.Command("go", "build", "-tags", "desktop,production", "-ldflags", ldflags, "-o", "lathe-desktop", ".")
+	cmd.Env = os.Environ()
+	if runtime.GOOS == "darwin" {
+		cmd.Env = append(cmd.Env, darwinMinOSEnv()...)
+	}
+	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
+	return cmd.Run()
+}
+
+// darwinMinOS must match MIN_MACOS in build/darwin/package.sh and
+// LSMinimumSystemVersion in build/darwin/Info.plist.
+const darwinMinOS = "12.0"
+
+// darwinMinOSEnv pins the cgo objects and the final link to darwinMinOS. The
+// Go linker ignores MACOSX_DEPLOYMENT_TARGET and links for 11.0, while clang
+// compiles cgo objects for the host macOS, so without both settings ld warns
+// once per object file that it was "built for newer 'macOS' version".
+func darwinMinOSEnv() []string {
+	return []string{
+		"MACOSX_DEPLOYMENT_TARGET=" + darwinMinOS,
+		"CGO_LDFLAGS=" + strings.TrimSpace(os.Getenv("CGO_LDFLAGS")+" -mmacosx-version-min="+darwinMinOS),
+	}
 }
 
 // DesktopCheck vets, lints and tests the desktop-tagged code, and checks the
