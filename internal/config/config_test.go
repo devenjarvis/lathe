@@ -95,3 +95,22 @@ func TestReadConfigMissingFileIsZero(t *testing.T) {
 		t.Errorf("expected zero Config, got %+v", c)
 	}
 }
+
+func TestAgentRoundTripKeepsVoice(t *testing.T) {
+	withTempHome(t)
+	if got := config.Agent(); got != "" {
+		t.Errorf("Agent() on a fresh home = %q, want empty", got)
+	}
+	if err := config.SetDefaultVoice("companion"); err != nil {
+		t.Fatal(err)
+	}
+	if err := config.SetAgent(" codex "); err != nil {
+		t.Fatalf("SetAgent: %v", err)
+	}
+	if got := config.Agent(); got != "codex" {
+		t.Errorf("Agent() = %q, want codex", got)
+	}
+	if got := config.DefaultVoice(); got != "companion" {
+		t.Errorf("SetAgent clobbered the default voice: %q", got)
+	}
+}

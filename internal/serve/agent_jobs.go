@@ -205,16 +205,17 @@ func (h *agentHost) startJob(job, tutDir, slug, command string) (*agentRun, erro
 // can't take the job — then the caller falls back to a /lathe-work worker or
 // the copy-paste handoff, with notice saying why.
 func (s *Server) jobViaAgent(w http.ResponseWriter, job, tutDir, slug, command string) (handled bool, notice string) {
-	if s.agent == nil {
+	agent := s.hostedAgent()
+	if agent == nil {
 		return false, ""
 	}
-	run, err := s.agent.startJob(job, tutDir, slug, command)
+	run, err := agent.startJob(job, tutDir, slug, command)
 	if err != nil {
 		if errors.Is(err, errJobBusy) {
 			http.Error(w, "conflict: the agent is already working on this tutorial", http.StatusConflict)
 			return true, ""
 		}
-		return false, "The agent (" + s.agent.command + ") could not start: " + err.Error()
+		return false, "The agent (" + agent.command + ") could not start: " + err.Error()
 	}
 	writeAgentRun(w, run.id)
 	return true, ""
@@ -230,11 +231,12 @@ func (s *Server) handleJobCancel(job string) http.HandlerFunc {
 			http.Error(w, "forbidden", http.StatusForbidden)
 			return
 		}
-		if s.agent == nil {
+		agent := s.hostedAgent()
+		if agent == nil {
 			http.NotFound(w, r)
 			return
 		}
-		run, ok := s.agent.activeJob(r.PathValue("slug"))
+		run, ok := agent.activeJob(r.PathValue("slug"))
 		if !ok || run.job != job {
 			http.NotFound(w, r)
 			return
@@ -257,10 +259,11 @@ type jobRunInfo struct {
 
 // runningJob reports the hosted verify/extend run for slug, if any.
 func (s *Server) runningJob(slug string) *jobRunInfo {
-	if s.agent == nil {
+	agent := s.hostedAgent()
+	if agent == nil {
 		return nil
 	}
-	run, ok := s.agent.activeJob(slug)
+	run, ok := agent.activeJob(slug)
 	if !ok {
 		return nil
 	}

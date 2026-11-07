@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+	"strings"
 	"sync"
 	"time"
 )
@@ -108,6 +109,7 @@ type Client struct {
 	termSeq   int64
 	closed    bool
 	iso       isolationCounts
+	model     string
 
 	// CancelGrace is how long Prompt keeps waiting for the agent's
 	// stopReason after sending session/cancel.
@@ -224,6 +226,15 @@ type MCPServer struct {
 func (c *Client) NewSession(ctx context.Context, cwd string, servers ...MCPServer) (string, error) {
 	var out struct {
 		SessionID string `json:"sessionId"`
+		// Models is ACP's session model state, which agents that let the
+		// client pick a model report.
+		Models *struct {
+			CurrentModelID  string `json:"currentModelId"`
+			AvailableModels []struct {
+				ModelID string `json:"modelId"`
+				Name    string `json:"name"`
+			} `json:"availableModels"`
+		} `json:"models"`
 	}
 	list := make([]MCPServer, 0, len(servers))
 	for _, s := range servers {
@@ -243,7 +254,26 @@ func (c *Client) NewSession(ctx context.Context, cwd string, servers ...MCPServe
 	if out.SessionID == "" {
 		return "", errors.New("acp: session/new returned no sessionId")
 	}
+	if m := out.Models; m != nil && m.CurrentModelID != "" {
+		name := m.CurrentModelID
+		for _, am := range m.AvailableModels {
+			if am.ModelID == m.CurrentModelID && strings.TrimSpace(am.Name) != "" {
+				name = strings.TrimSpace(am.Name)
+			}
+		}
+		c.mu.Lock()
+		c.model = name
+		c.mu.Unlock()
+	}
 	return out.SessionID, nil
+}
+
+// Model is the model the agent last reported for a new session (its display
+// name when the agent gave one), or "" if it reports none.
+func (c *Client) Model() string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.model
 }
 
 // Prompt sends text as one user turn and returns the agent's stopReason

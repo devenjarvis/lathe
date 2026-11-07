@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/devenjarvis/lathe/internal/acp"
+	"github.com/devenjarvis/lathe/internal/agents"
 	"github.com/devenjarvis/lathe/internal/frontmatter"
 	"github.com/devenjarvis/lathe/internal/skills"
 )
@@ -54,7 +55,12 @@ type agentStarter func(ctx context.Context) (*acp.Client, error)
 // agentHost owns the agent process, its sessions, and the in-flight asks.
 type agentHost struct {
 	command string
-	start   agentStarter
+	// id is the agent's registry id (internal/agents) when the command is a
+	// known one, and name its display name ("Claude Code"); both are shown in
+	// the agent panel.
+	id    string
+	name  string
+	start agentStarter
 	// mcp lists the MCP servers to hand the agent in each session/new. nil
 	// sends none.
 	mcp func(slug string) []acp.MCPServer
@@ -75,6 +81,7 @@ type agentHost struct {
 func newAgentHost(command string, start agentStarter) *agentHost {
 	return &agentHost{
 		command:  command,
+		name:     agents.DisplayName(command),
 		start:    start,
 		sessions: map[string]string{},
 		primed:   map[string]bool{},
@@ -99,17 +106,46 @@ func (s *Server) SetAgent(command string) {
 	if command == "" {
 		return
 	}
+	h := s.makeHost(command)
+	if a, ok := agents.ByCommand(command); ok {
+		h.id = a.ID
+	}
+	s.setAgentHost(h)
+	go func() { _, _ = h.ensure() }()
+}
+
+// newProcessHost builds the host for a real agent process.
+func (s *Server) newProcessHost(command string) *agentHost {
 	h := newAgentHost(command, processStarter(command, s.tutorialsDir, os.Stderr))
 	if exe, err := os.Executable(); err == nil {
 		h.mcp = latheMCP(exe)
 	} else {
 		fmt.Fprintf(os.Stderr, "warning: cannot locate the lathe binary, so the agent gets no Lathe MCP tools: %v\n", err)
 	}
-	s.setAgentHost(h)
-	go func() { _, _ = s.agent.ensure() }()
+	return h
 }
 
-func (s *Server) setAgentHost(h *agentHost) { s.agent = h }
+// makeHost builds a host for command; tests swap s.hostFactory for a fake.
+func (s *Server) makeHost(command string) *agentHost {
+	if s.hostFactory != nil {
+		return s.hostFactory(command)
+	}
+	return s.newProcessHost(command)
+}
+
+func (s *Server) setAgentHost(h *agentHost) {
+	s.agentMu.Lock()
+	s.agent = h
+	s.agentMu.Unlock()
+}
+
+// hostedAgent returns the current agent host (nil when none is configured).
+// The picker can swap it while the server runs, so handlers read it once.
+func (s *Server) hostedAgent() *agentHost {
+	s.agentMu.RLock()
+	defer s.agentMu.RUnlock()
+	return s.agent
+}
 
 // latheMCP serves Lathe's write commands to each agent session as MCP tools:
 // `<exe> mcp --slug <slug>`, a stdio server scoped to the session's tutorial.
@@ -140,8 +176,8 @@ func (h *agentHost) mcpServers(slug string) []acp.MCPServer {
 
 // Close stops the hosted agent, if any.
 func (s *Server) Close() {
-	if s.agent != nil {
-		s.agent.close()
+	if h := s.hostedAgent(); h != nil {
+		h.close()
 	}
 }
 
@@ -247,6 +283,15 @@ func exitReason(err error) string {
 // agentStatus is what /-/worker reports about the hosted agent.
 type agentStatus struct {
 	Command string `json:"command"`
+	// ID is the registry id when the command is a known agent; Name is what
+	// the panel calls it.
+	ID   string `json:"id,omitempty"`
+	Name string `json:"name"`
+	// Model is the model the agent reported for its last session, if any.
+	Model string `json:"model,omitempty"`
+	// Working names the job running now ("ask", "verify" or "extend"), or is
+	// empty while the agent waits.
+	Working string `json:"working,omitempty"`
 	// State is "starting", "ready" or "down".
 	State string `json:"state"`
 	Error string `json:"error,omitempty"`
@@ -258,7 +303,20 @@ type agentStatus struct {
 func (h *agentHost) status() agentStatus {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	st := agentStatus{Command: h.command, Error: h.lastErr}
+	st := agentStatus{Command: h.command, ID: h.id, Name: h.name, Error: h.lastErr}
+	// The newest active run says what the agent is doing.
+	var newest *agentRun
+	for _, id := range h.active {
+		if r, ok := h.runs[id]; ok && (newest == nil || r.started.After(newest.started)) {
+			newest = r
+		}
+	}
+	if newest != nil {
+		st.Working = newest.job
+	}
+	if h.client != nil {
+		st.Model = h.client.Model()
+	}
 	switch {
 	case h.starting:
 		st.State = "starting"

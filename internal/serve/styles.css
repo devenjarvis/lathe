@@ -594,13 +594,115 @@ pre samp{background:none;padding:0;color:inherit;font-family:var(--font-mono);fo
 #bottomDock .btn{min-height:2.75rem}
 #bottomDock .progress-button{background:var(--bg);border-color:#1C2140}
 
-/* Ask drawer (wide: right-side slide-in) */
-#askDrawer{position:fixed;top:0;right:0;bottom:0;width:min(460px,100vw);background:var(--bg);border-left:var(--line) solid var(--rule);transform:translateX(100%);transition:transform 200ms ease-out;z-index:90;display:flex;flex-direction:column}
-#askDrawer.open{transform:translateX(0);box-shadow:var(--shadow-md)}
-#askDrawer header{display:flex;align-items:center;justify-content:space-between;gap:.5rem;padding:.85rem 1rem .85rem 1.25rem;background:var(--yellow);color:var(--on-yellow);border-bottom:var(--line) solid #1C2140}
-#askDrawer header h3{font-size:1.05rem;color:inherit;margin:0;line-height:1.3;overflow:hidden;text-overflow:ellipsis}
-#askClose{background:transparent;border:2px solid currentColor;color:inherit;font-size:1.3rem;line-height:1;cursor:pointer;width:2.4rem;height:2.4rem;border-radius:var(--radius-pill);flex-shrink:0}
-#askClose:hover{background:rgba(255,255,255,.45)}
+/* Agent panel. Overlay by default (narrow screens): a right-side slide-in
+   dialog, a bottom sheet on phones. From 1100px it docks beside the article
+   (see "Docked agent panel" below). The header is always yellow, like the
+   masthead, so its inks are fixed rather than themed. */
+:root{--dock-w:0px;--topbar-h:3.6rem}
+#agentPanel{position:fixed;top:0;right:0;bottom:0;width:min(460px,100vw);background:var(--bg);color:var(--text);border-left:var(--line) solid var(--rule);transform:translateX(100%);transition:transform 200ms ease-out;z-index:90;display:flex;flex-direction:column}
+#agentPanel.open{transform:translateX(0);box-shadow:var(--shadow-md)}
+.agent-panel-head{display:flex;flex-wrap:wrap;align-items:center;gap:.4rem .6rem;padding:.7rem .85rem .7rem 1.1rem;background:var(--yellow);color:var(--on-yellow);border-bottom:var(--line) solid #1C2140}
+.agent-panel-head h2{font-size:1.1rem;font-weight:900;font-variation-settings:var(--casual);color:inherit;margin:0;line-height:1.3}
+.agent-panel-head h2::before{display:none}
+.agent-panel-head :focus-visible{outline-color:#1C2140}
+.agent-pick{font:inherit;font-size:.875rem;font-weight:750;color:#1C2140;background:#FFFBF0;border:2px solid #1C2140;border-radius:var(--radius-pill);padding:.2rem .75rem;min-height:2rem;cursor:pointer;white-space:nowrap}
+.agent-pick:hover{background:#FFFFFF}
+.agent-panel-tools{margin-left:auto;display:flex;gap:.35rem}
+.icon-btn{display:inline-flex;align-items:center;justify-content:center;width:2.25rem;height:2.25rem;border-radius:var(--radius-pill);border:2px solid #1C2140;background:#FFFBF0;color:#1C2140;cursor:pointer;flex-shrink:0;padding:0}
+.icon-btn:hover{background:#FFFFFF}
+.agent-model{flex-basis:100%;margin:0;font-size:.8125rem;font-weight:650;color:#1C2140}
+/* Status: a dot plus words, so the state never rests on color alone. */
+.agent-state{display:inline-flex;align-items:center;gap:.4rem;font-size:.8125rem;font-weight:750;color:#1C2140;white-space:nowrap}
+.agent-dot{display:inline-block;width:.6rem;height:.6rem;border-radius:50%;border:2px solid currentColor;box-sizing:border-box;flex-shrink:0}
+[data-state="ready"] > .agent-dot,[data-state="worker"] > .agent-dot{background:#17706D;border-color:#17706D}
+[data-state="working"] > .agent-dot{background:#D63B22;border-color:#D63B22;animation:agent-pulse 1.2s ease-in-out infinite}
+[data-state="down"] > .agent-dot{background:#962512;border-color:#962512}
+[data-state="starting"] > .agent-dot{border-style:dotted}
+@keyframes agent-pulse{50%{opacity:.35}}
+@media (prefers-reduced-motion:reduce){[data-state="working"] > .agent-dot{animation:none}}
+.agent-state[data-state="down"]{color:#962512}
+
+/* Masthead toggle ("Agent · <name>"): navy while the panel shows. */
+.agent-toggle{margin-left:auto;display:inline-flex;align-items:center;gap:.5rem;font:inherit;font-size:.875rem;font-weight:800;color:#1C2140;background:#FFFBF0;border:2px solid #1C2140;border-radius:var(--radius-pill);padding:.3rem .85rem;min-height:2.4rem;cursor:pointer;white-space:nowrap;flex-shrink:0}
+.agent-toggle:hover{background:#FFFFFF}
+.agent-toggle[aria-expanded="true"]{background:#1C2140;color:#FFF4D6}
+.agent-toggle[aria-expanded="true"]:focus-visible{outline-color:#1C2140;outline-offset:3px}
+.agent-toggle[aria-expanded="true"][data-state="ready"] > .agent-dot,.agent-toggle[aria-expanded="true"][data-state="worker"] > .agent-dot{background:#6FD0C9;border-color:#6FD0C9}
+.agent-toggle[aria-expanded="true"][data-state="down"] > .agent-dot,.agent-toggle[aria-expanded="true"][data-state="working"] > .agent-dot{background:#FF8C75;border-color:#FF8C75}
+#topBar .agent-toggle + .theme-toggle{margin-left:0}
+
+/* Setup view: "Bring your agent". */
+.agent-setup{flex:1;overflow-y:auto;padding:1.1rem 1.1rem .9rem;display:flex;flex-direction:column;gap:1rem}
+.agent-setup h3{margin:0;font-size:1.15rem;font-weight:900;font-variation-settings:var(--casual)}
+.agent-setup > p{margin:0;font-size:.95rem;line-height:1.55;color:var(--text-muted)}
+.agent-setup form{display:flex;flex-direction:column;gap:1rem}
+.agent-choices{margin:0;padding:0;border:none;display:flex;flex-direction:column;gap:.5rem;min-width:0}
+.agent-choices legend,.agent-field label{font-size:.75rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--teal);margin-bottom:.5rem;padding:0}
+.agent-choice{display:flex;align-items:center;gap:.75rem;padding:.7rem .85rem;border:2px solid var(--border-strong);border-radius:var(--radius-md);background:var(--surface);cursor:pointer}
+.agent-choice:has(input:checked){border:3px solid var(--rule);background:var(--accent-soft);padding:calc(.7rem - 1px) calc(.85rem - 1px)}
+.agent-choice:has(input:disabled){cursor:default}
+.agent-choice:has(input:focus-visible){outline:3px solid var(--focus);outline-offset:2px}
+.agent-choice input{width:1.1rem;height:1.1rem;margin:0;accent-color:var(--rule);flex-shrink:0}
+.agent-choice-text{display:flex;flex-direction:column;min-width:0}
+.agent-choice-text strong{font-size:1rem}
+.agent-choice-detail{font-family:var(--font-mono);font-variation-settings:var(--mono);font-size:.8125rem;color:var(--text-subtle);overflow-wrap:anywhere}
+.agent-others{font-size:.9rem}
+.agent-others summary{cursor:pointer;font-weight:750}
+.agent-others ul{margin:.5rem 0 0;padding:0 0 0 1.1rem;display:flex;flex-direction:column;gap:.4rem}
+.agent-others li{display:flex;flex-direction:column}
+.agent-field{display:flex;flex-direction:column}
+.agent-field input,.agent-workspace-form input{font-family:var(--font-mono);font-variation-settings:var(--mono);font-size:.9rem;color:var(--text);background:var(--surface);border:2px solid var(--rule);border-radius:var(--radius-md);padding:.55rem .7rem;min-width:0}
+.agent-hint{margin:.35rem 0 0;font-size:.8125rem;color:var(--text-subtle)}
+.agent-setup-actions{display:flex;flex-wrap:wrap;align-items:center;gap:.6rem}
+.agent-setup-actions .btn-primary{min-height:2.75rem}
+.agent-error{margin:0;font-size:.875rem;font-weight:700;color:var(--badge-failed-text)}
+.agent-error:empty{display:none}
+.agent-fallback{margin-top:auto;padding-top:.9rem;border-top:2px dotted var(--rule);display:flex;flex-direction:column;gap:.4rem}
+.agent-fallback-title{margin:0;font-size:.9rem;font-weight:750}
+.agent-fallback-cmd{display:flex;align-items:center;gap:.5rem;background:var(--cmd-bg);color:var(--cmd-text);border-radius:var(--radius-md);padding:.4rem .4rem .4rem .85rem}
+.agent-fallback-cmd code{flex:1;background:transparent;color:inherit;padding:0;font-size:.9rem}
+.agent-fallback-cmd .btn{background:var(--yellow);color:var(--on-yellow);border-color:var(--yellow)}
+
+/* Session view: the streamed log, the actions, the question box. */
+.agent-session{flex:1;min-height:0;display:flex;flex-direction:column}
+.agent-actions{display:flex;flex-wrap:wrap;gap:.45rem;padding:.6rem 1rem 0}
+.agent-actions .btn{min-height:2.5rem}
+
+/* Workspace footer. */
+.agent-workspace{padding:.6rem 1rem calc(.6rem + env(safe-area-inset-bottom));border-top:2px dotted var(--rule);font-size:.8125rem;color:var(--text-subtle)}
+.agent-workspace-row{display:flex;align-items:center;gap:.5rem;min-width:0}
+.agent-workspace-row code{background:transparent;padding:0;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.link-btn{margin-left:auto;font:inherit;font-weight:750;color:var(--link);background:none;border:none;padding:.35rem .2rem;cursor:pointer;text-decoration:underline;text-underline-offset:2px;flex-shrink:0}
+.link-btn:hover{color:var(--link-hover)}
+.agent-workspace-form{display:flex;flex-wrap:wrap;gap:.45rem;margin-top:.5rem}
+.agent-workspace-form input{flex:1 1 12rem}
+.agent-workspace-form .agent-error{flex-basis:100%}
+
+/* Collapsed rail (docked mode only). */
+.agent-rail{display:none;position:fixed;top:var(--topbar-h);right:0;bottom:0;width:3rem;z-index:40;flex-direction:column;align-items:center;gap:.7rem;padding:1rem 0;background:var(--yellow);color:#1C2140;border:none;border-left:var(--line) solid #1C2140;cursor:pointer;font:inherit}
+.agent-rail:hover{background:#FFD45E}
+.agent-rail:focus-visible{outline-offset:-6px;outline-color:#1C2140}
+.agent-rail-label{writing-mode:vertical-rl;font-weight:900;font-variation-settings:var(--casual);letter-spacing:.04em}
+
+/* Docked agent panel (≥1100px): a column beside the article, under the
+   masthead. The article and the floating buttons make room for it. */
+@media (min-width:1100px){
+  html[data-agent-dock="open"]{--dock-w:min(460px,36vw)}
+  html[data-agent-dock="collapsed"]{--dock-w:3rem}
+  html[data-agent-dock] .layout{padding-right:var(--dock-w)}
+  html[data-agent-dock] #agentPanel{top:var(--topbar-h);width:var(--dock-w);transform:none;box-shadow:none;z-index:40;transition:none}
+  html[data-agent-dock="collapsed"] #agentPanel{display:none}
+  html[data-agent-dock="collapsed"] .agent-rail{display:flex}
+  html[data-agent-dock] #floatingActions{right:calc(var(--dock-w) + 1.25rem)}
+  html[data-agent-dock="open"] #floatingActions #askButton{display:none}
+  html[data-agent-dock] .progress-status{right:calc(var(--dock-w) + 1.25rem)}
+  html[data-agent-dock] #tocRail{right:calc(var(--dock-w) + .4rem)}
+}
+
+/* Pop-out window: the panel alone. */
+html[data-agent-popout] body > :not(#agentPanel):not(script){display:none !important}
+html[data-agent-popout] #agentPanel{inset:0;width:100%;transform:none;border:none;box-shadow:none}
+html[data-agent-popout] #agentPopout,html[data-agent-popout] #askClose,html[data-agent-popout] [data-agent-action="verify"],html[data-agent-popout] [data-agent-action="extend"]{display:none}
 #askBackdrop{position:fixed;inset:0;background:rgba(28,33,64,.45);z-index:85}
 [data-theme="dark"] #askBackdrop{background:rgba(0,0,0,.6)}
 #askLog{flex:1;overflow-y:auto;padding:1.1rem 1.25rem;display:flex;flex-direction:column;gap:.9rem}
@@ -637,13 +739,9 @@ pre samp{background:none;padding:0;color:inherit;font-family:var(--font-mono);fo
 .ask-rich img{max-width:100%}
 /* With block content the caret sits on its own line after the last block. */
 .ask-rich.ask-streaming::after{display:block}
-.worker-status{font-size:.8125rem;font-weight:800;color:#1E5E1C;margin-left:auto;margin-right:.4rem;white-space:nowrap}
-/* The header is always yellow, so these inks are fixed rather than themed. */
-.worker-status[data-state="starting"]{color:#1C2140}
-.worker-status[data-state="down"]{color:#962512}
 /* Hosted agent isolation: whether file access goes through Lathe's per-job
    policy. Same fixed inks as the status on the yellow header. */
-.agent-isolation{font-size:.75rem;font-weight:700;color:#1C2140;margin-right:.4rem;padding:.05rem .45rem;border:1.5px solid currentColor;border-radius:999px;white-space:nowrap;cursor:help}
+.agent-isolation{font-size:.75rem;font-weight:700;color:#1C2140;padding:.05rem .45rem;border:1.5px solid currentColor;border-radius:999px;white-space:nowrap;cursor:help}
 .agent-isolation[data-isolation="enforced"]{color:#1E5E1C}
 .agent-isolation[data-isolation="soft"]{color:#962512;border-style:dashed}
 /* Hosted agent (lathe serve --agent): a blinking caret while text streams, a
@@ -781,16 +879,16 @@ body.list h1{font-size:clamp(3rem,2rem + 4.5vw,5.25rem);font-weight:1000;margin:
 /* Wide (≥1240px): the section rail becomes a permanent index in the right
    gutter, labels always visible, anchored just past the reading column. */
 @media (min-width:1240px){
-  #tocRail{top:6rem;transform:none;right:auto;left:calc(50% + 25rem);width:min(15rem,calc(50% - 27rem));max-height:calc(100vh - 9rem);padding:0;border:none;border-radius:0;background:transparent;gap:.1rem}
-  #tocRail::before{content:'On this page';display:block;font-size:.8125rem;font-weight:850;color:var(--teal);padding:0 .7rem .45rem}
-  #tocRail a,#tocRail:hover a,#tocRail:focus-within a{justify-content:flex-start;padding:.35rem .7rem;border-radius:var(--radius-md)}
-  #tocRail .tick,#tocRail:hover .tick,#tocRail:focus-within .tick{display:none}
-  #tocRail .label{width:auto;opacity:1;white-space:normal;overflow-wrap:break-word}
-  #tocRail a.active{background:var(--yellow)}
-  #tocRail a.active .label{color:var(--on-yellow)}
-  #tocRail a:not(.active):hover{background:var(--accent-soft)}
-  #tocRail a:not(.active):hover .label{color:var(--text)}
-  #tocRail:hover,#tocRail:focus-within{background:transparent;box-shadow:none;padding:0;border-color:transparent}
+  html:not([data-agent-dock="open"]) #tocRail{top:6rem;transform:none;right:auto;left:calc(50% - var(--dock-w)/2 + 25rem);width:min(15rem,calc(50% - var(--dock-w)/2 - 27rem));max-height:calc(100vh - 9rem);padding:0;border:none;border-radius:0;background:transparent;gap:.1rem}
+  html:not([data-agent-dock="open"]) #tocRail::before{content:'On this page';display:block;font-size:.8125rem;font-weight:850;color:var(--teal);padding:0 .7rem .45rem}
+  html:not([data-agent-dock="open"]) #tocRail a,html:not([data-agent-dock="open"]) #tocRail:hover a,html:not([data-agent-dock="open"]) #tocRail:focus-within a{justify-content:flex-start;padding:.35rem .7rem;border-radius:var(--radius-md)}
+  html:not([data-agent-dock="open"]) #tocRail .tick,html:not([data-agent-dock="open"]) #tocRail:hover .tick,html:not([data-agent-dock="open"]) #tocRail:focus-within .tick{display:none}
+  html:not([data-agent-dock="open"]) #tocRail .label{width:auto;opacity:1;white-space:normal;overflow-wrap:break-word}
+  html:not([data-agent-dock="open"]) #tocRail a.active{background:var(--yellow)}
+  html:not([data-agent-dock="open"]) #tocRail a.active .label{color:var(--on-yellow)}
+  html:not([data-agent-dock="open"]) #tocRail a:not(.active):hover{background:var(--accent-soft)}
+  html:not([data-agent-dock="open"]) #tocRail a:not(.active):hover .label{color:var(--text)}
+  html:not([data-agent-dock="open"]) #tocRail:hover,html:not([data-agent-dock="open"]) #tocRail:focus-within{background:transparent;box-shadow:none;padding:0;border-color:transparent}
 }
 
 /* Narrow viewport (<900px): off-canvas ToC drawer + hamburger, no rail, bottom
@@ -812,8 +910,12 @@ body.list h1{font-size:clamp(3rem,2rem + 4.5vw,5.25rem);font-weight:1000;margin:
 
 /* Bottom-sheet Ask drawer (≤700px) */
 @media (max-width:700px){
-  #askDrawer{top:auto;left:0;right:0;width:100%;height:82vh;border-left:none;border-top:var(--line) solid var(--rule);border-radius:var(--radius-lg) var(--radius-lg) 0 0;transform:translateY(100%);overflow:hidden}
-  #askDrawer.open{transform:translateY(0)}
+  #agentPanel{top:auto;left:0;right:0;width:100%;height:86vh;border-left:none;border-top:var(--line) solid var(--rule);border-radius:var(--radius-lg) var(--radius-lg) 0 0;transform:translateY(100%);overflow:hidden}
+  #agentPanel.open{transform:translateY(0)}
+  /* The masthead keeps room for the title: the toggle says just "Agent". */
+  .agent-toggle-name{display:none}
+  .agent-toggle{padding-inline:.7rem}
+  html[data-agent-popout] #agentPanel{height:auto;border-radius:0;border:none}
   .title-block{grid-template-columns:repeat(2,minmax(0,1fr))}
   .part-nav{flex-direction:column}
   .part-nav a{max-width:none}
@@ -825,17 +927,15 @@ body.list h1{font-size:clamp(3rem,2rem + 4.5vw,5.25rem);font-weight:1000;margin:
   .filter-label{flex-basis:100%}
   .tutorial{min-height:15rem}
   .tutorial-link{font-size:1.45rem}
-  /* Narrow drawer: title and close on the first row, agent status below. */
-  #askDrawer header{flex-wrap:wrap;row-gap:.35rem}
-  #askDrawer header h3{flex:1 1 calc(100% - 3rem)}
-  #askClose{order:1}
-  #askDrawer .worker-status,#askDrawer .agent-isolation{order:2;margin-left:0}
+  /* Narrow panel: the status drops to its own row. */
+  .agent-panel-head .agent-state,.agent-panel-head .agent-isolation{order:2}
+  .agent-panel-head .agent-model{order:3}
 }
 
 /* Reduced motion: the drawer/sidebar slide, the live-nudge fade, and the
    cover lift. */
 @media (prefers-reduced-motion:reduce){
-  #askDrawer,#sidebar,.live-nudge{transition:none}
+  #agentPanel,#sidebar,.live-nudge{transition:none}
   .tutorial,.part-nav a,#floatingActions .btn{transition:none}
   .tutorial:hover,#floatingActions .btn:hover{transform:none}
 }
