@@ -17,7 +17,7 @@ func TestLoadSettingsDefaults(t *testing.T) {
 		RememberPlace: true, PanelSuggestions: true, PanelWindow: false,
 		CodeRoot: config.DefaultCodeRoot, KeepVerifiedCode: true, AutoVerify: false,
 		NotifyVerify: true, NotifyExtend: true, NotifyCheck: true,
-		TrashDays: config.DefaultTrashDays,
+		TrashDays: config.DefaultTrashDays, ShelfSplitAt: config.DefaultShelfSplitAt,
 	}
 	if got != want {
 		t.Errorf("LoadSettings() = %+v, want %+v", got, want)
@@ -127,6 +127,22 @@ func TestTrashDays(t *testing.T) {
 		}
 		if got := config.TrashDays(); got != c.want {
 			t.Errorf("trash_days %d resolves to %d, want %d", c.stored, got, c.want)
+		}
+	}
+}
+
+func TestShelfSplitAt(t *testing.T) {
+	withTempHome(t)
+	if got := config.ShelfSplitAt(); got != 12 {
+		t.Errorf("default ShelfSplitAt = %d, want 12", got)
+	}
+	for _, c := range []struct{ stored, want int }{{8, 8}, {24, 24}, {0, 0}, {13, 12}, {-1, 12}} {
+		v := c.stored
+		if err := config.UpdateConfig(func(cfg *config.Config) error { cfg.ShelfSplitAt = &v; return nil }); err != nil {
+			t.Fatal(err)
+		}
+		if got := config.ShelfSplitAt(); got != c.want {
+			t.Errorf("shelf_split_at %d resolves to %d, want %d", c.stored, got, c.want)
 		}
 	}
 }

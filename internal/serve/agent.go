@@ -86,6 +86,7 @@ type jobTarget struct {
 	tutDir string
 	part   string // the checked part (check only)
 	parts  int    // how many parts the tutorial had when the job started (extend: did it add one?)
+	shelf  string // the shelf a split suggestion is for (shelf-split only)
 }
 
 func newAgentHost(command string, start agentStarter) *agentHost {
@@ -793,6 +794,10 @@ func (r *agentRun) verb() string {
 		return "check your work"
 	case jobNew:
 		return "write the tutorial"
+	case jobShelfSort:
+		return "sort your shelves"
+	case jobShelfSplit:
+		return "suggest a split"
 	}
 	return "answer"
 }
@@ -807,6 +812,10 @@ func (r *agentRun) doing() string {
 		return "checking your work"
 	case jobNew:
 		return "writing the tutorial"
+	case jobShelfSort:
+		return "sorting your shelves"
+	case jobShelfSplit:
+		return "suggesting a split"
 	}
 	return "answering"
 }

@@ -54,6 +54,11 @@ Repeat until the user stops you (Ctrl-C, "stop the worker", or closing the sessi
      lathe work done <id>
      ```
 
+   - **`shelf`** → the reader asked your agent to file the library from the web UI ("Sort my shelves…" in Settings, or a shelf's split banner). Its `command` field is `/lathe-shelf sort` or `/lathe-shelf split <shelf-id>`. Apply the **`/lathe-shelf`** protocol to it: it only *records proposals* (`lathe shelf propose` / `propose-split`) for the reader to review; it moves nothing. When it finishes, close the job:
+     ```bash
+     lathe work done <id>
+     ```
+
    - **`ask`** → apply the **`/lathe-ask`** protocol against `slug` / `part` / `question`. The one difference from the chat flow: the reader is in the browser, not here, so **return the answer through the CLI** instead of only replying in chat. Pipe your full markdown answer to:
      ```bash
      lathe work answer <id> --answer -
@@ -73,7 +78,7 @@ This loop is long-running and each job is independent — nothing carries over f
 ## Boundaries
 
 - **Reuse the protocols, don't reinvent them.** Each job type is just "run the matching `/lathe-*` skill, then report." All the real rules (read-only verify, the extend handshake, grounded ask answers) live in those skills and win on any conflict.
-- **Always close the job.** `verify`/`extend`/`check`/`new` → `lathe work done <id>`; `ask` → `lathe work answer <id> --answer -` (which closes it). A job left open ties up the browser until the server's reclaim timeout.
+- **Always close the job.** `verify`/`extend`/`check`/`new`/`shelf` → `lathe work done <id>`; `ask` → `lathe work answer <id> --answer -` (which closes it). A job left open ties up the browser until the server's reclaim timeout.
 - **Interactive session only.** Never shell out to `-p` / headless to do the work — that's the metered path this whole design avoids.
 - **Sequential or concurrent — match your harness.** Without background sub-tasks, finish and report each job before claiming the next. With them, several jobs may be in flight at once; that's fine and keeps presence fresh. Concurrency is safe: the server rejects a second verify/extend on a tutorial that's already verifying/extending, so two jobs can't collide on the same `slug`, and ask jobs are read-only.
 

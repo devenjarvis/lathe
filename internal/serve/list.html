@@ -60,6 +60,7 @@
       </div>
       {{if .Editable}}{{template "shelfMenu" .}}{{end}}
     </div>
+    {{with .Split}}{{template "splitBanner" .}}{{end}}
     {{if .Cards}}
     <div class="controls">
       <form class="toolbar" method="GET" action="/" role="search">
@@ -838,6 +839,24 @@
 {{template "shortcuts" .}}
 {{if .Native}}{{template "nativeLinks" .}}{{end}}
 {{template "liveNudge" .}}
+{{template "shelfJobs"}}
+<script>
+  // Split preview: a toggle with scripts (the :target link works without).
+  (function(){
+    var toggle = document.getElementById('splitPreviewToggle');
+    var panel = document.getElementById('splitPreview');
+    if (!toggle || !panel) return;
+    toggle.setAttribute('aria-expanded', 'false');
+    function set(open){
+      panel.classList.toggle('is-open', open);
+      toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+      toggle.textContent = open ? 'Hide preview' : 'Preview split';
+      if (open) panel.focus();
+    }
+    toggle.addEventListener('click', function(ev){ ev.preventDefault(); set(!panel.classList.contains('is-open')); });
+    panel.querySelector('[data-split-close]').addEventListener('click', function(ev){ ev.preventDefault(); set(false); toggle.focus(); });
+  })();
+</script>
 </body>
 </html>
 
@@ -978,6 +997,49 @@
      redirect's ?trashed= etc., else an empty, hidden container the page
      script fills). Undo is a form, so it works with scripts off; with
      scripts, ⌘Z / Ctrl+Z also undoes while the toast shows. */}}
+{{/* splitBanner — a shelf past the split threshold (Settings › Library):
+     the agent's proposed split with Preview split / Not now, or, before
+     there is one, Suggest a split. The preview is a :target panel, so it
+     opens with scripts off too; nothing moves until "Split into two
+     shelves". */}}
+{{define "splitBanner"}}
+<section class="split-banner" aria-labelledby="splitBannerText">
+  <div class="split-banner-row">
+    <p class="split-banner-text" id="splitBannerText"><strong>{{.Count}} tutorials is a lot for one shelf.</strong>
+      {{- if .Sides}}{{$a := index .Sides 0}}{{$b := index .Sides 1}} Split it into {{$a.Name}} ({{len $a.Cards}}) and {{$b.Name}} ({{len $b.Cards}})?
+      {{- else}} Your agent can suggest a way to split it in two.{{end}}</p>
+    <div class="split-banner-actions">
+      {{- if .Sides}}
+      <a class="btn btn-sm btn-primary" href="#splitPreview" id="splitPreviewToggle" aria-controls="splitPreview">Preview split</a>
+      {{- else}}
+      <button type="button" class="btn btn-sm btn-primary" data-shelf-job data-action="/-/shelves/{{.ShelfID}}/split/suggest" data-status="splitJob">Suggest a split</button>
+      {{- end}}
+      <form method="POST" action="/-/shelves/{{.ShelfID}}/split/dismiss"><button type="submit" class="btn btn-sm">Not now</button></form>
+    </div>
+  </div>
+  <div class="shelf-job" id="splitJob" data-starting="Your agent is reading the shelf…"{{with .Run}} data-run-id="{{.ID}}"{{else}} hidden{{end}}></div>
+  {{- if .Sides}}
+  <div class="split-preview" id="splitPreview" tabindex="-1" aria-label="Proposed split">
+    <div class="split-cols">
+      {{- $name := .ShelfName}}
+      {{- range .Sides}}
+      <section class="split-col">
+        <h3>{{.Name}} <span class="shelf-count">{{len .Cards}}</span></h3>
+        <p class="split-col-note">{{if .Keeps}}{{if eq .Name $name}}Stays on this shelf{{else}}Stays here; the shelf is renamed {{.Name}}{{end}}{{else if .Existing}}Joins your {{.Name}} shelf{{else}}A new shelf, right after this one{{end}}</p>
+        <ul>{{range .Cards}}<li><a href="/{{.Slug}}/">{{.Title}}</a></li>{{end}}</ul>
+      </section>
+      {{- end}}
+    </div>
+    <form class="split-preview-actions" method="POST" action="/-/shelves/{{.ShelfID}}/split">
+      <button type="submit" class="btn btn-primary">Split into two shelves</button>
+      <button type="button" class="btn btn-ghost" data-shelf-job data-action="/-/shelves/{{.ShelfID}}/split/suggest" data-status="splitJob">Suggest another split</button>
+      <a class="btn btn-ghost" href="#libraryMain" data-split-close>Cancel</a>
+    </form>
+  </div>
+  {{- end}}
+</section>
+{{end}}
+
 {{define "toast"}}
 <div class="toast" id="libraryToast" role="status" aria-live="polite" data-undo-key="{{.UndoKey}}" data-trash-key="{{.TrashKey}}"{{if .Mac}} data-mac{{end}}{{if not .Toast}} hidden{{end}}>
   <span class="toast-msg">{{with .Toast}}{{.Message}}{{end}}</span>

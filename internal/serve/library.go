@@ -191,6 +191,8 @@ type libraryPage struct {
 	// note, and Editable is false for the virtual Unsorted shelf.
 	Shelf    *store.Shelf
 	Editable bool
+	// Split is the shelf page's split banner (nil when the shelf isn't due).
+	Split *splitBanner
 	// Sort and Group are the grid's order and grouping, with their
 	// segmented controls.
 	Sort, Group   string
@@ -236,6 +238,10 @@ type libraryEnv struct {
 	Reveal func(slug string) bool
 	GOOS   string
 	Now    time.Time
+	// SplitAt is the split-suggestion threshold (0: never); Suggestions the
+	// pending shelf proposals and "Not now" dismissals (nil: no banners).
+	SplitAt     int
+	Suggestions *store.ShelfSuggestions
 }
 
 // shelvesPath is where this server reads and writes shelves.json.
@@ -282,7 +288,13 @@ func (s *Server) readShelvesForView() *store.Shelves {
 
 // libraryEnvFor gathers the Trash and the reveal check for one render.
 func (s *Server) libraryEnvFor() libraryEnv {
-	env := libraryEnv{TrashDays: config.TrashDays(), GOOS: runtime.GOOS, Now: time.Now()}
+	st := config.LoadSettings()
+	env := libraryEnv{TrashDays: st.TrashDays, SplitAt: st.ShelfSplitAt, GOOS: runtime.GOOS, Now: time.Now()}
+	if sug, err := store.ReadShelfSuggestions(s.tutorialsDir); err != nil {
+		log.Printf("lathe: %v", err)
+	} else {
+		env.Suggestions = sug
+	}
 	if list, err := store.ListTrash(s.tutorialsDir); err != nil {
 		log.Printf("lathe: read the Trash: %v", err)
 	} else {
@@ -712,6 +724,7 @@ func buildLibrary(tutorials []*store.Tutorial, shelves *store.Shelves, q url.Val
 			page.Editable = !sh.Unsorted()
 			page.Heading, page.Empty = sh.Name, "Nothing on this shelf yet. Drag a cover onto it in the sidebar, or use a cover's ⋯ menu › Move to shelf."
 			page.Cards = append([]*libCard(nil), perShelf[sh.ID]...)
+			page.Split = buildSplitBanner(sh, page.Cards, shelves, env)
 		case page.Tool != "":
 			label := page.Tool
 			if l := langs[page.Tool]; l != nil {
@@ -805,7 +818,7 @@ func withToast(page *libraryPage, q url.Values, tutorials []*store.Tutorial, she
 	clean := url.Values{}
 	for k, v := range q {
 		switch k {
-		case "trashed", "restored", "moved", "to", "shelfdeleted":
+		case "trashed", "restored", "moved", "to", "shelfdeleted", "split", "into":
 		default:
 			clean[k] = v
 		}
@@ -833,6 +846,12 @@ func withToast(page *libraryPage, q url.Values, tutorials []*store.Tutorial, she
 		sh, ok := shelves.Get(q.Get("to"))
 		if name != "" && ok {
 			t.Message = "Moved “" + name + "” to " + sh.Name
+		}
+	case q.Get("split") != "":
+		a, okA := shelves.Get(q.Get("split"))
+		b, okB := shelves.Get(q.Get("into"))
+		if okA && okB {
+			t.Message = "Split into " + a.Name + " and " + b.Name
 		}
 	case q.Get("shelfdeleted") != "":
 		switch n := q.Get("shelfdeleted"); n {

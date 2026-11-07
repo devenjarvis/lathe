@@ -132,6 +132,7 @@ func assetURL(name string) string {
 func NewServer(tutorialsDir string) *Server {
 	funcMap := template.FuncMap{
 		"add":          func(a, b int) int { return a + b },
+		"sub":          func(a, b int) int { return a - b },
 		"cardProgress": cardProgress,
 		"asset":        assetURL,
 		// prefs is the reader's appearance and reading settings, read per
@@ -183,6 +184,12 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /-/shelves/{id}/rename", s.handleShelfRename)
 	mux.HandleFunc("POST /-/shelves/{id}/describe", s.handleShelfDescribe)
 	mux.HandleFunc("POST /-/shelves/{id}/delete", s.handleShelfDelete)
+	mux.HandleFunc("POST /-/shelves/sort", s.handleShelfSort)
+	mux.HandleFunc("POST /-/shelves/sort/apply", s.handleShelfSortApply)
+	mux.HandleFunc("POST /-/shelves/sort/discard", s.handleShelfSortDiscard)
+	mux.HandleFunc("POST /-/shelves/{id}/split", s.handleShelfSplitApply)
+	mux.HandleFunc("POST /-/shelves/{id}/split/suggest", s.handleShelfSplitSuggest)
+	mux.HandleFunc("POST /-/shelves/{id}/split/dismiss", s.handleShelfSplitDismiss)
 	mux.HandleFunc("POST /-/ask/{slug}/{part}", s.handleAsk)
 	mux.HandleFunc("POST /-/progress/{slug}/{part}", s.handleProgress)
 	mux.HandleFunc("POST /-/extend/{slug}", s.handleExtend)
@@ -319,6 +326,9 @@ func (s *Server) handleList(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		http.NotFound(w, r)
 		return
+	}
+	if page.Split != nil {
+		page.Split.Run = s.runningShelfJob(jobShelfSplit, page.Split.ShelfID)
 	}
 	withToast(page, r.URL.Query(), tutorials, shelves, env.Trash)
 	var buf bytes.Buffer

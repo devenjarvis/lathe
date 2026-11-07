@@ -123,7 +123,7 @@ func (c *mcpClient) mustCall(name string, args map[string]any) string {
 func TestMCPListsEveryWriteToolUnscoped(t *testing.T) {
 	setHome(t, t.TempDir())
 	got := strings.Join(newMCPClient(t, "").tools(), " ")
-	want := "lathe_store lathe_verify_result lathe_extend_start lathe_extend_commit lathe_tag lathe_check_result lathe_voice_add"
+	want := "lathe_store lathe_verify_result lathe_extend_start lathe_extend_commit lathe_tag lathe_check_result lathe_shelf_list lathe_shelf_set lathe_voice_add"
 	if got != want {
 		t.Errorf("tools = %s, want %s", got, want)
 	}
@@ -132,7 +132,7 @@ func TestMCPListsEveryWriteToolUnscoped(t *testing.T) {
 func TestMCPScopedServerOffersOnlyTutorialTools(t *testing.T) {
 	setHome(t, t.TempDir())
 	got := strings.Join(newMCPClient(t, "synth").tools(), " ")
-	want := "lathe_verify_result lathe_extend_start lathe_extend_commit lathe_tag lathe_check_result"
+	want := "lathe_verify_result lathe_extend_start lathe_extend_commit lathe_tag lathe_check_result lathe_shelf_list lathe_shelf_set"
 	if got != want {
 		t.Errorf("scoped tools = %s, want %s", got, want)
 	}
@@ -150,7 +150,7 @@ func TestMCPNewSessionStoresOnlyIntoItsReservation(t *testing.T) {
 	c := newMCPServerClient(t, &mcp.Server{Slug: res.Slug, New: true, Version: "test"})
 
 	got := strings.Join(c.tools(), " ")
-	if want := "lathe_store lathe_verify_result lathe_extend_start lathe_extend_commit lathe_tag lathe_check_result"; got != want {
+	if want := "lathe_store lathe_verify_result lathe_extend_start lathe_extend_commit lathe_tag lathe_check_result lathe_shelf_list lathe_shelf_set"; got != want {
 		t.Errorf("--new tools = %s, want %s", got, want)
 	}
 
@@ -465,5 +465,66 @@ func TestMCPCommandServesStdio(t *testing.T) {
 	}
 	if got := tagsOf(t, tutDir); !sameTags(got, []string{"zig"}) {
 		t.Errorf("tags = %v", got)
+	}
+}
+
+func TestMCPShelfSetIsScoped(t *testing.T) {
+	home := t.TempDir()
+	setHome(t, home)
+	writeTutorial(t, home, "synth", store.StatusUnverified, []string{"part-01.md"})
+	writeTutorial(t, home, "other", store.StatusUnverified, []string{"part-01.md"})
+	c := newMCPClient(t, "synth")
+	if text, isErr := c.call("lathe_shelf_set", map[string]any{"shelf": "Audio"}); !isErr || !strings.Contains(text, "create") {
+		t.Errorf("set onto a missing shelf without create = %q, %v", text, isErr)
+	}
+	if text := c.mustCall("lathe_shelf_set", map[string]any{"shelf": "Audio", "create": true}); !strings.Contains(text, `Created the shelf "Audio"`) {
+		t.Errorf("create = %q", text)
+	}
+	if _, isErr := c.call("lathe_shelf_set", map[string]any{"slug": "other", "shelf": "Audio"}); !isErr {
+		t.Error("a scoped server filed another tutorial")
+	}
+	if text := c.mustCall("lathe_shelf_list", map[string]any{}); !strings.Contains(text, `"name": "Audio"`) || !strings.Contains(text, `"count": 1`) {
+		t.Errorf("list = %s", text)
+	}
+	path, _ := store.DefaultShelvesPath()
+	if s, _ := store.ReadShelves(path); s.ShelfOf("synth").Name != "Audio" {
+		t.Errorf("synth is on %+v", s.ShelfOf("synth"))
+	}
+}
+
+func TestMCPProposeServersOnlyPropose(t *testing.T) {
+	home := t.TempDir()
+	setHome(t, home)
+	for _, slug := range []string{"lexer", "parser"} {
+		writeTutorial(t, home, slug, store.StatusUnverified, []string{"part-01.md"})
+	}
+	sortSrv := newMCPServerClient(t, &mcp.Server{Propose: mcp.ProposeSort, Version: "test"})
+	if got := strings.Join(sortSrv.tools(), " "); got != "lathe_shelf_list lathe_shelf_propose" {
+		t.Errorf("sort tools = %s", got)
+	}
+	sortSrv.mustCall("lathe_shelf_propose", map[string]any{"slug": "lexer", "shelf": "Compilers"})
+	path, _ := store.DefaultShelvesPath()
+	if s, _ := store.ReadShelves(path); len(s.Shelves) != 0 || len(s.Placements) != 0 {
+		t.Errorf("proposing moved something: %+v", s)
+	}
+
+	if _, err := runShelf(t, shelfNewCmd, "Compilers"); err != nil {
+		t.Fatal(err)
+	}
+	for _, slug := range []string{"lexer", "parser"} {
+		if _, err := runShelf(t, shelfSetCmd, slug, "compilers"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	split := newMCPServerClient(t, &mcp.Server{Propose: mcp.ProposeSplit, Shelf: "compilers", Version: "test"})
+	if got := strings.Join(split.tools(), " "); got != "lathe_shelf_list lathe_shelf_split_propose" {
+		t.Errorf("split tools = %s", got)
+	}
+	groups := []map[string]any{{"name": "Lexers", "slugs": []string{"lexer"}}, {"name": "Parsers", "slugs": []string{"parser"}}}
+	if _, isErr := split.call("lathe_shelf_split_propose", map[string]any{"shelf": "unsorted", "groups": groups}); !isErr {
+		t.Error("a split server proposed for another shelf")
+	}
+	if text := split.mustCall("lathe_shelf_split_propose", map[string]any{"groups": groups}); !strings.Contains(text, "Lexers (1) and Parsers (1)") {
+		t.Errorf("split = %q", text)
 	}
 }

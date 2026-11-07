@@ -1,9 +1,11 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
+	"strings"
+
+	"github.com/devenjarvis/lathe/internal/config"
 
 	"github.com/devenjarvis/lathe/internal/store"
 	"github.com/spf13/cobra"
@@ -17,26 +19,29 @@ var shelfCmd = &cobra.Command{
 	Short: "List shelves, create one, or put a tutorial on a shelf",
 }
 
+var shelfListJSON bool
+
 var shelfListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List shelves and how many tutorials each holds",
 	Args:  cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		path, err := store.DefaultShelvesPath()
+		dir, err := config.TutorialsDir()
 		if err != nil {
 			return err
 		}
-		s, err := store.ReadShelves(path)
+		list, err := store.ListShelves(dir)
 		if err != nil {
 			return err
-		}
-		counts := map[string]int{}
-		for _, slug := range storedSlugs(filepath.Dir(path)) {
-			counts[s.ShelfOf(slug).ID]++
 		}
 		out := cmd.OutOrStdout()
-		for _, sh := range append(append([]store.Shelf{}, s.Shelves...), store.UnsortedShelf()) {
-			_, _ = fmt.Fprintf(out, "%-24s %3d  %s\n", sh.ID, counts[sh.ID], sh.Name)
+		if shelfListJSON {
+			enc := json.NewEncoder(out)
+			enc.SetIndent("", "  ")
+			return enc.Encode(list)
+		}
+		for _, sh := range list {
+			_, _ = fmt.Fprintf(out, "%-24s %3d  %s\n", sh.ID, sh.Count, sh.Name)
 		}
 		return nil
 	},
@@ -63,54 +68,84 @@ var shelfNewCmd = &cobra.Command{
 	},
 }
 
+var shelfSetCreate bool
+
 var shelfSetCmd = &cobra.Command{
 	Use:   "set <slug> <shelf>",
-	Short: "Put a tutorial on a shelf (by id or name; \"unsorted\" takes it off)",
+	Short: "Put a tutorial on a shelf (by id or name; \"unsorted\" takes it off; --create makes a missing shelf)",
 	Args:  cobra.ExactArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		slug := args[0]
-		tutDir, err := store.TutorialPath(slug)
+		dir, err := config.TutorialsDir()
 		if err != nil {
 			return err
 		}
-		if _, err := store.ReadMetadata(tutDir); err != nil {
-			return fmt.Errorf("no tutorial %q", slug)
-		}
-		path, err := store.DefaultShelvesPath()
+		sh, created, err := store.SetShelf(dir, args[0], args[1], shelfSetCreate)
 		if err != nil {
 			return err
 		}
-		var sh store.Shelf
-		if _, err := store.UpdateShelves(path, func(s *store.Shelves) error {
-			var ok bool
-			if sh, ok = s.Find(args[1]); !ok {
-				return fmt.Errorf("no shelf %q (see lathe shelf list, or create it with lathe shelf new)", args[1])
-			}
-			return s.Assign(slug, sh.ID)
-		}); err != nil {
-			return err
+		if created {
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Created shelf %q (%s)\n", sh.Name, sh.ID)
 		}
-		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s is on %s\n", slug, sh.Name)
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s is on %s\n", args[0], sh.Name)
 		return nil
 	},
 }
 
-// storedSlugs lists the tutorial dirs under ~/.lathe/tutorials.
-func storedSlugs(latheDir string) []string {
-	entries, err := os.ReadDir(filepath.Join(latheDir, "tutorials"))
-	if err != nil {
-		return nil
-	}
-	var slugs []string
-	for _, e := range entries {
-		if e.IsDir() {
-			slugs = append(slugs, e.Name())
+// shelfProposeCmd records the agent's pick for one tutorial in the pending
+// "Sort my shelves" proposal. Nothing moves: the reader reviews and applies
+// the proposal in Settings › Library.
+var shelfProposeCmd = &cobra.Command{
+	Use:   "propose <slug> <shelf>",
+	Short: "Propose a shelf for a tutorial (reviewed in Settings › Library; moves nothing)",
+	Args:  cobra.ExactArgs(2),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		dir, err := config.TutorialsDir()
+		if err != nil {
+			return err
 		}
-	}
-	return slugs
+		msg, err := store.ProposeShelf(dir, args[0], args[1])
+		if err != nil {
+			return err
+		}
+		_, _ = fmt.Fprintln(cmd.OutOrStdout(), msg)
+		return nil
+	},
+}
+
+var shelfSplitGroups []string
+
+// shelfProposeSplitCmd records a proposed two-way split of a shelf. The
+// shelf page previews it; nothing moves until the reader applies it.
+var shelfProposeSplitCmd = &cobra.Command{
+	Use:   "propose-split <shelf> --group \"<name>=<slug>,<slug>\" --group \"<name>=<slug>,…\"",
+	Short: "Propose splitting a shelf in two (previewed on the shelf's page; moves nothing)",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		dir, err := config.TutorialsDir()
+		if err != nil {
+			return err
+		}
+		var groups []store.SplitGroup
+		for _, g := range shelfSplitGroups {
+			name, slugs, ok := strings.Cut(g, "=")
+			if !ok {
+				return fmt.Errorf("--group %q: want <name>=<slug>,<slug>", g)
+			}
+			groups = append(groups, store.SplitGroup{Name: name, Slugs: store.SplitTags([]string{slugs})})
+		}
+		msg, err := store.ProposeSplit(dir, args[0], groups)
+		if err != nil {
+			return err
+		}
+		_, _ = fmt.Fprintln(cmd.OutOrStdout(), msg)
+		return nil
+	},
 }
 
 func init() {
-	shelfCmd.AddCommand(shelfListCmd, shelfNewCmd, shelfSetCmd)
+	shelfListCmd.Flags().BoolVar(&shelfListJSON, "json", false, "print JSON (id, name, description, count)")
+	shelfSetCmd.Flags().BoolVar(&shelfSetCreate, "create", false, "create the shelf when no shelf has that name")
+	shelfProposeSplitCmd.Flags().StringArrayVar(&shelfSplitGroups, "group", nil, "a group as <name>=<slug>,<slug> (pass exactly two)")
+	shelfCmd.AddCommand(shelfListCmd, shelfNewCmd, shelfSetCmd, shelfProposeCmd, shelfProposeSplitCmd)
 	rootCmd.AddCommand(shelfCmd)
 }

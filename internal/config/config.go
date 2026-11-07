@@ -99,6 +99,10 @@ type Config struct {
 	// before it is deleted for good: one of TrashDayChoices, 0 for never.
 	// Nil means DefaultTrashDays.
 	TrashDays *int `json:"trash_days,omitempty"`
+	// ShelfSplitAt is the shelf size past which the shelf's page suggests
+	// splitting it: one of ShelfSplitChoices, 0 for never. Nil means
+	// DefaultShelfSplitAt.
+	ShelfSplitAt *int `json:"shelf_split_at,omitempty"`
 }
 
 // NotifyConfig is the per-event notification switches. Nil means on.
