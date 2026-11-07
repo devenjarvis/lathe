@@ -2,7 +2,7 @@ package serve
 
 // Native is what a desktop shell (the Wails app, internal/desktop) offers the
 // reader on top of the browser: a native folder picker for the tutorial's
-// workspace, a system notification when a Verify, Extend, Check or Ask run
+// workspace, a system notification when a Verify, Extend or Check run
 // finishes, and real windows for the agent panel's pop-out. lathe serve in a
 // browser has none of these, so every method is optional to use: a nil
 // Native (the default) keeps today's browser behavior exactly.
