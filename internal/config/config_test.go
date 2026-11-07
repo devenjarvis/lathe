@@ -2,6 +2,8 @@ package config_test
 
 import (
 	"os"
+	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -112,5 +114,61 @@ func TestAgentRoundTripKeepsVoice(t *testing.T) {
 	}
 	if got := config.DefaultVoice(); got != "companion" {
 		t.Errorf("SetAgent clobbered the default voice: %q", got)
+	}
+}
+
+func TestAgentPathExpandsAndFilters(t *testing.T) {
+	withTempHome(t)
+	if got := config.AgentPath(); got != nil {
+		t.Errorf("AgentPath() on a fresh home = %v, want nil", got)
+	}
+	if err := config.SetAgent("claude"); err != nil {
+		t.Fatal(err)
+	}
+	if err := config.SetAgentPath([]string{" ~/bin ", "", "/opt/homebrew/bin/", "relative/dir", "~"}); err != nil {
+		t.Fatalf("SetAgentPath: %v", err)
+	}
+	home, _ := os.UserHomeDir()
+	want := []string{filepath.Join(home, "bin"), "/opt/homebrew/bin", home}
+	if got := config.AgentPath(); !slices.Equal(got, want) {
+		t.Errorf("AgentPath() = %v, want %v", got, want)
+	}
+	if got := config.Agent(); got != "claude" {
+		t.Errorf("SetAgentPath clobbered the agent: %q", got)
+	}
+	if err := config.SetAgentPath(nil); err != nil {
+		t.Fatal(err)
+	}
+	if got := config.AgentPath(); got != nil {
+		t.Errorf("AgentPath() after clearing = %v, want nil", got)
+	}
+}
+
+func TestAgentPathReadsHandEditedConfig(t *testing.T) {
+	withTempHome(t)
+	dir, err := config.ConfigDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw := `{"agent":"codex","agent_path":["/usr/local/node/bin"],"future_field":true}`
+	if err := os.WriteFile(filepath.Join(dir, "config.json"), []byte(raw), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := config.AgentPath(); !slices.Equal(got, []string{"/usr/local/node/bin"}) {
+		t.Errorf("AgentPath() = %v", got)
+	}
+}
+
+func TestAgentPathUnreadableConfigIsNil(t *testing.T) {
+	withTempHome(t)
+	dir, err := config.ConfigDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "config.json"), []byte("{not json"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := config.AgentPath(); got != nil {
+		t.Errorf("AgentPath() with a broken config = %v, want nil", got)
 	}
 }
