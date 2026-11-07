@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en"{{if .Native}} data-native{{end}}>
+<head>
+  {{template "head" .}}
+  <title>Welcome to Lathe</title>
+</head>
+<body class="welcome">
+{{/* The first-launch setup (welcome.go, #148). One step per page load; each
+     step's form posts to POST /-/welcome, so it all works with scripts off.
+     The script at the bottom adds Copy buttons, the desktop folder picker,
+     and opens the New tutorial sheet over Home at the end. */}}
+{{with .Welcome}}
+<a class="skip-link" href="#welcomeMain">Skip to setup</a>
+<header class="settings-bar welcome-bar">
+  <div class="settings-bar-row">
+    <h1 class="settings-title">Welcome to Lathe</h1>
+    {{if ne .Step "start"}}
+    <form class="welcome-skip" method="POST" action="/-/welcome">
+      <input type="hidden" name="step" value="start">
+      <input type="hidden" name="next" value="home">
+      <button type="submit" class="welcome-skip-btn">Skip setup</button>
+    </form>
+    {{end}}
+  </div>
+  <ol class="welcome-steps" aria-label="Setup steps">
+    {{- range .Steps}}
+    <li class="welcome-step{{if .Done}} is-done{{end}}"{{if .Current}} aria-current="step"{{end}}>
+      {{- if .Current}}<span class="welcome-step-here"><span class="welcome-step-n" aria-hidden="true">{{.N}}</span><span class="welcome-step-label">{{.Label}}</span></span>
+      {{- else}}<a href="/-/welcome?step={{.ID}}"><span class="welcome-step-n" aria-hidden="true">{{if .Done}}✓{{else}}{{.N}}{{end}}</span><span class="welcome-step-label">{{.Label}}</span>{{if .Done}}<span class="visually-hidden"> (done)</span>{{end}}</a>
+      {{- end}}
+    </li>
+    {{- end}}
+  </ol>
+</header>
+<main id="welcomeMain" class="welcome-main" tabindex="-1">
+
+{{if eq .Step "agent"}}
+<section class="welcome-panel" aria-labelledby="welcomeHeading">
+  <p class="welcome-kicker">Step 1 of 3</p>
+  <h2 id="welcomeHeading">Pick your agent</h2>
+  <p class="settings-lead">Lathe runs your own coding agent to write tutorials, answer your questions and check your work. It never calls a model itself, so your agent's sign-in and plan apply.</p>
+  <form method="POST" action="/-/welcome" class="welcome-form">
+    <input type="hidden" name="step" value="agent">
+    <p class="agent-error welcome-error" role="alert">{{.Error}}</p>
+    {{template "agentChoices" .Agents}}
+    {{if .CustomCommand}}<p class="agent-hint">Lathe is hosting <code>{{.CustomCommand}}</code>, given with <code>--agent</code>. Continue to keep it.</p>{{end}}
+    {{if not .AnyReady}}
+    <p class="welcome-note">No agent found yet. Install one with the command under it, then check again. Or continue without one: Lathe then gives you a <code>/lathe</code> command to paste into any coding agent.</p>
+    {{end}}
+    <p class="agent-hint">Installed one that isn't found? Add the folder it's in under <a href="/-/settings#agent">Settings › Agent</a>.</p>
+    <div class="welcome-actions">
+      {{if .AnyMissing}}<a class="btn btn-ghost" href="/-/welcome?step=agent">Check again</a>{{end}}
+      <button type="submit" class="btn btn-primary">Continue</button>
+    </div>
+  </form>
+</section>
+
+{{else if eq .Step "folder"}}
+<section class="welcome-panel" aria-labelledby="welcomeHeading">
+  <p class="welcome-kicker">Step 2 of 3</p>
+  <h2 id="welcomeHeading">Where should code folders go?</h2>
+  <p class="settings-lead">You type each tutorial's code yourself, in a folder of its own under this one. Lathe makes a tutorial's folder (and runs <code>git init</code>) when you start it.</p>
+  <form method="POST" action="/-/welcome" class="welcome-form" id="welcomeFolderForm">
+    <input type="hidden" name="step" value="folder">
+    <label class="new-label" for="welcomeCodeRoot">Code folder</label>
+    <div class="settings-inline welcome-folder">
+      <input id="welcomeCodeRoot" name="code_root" type="text" value="{{.CodeRoot}}" autocomplete="off" spellcheck="false" aria-describedby="welcomeCodeRootHint{{if .Error}} welcomeFolderError{{end}}">
+      {{if $.Native}}<button type="button" class="btn btn-ghost btn-sm" id="welcomePickFolder">Choose folder…</button>{{end}}
+    </div>
+    <p class="agent-error welcome-error" id="welcomeFolderError" role="alert">{{.Error}}</p>
+    <p class="agent-hint" id="welcomeCodeRootHint">A tutorial on a digital synth would go in <code>{{.CodeRootExample}}</code>. You can pick another folder for any tutorial when you make it, and change this in Settings › Library.</p>
+    <div class="welcome-actions">
+      <a class="btn btn-ghost" href="/-/welcome?step=agent"><span aria-hidden="true">←</span> Back</a>
+      <button type="submit" class="btn btn-primary">Continue</button>
+    </div>
+  </form>
+</section>
+
+{{else}}
+<section class="welcome-panel" aria-labelledby="welcomeHeading">
+  <p class="welcome-kicker">Step 3 of 3</p>
+  <h2 id="welcomeHeading">Make your first tutorial</h2>
+  <p class="settings-lead">Say what you want to build, and your agent writes Part 1. You type the code in as you read, and ask for the next part when you're ready.</p>
+  <dl class="welcome-summary">
+    <div>
+      <dt>Agent</dt>
+      <dd>{{if .AgentName}}<strong>{{.AgentName}}</strong>{{with .AgentStatus}} · {{.}}{{end}}{{else if .WorkerConnected}}Your <code>/lathe-work</code> session{{else}}None yet. You get a <code>/lathe</code> command to paste into your coding agent.{{end}}</dd>
+      <dd class="welcome-change"><a href="/-/welcome?step=agent">Change<span class="visually-hidden"> agent</span></a></dd>
+    </div>
+    <div>
+      <dt>Code folders</dt>
+      <dd><code>{{.CodeRoot}}</code></dd>
+      <dd class="welcome-change"><a href="/-/welcome?step=folder">Change<span class="visually-hidden"> code folder</span></a></dd>
+    </div>
+  </dl>
+  <form method="POST" action="/-/welcome" class="welcome-form" id="welcomeStartForm">
+    <input type="hidden" name="step" value="start">
+    <input type="hidden" name="sheet" value="" id="welcomeSheet">
+    <p class="agent-error welcome-error" role="alert">{{.Error}}</p>
+    <div class="welcome-actions">
+      <button type="submit" class="btn btn-ghost" name="next" value="home">Skip</button>
+      <button type="submit" class="btn btn-primary" name="next" value="new">Make your first tutorial</button>
+    </div>
+    <p class="agent-hint welcome-later">Skip lands on your library. You can run this setup again from Settings › Agent.</p>
+  </form>
+</section>
+{{end}}
+
+</main>
+{{end}}
+{{template "shortcuts" .}}
+<script>
+(function(){
+  // Copy buttons (the agent list's install commands).
+  document.addEventListener('click', function(ev){
+    var b = ev.target.closest && ev.target.closest('[data-copy]');
+    if (!b) return;
+    ev.preventDefault();
+    var text = b.getAttribute('data-copy');
+    var done = function(){ var l = b.textContent; b.textContent = 'Copied'; setTimeout(function(){ b.textContent = l; }, 1500); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, function(){});
+  });
+
+  // The desktop app's folder picker for the code folder.
+  var pick = document.getElementById('welcomePickFolder');
+  var input = document.getElementById('welcomeCodeRoot');
+  var err = document.getElementById('welcomeFolderError');
+  if (pick && input) pick.addEventListener('click', function(){
+    pick.disabled = true;
+    err.textContent = '';
+    fetch('/-/native/pick-folder', {method: 'POST', headers: {'Content-Type': 'application/json', 'Accept': 'application/json'}, body: JSON.stringify({'for': 'code-root', path: input.value.trim()})})
+      .then(function(r){
+        if (!r.ok) return r.text().then(function(t){ throw new Error((t || ('HTTP ' + r.status)).trim()); });
+        return r.json();
+      })
+      .then(function(res){ if (res && res.path) { input.value = res.display || res.path; input.focus(); } })
+      .catch(function(e){ err.textContent = e.message; })
+      .then(function(){ pick.disabled = false; });
+  });
+
+  // With scripts on, "Make your first tutorial" opens the New tutorial sheet
+  // over Home (/#new) rather than the /-/new page.
+  var sheet = document.getElementById('welcomeSheet');
+  if (sheet && document.getElementById('newSheet')) sheet.value = '1';
+})();
+</script>
+</body>
+</html>

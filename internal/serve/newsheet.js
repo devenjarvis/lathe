@@ -310,5 +310,12 @@
   });
 
   window.latheNewSheet = {open: open, close: close, isOpen: function () { return !!(dlg && dlg.open); }};
+
+  // A page opened at #new (the first-launch setup's "Make your first
+  // tutorial" lands on /#new) opens the sheet over itself.
+  if (dlg && !pageForm && !popout && location.hash === '#new') {
+    try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
+    open({});
+  }
   if (window.latheShortcuts && window.latheShortcuts.refresh) window.latheShortcuts.refresh();
 })();

@@ -99,6 +99,10 @@ type Config struct {
 	// before it is deleted for good: one of TrashDayChoices, 0 for never.
 	// Nil means DefaultTrashDays.
 	TrashDays *int `json:"trash_days,omitempty"`
+	// Onboarded records that the reader finished (or skipped) the
+	// first-launch setup (lathe serve's /-/welcome), so it isn't offered
+	// again on its own. Settings › Agent can still reopen it.
+	Onboarded bool `json:"onboarded,omitempty"`
 }
 
 // NotifyConfig is the per-event notification switches. Nil means on.

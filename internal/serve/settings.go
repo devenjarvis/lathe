@@ -169,6 +169,36 @@ type settingsAgent struct {
 	// State and Status are the current agent's live status ("ready",
 	// "Running · model"), refreshed by the page from GET /-/worker.
 	State, Status string
+	// Picked checks the card's radio: the current agent in Settings; the
+	// first-launch setup also pre-picks the one ready agent it found.
+	Picked bool
+}
+
+// agentCards lists the registry agents as Settings › Agent and the
+// first-launch setup show them (the shared "agentChoices" partial), with the
+// hosted agent's status, and the custom --agent command when the hosted
+// agent isn't a registry one.
+func (s *Server) agentCards() (cards []settingsAgent, cur *agentStatus, custom string) {
+	home, _ := os.UserHomeDir()
+	h := s.hostedAgent()
+	if h != nil {
+		st := h.status()
+		cur = &st
+		if _, ok := agents.ByCommand(h.command); !ok {
+			custom = h.command
+		}
+	}
+	for _, d := range agents.Detect(s.lookPath, home) {
+		c := settingsAgent{Detected: d, Program: firstField(d.Command)}
+		c.Current = h != nil && h.command == d.Command
+		c.Picked = c.Current
+		c.InstallCmd = looksLikeCommand(d.Install)
+		if c.Current && cur != nil {
+			c.State, c.Status = cur.State, describeAgent(*cur)
+		}
+		cards = append(cards, c)
+	}
+	return cards, cur, custom
 }
 
 type settingsPathDir struct {
@@ -181,27 +211,7 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, config.LoadSettings())
 		return
 	}
-	home, _ := os.UserHomeDir()
-	h := s.hostedAgent()
-	var cur *agentStatus
-	custom := ""
-	if h != nil {
-		st := h.status()
-		cur = &st
-		if _, ok := agents.ByCommand(h.command); !ok {
-			custom = h.command
-		}
-	}
-	var cards []settingsAgent
-	for _, d := range agents.Detect(s.lookPath, home) {
-		c := settingsAgent{Detected: d, Program: firstField(d.Command)}
-		c.Current = h != nil && h.command == d.Command
-		c.InstallCmd = looksLikeCommand(d.Install)
-		if c.Current && cur != nil {
-			c.State, c.Status = cur.State, describeAgent(*cur)
-		}
-		cards = append(cards, c)
-	}
+	cards, cur, custom := s.agentCards()
 
 	var dirs []settingsPathDir
 	if c, err := config.ReadConfig(); err == nil {

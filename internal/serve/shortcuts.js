@@ -69,6 +69,8 @@
   }
   var actions = {
     'library.home': {run: go('/')},
+    // The first-launch setup, again (welcome.go).
+    'app.welcome': {when: function () { return !popout; }, run: go('/-/welcome')},
     // Go to anything: the palette (palette.js, included with this script).
     'library.goto': {
       when: function () { return !popout && !!window.lathePalette; },

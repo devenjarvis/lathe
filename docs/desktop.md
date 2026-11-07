@@ -25,6 +25,7 @@ The desktop app is the reader and the hosted agent in their own window. It is th
   - `OpenWindow`: the agent panel's pop-out (`/{slug}/{part}?agent=popout` only).
   - `OpenURL`: links to other sites open in the system browser (http, https and mailto only), so the window never navigates away from Lathe.
 - **Menu bar and shortcuts** (`internal/desktop/menu.go`, laid out by `menu_plan.go` from the registry in `internal/shortcuts`). Menus: Lathe, File, Edit (macOS only: the webview needs its key equivalents for copy and paste), View, Tutorial, Agent, Window. Every window uses the application menu (`UseApplicationMenu`), so the keys work in pop-outs and Settings on Windows and Linux too. In the app the page binds none of the menu's keys; a click (or its accelerator) on a page command calls `serve.Server.RunCommand`, which sends it down the focused page's `GET /-/native/commands` stream, and the page runs it. Pages post `POST /-/native/context` on load and on focus with the commands they can run, and the shell enables or disables the items from that (no Tutorial items on Home, no Next part on the last part). Shell commands (About, Settings… → a `/-/settings` window) are handled in the shell. Commands that aren't built yet (New tutorial, Open in new window, Go to anything, Bigger/Smaller text, Check for updates, Ask about selection, Show workspace) are listed disabled and bind no accelerator, so their keys keep their system or browser meaning. Plain `lathe serve` has no menu: `shortcuts.js` binds the same combos in the page.
+- **First-launch setup** (`internal/serve/welcome.go`, `welcome.html`, #148). In the app, opening Home (`GET /` with no query) while the library is empty and config `onboarded` is unset redirects to `/-/welcome`, so a first launch opens there: 1) pick your agent (the same `agentChoices` partial as Settings › Agent, with install help and Copy buttons), 2) choose where code folders go (`code_root`, `~/code` by default; **Choose folder…** uses `PickFolder` via `POST /-/native/pick-folder {"for":"code-root"}`), 3) **Make your first tutorial** (the New tutorial sheet over Home, at `/#new`) or **Skip** (Home). Finishing or skipping (also **Skip setup** on steps 1–2) sets `onboarded`. Plain `lathe serve` never redirects (a tab from `lathe open` or a script should get the page it asked for); its Home empty state shows a "New to Lathe? Set up Lathe" callout instead until `onboarded` is set. Both reopen it from Settings › Agent (**Run setup again**) and the Lathe menu's **Welcome to Lathe…** (also in ⌘K). Every step is a plain form post, so it works with scripts off; without scripts the last step goes to the `/-/new` page.
 - **Single instance.** A second launch focuses the first window. On Linux this uses a D-Bus name, and is skipped with a log line when there is no session bus.
 - **Agent discovery from a Dock launch** (`internal/loginenv`). The app starts with launchd's minimal PATH, so before resolving the agent it runs the login shell once (`$SHELL -i -l`, with a 5-second limit), merges its PATH, and puts the `agent_path` dirs from `~/.lathe/config.json` first. The README's Install section explains `agent_path` to users.
 
@@ -82,6 +83,13 @@ Run these on a real machine before a release that changes the app.
 1. Build with `go build -tags desktop,production .`, then run `lathe` in a desktop session (GNOME or KDE).
 2. Check the same items as macOS 3–10. Notifications go through `org.freedesktop.Notifications`.
 3. Over SSH with no `DISPLAY`/`WAYLAND_DISPLAY`, `lathe` prints help, plus one stderr line saying why.
+
+**First launch (every OS)**
+
+1. With an empty `~/.lathe` (rename it aside), launching opens **Welcome to Lathe**, not Home.
+2. Step 1 lists the agents with install commands; after installing one, **Check again** shows it as found and **Continue** starts it.
+3. Step 2's **Choose folder…** opens the picker at the typed folder; a relative path is refused with a message.
+4. **Make your first tutorial** opens the New tutorial sheet over Home; relaunching opens Home, not the setup. **Lathe › Welcome to Lathe…** reopens it.
 
 **Menu bar (every OS)**
 

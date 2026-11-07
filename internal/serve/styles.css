@@ -1625,3 +1625,55 @@ body.new-page{background:var(--bg)}
   body.list .header .new-open-label{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 }
 @media (hover:none) and (pointer:coarse){.new-key{display:none}}
+
+/* ---- First-launch setup (welcome.html, /-/welcome) -------------------------
+   The Settings window's yellow title bar with a three-step stepper under the
+   title, then one step per page in a narrow column. Home's empty state
+   offers it with .welcome-callout until it is done or skipped. */
+body.welcome{min-height:100vh}
+.welcome-bar{padding-bottom:.7rem}
+.welcome-skip{margin:0 0 0 auto}
+.welcome-skip-btn{font:inherit;font-size:.875rem;font-weight:800;color:#1C2140;background:transparent;border:2px solid #1C2140;border-radius:var(--radius-pill);padding:.3rem .85rem;min-height:2.25rem;cursor:pointer}
+.welcome-skip-btn:hover{background:rgba(255,255,255,.45)}
+.welcome-steps{list-style:none;margin:.55rem 0 0;padding:0;display:flex;flex-wrap:wrap;gap:.4rem .5rem;counter-reset:none}
+.welcome-step{margin:0;display:flex}
+.welcome-step > a,.welcome-step-here{display:inline-flex;align-items:center;gap:.45rem;font-size:.9rem;font-weight:800;color:#1C2140;text-decoration:none;padding:.25rem .8rem .25rem .3rem;border:2px solid transparent;border-radius:var(--radius-pill);min-height:2.25rem}
+.welcome-step-here{font-weight:900;color:#1C2140;background:#FFFBF0;border-color:#1C2140;font-variation-settings:var(--casual)}
+.welcome-step > a:hover{background:rgba(255,255,255,.45)}
+.welcome-step-n{display:inline-flex;align-items:center;justify-content:center;width:1.55rem;height:1.55rem;border-radius:50%;border:2px solid #1C2140;font-size:.8rem;font-weight:900;font-variation-settings:normal;flex-shrink:0}
+.welcome-step[aria-current="step"] .welcome-step-n{background:#1C2140;color:var(--yellow);border-color:#1C2140}
+.welcome-step.is-done .welcome-step-n{background:#1C2140;color:var(--yellow)}
+.welcome-main{max-width:40rem;margin:0 auto;padding:clamp(1.5rem,1rem + 1.5vw,2.5rem) clamp(.85rem,.5rem + 1.5vw,2rem) 4rem}
+.welcome-main:focus{outline:none}
+.welcome-kicker{margin:0 0 .3rem;font-size:.75rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--teal)}
+.welcome-panel h2{font-size:clamp(1.6rem,1.3rem + 1vw,2.1rem);margin:0 0 .5rem;letter-spacing:-.02em}
+.welcome-form{margin:0}
+.welcome-form .agent-choices{margin-bottom:.9rem}
+.welcome-error{margin:0 0 .75rem}
+.welcome-folder{margin:.4rem 0 0}
+.welcome-folder + .welcome-error{margin:.5rem 0 0}
+.welcome-note{margin:0 0 .5rem;padding:.7rem .9rem;border:2px dashed var(--border-strong);border-radius:var(--radius-md);background:var(--surface-sunken);font-size:.9rem;color:var(--text-muted)}
+.welcome-actions{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:.6rem;margin-top:1.5rem;padding-top:1.1rem;border-top:2px dotted var(--border-strong)}
+.welcome-actions .btn-primary{min-width:9rem}
+.welcome-later{text-align:right}
+.welcome-summary{margin:1.25rem 0 0;padding:0;border:var(--line) solid var(--rule);border-radius:var(--radius-md);background:var(--surface);overflow:hidden}
+.welcome-summary > div{display:grid;grid-template-columns:8rem minmax(0,1fr) auto;gap:.25rem 1rem;align-items:baseline;padding:.8rem 1rem}
+.welcome-summary > div + div{border-top:2px dotted var(--border-strong)}
+.welcome-summary dt{font-size:.75rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--teal)}
+.welcome-summary dd{margin:0;min-width:0;overflow-wrap:anywhere}
+.welcome-change{font-size:.875rem;font-weight:750}
+/* Home's empty state, until the setup is done or skipped. */
+.welcome-callout{display:flex;flex-wrap:wrap;align-items:center;gap:1rem 1.5rem;margin:0 0 2rem;padding:1.1rem 1.25rem;background:var(--yellow);color:var(--on-yellow);border:var(--line) solid var(--rule);border-radius:var(--radius-lg);box-shadow:4px 4px 0 var(--rule)}
+.welcome-callout-text{flex:1 1 18rem;min-width:0}
+.welcome-callout h2{margin:0 0 .2rem;font-size:1.35rem;color:inherit;letter-spacing:-.02em}
+.welcome-callout p{margin:0;font-size:.95rem}
+.welcome-callout :focus-visible{outline-color:#1C2140}
+@media (max-width:560px){
+  .welcome-step-label{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+  .welcome-step[aria-current="step"] .welcome-step-label{position:static;width:auto;height:auto;overflow:visible;clip-path:none}
+  .welcome-step > a{padding-right:.3rem}
+  .welcome-summary > div{grid-template-columns:minmax(0,1fr) auto}
+  .welcome-summary dt{grid-column:1 / -1}
+  .welcome-actions .btn{flex:1 1 auto}
+  .welcome-later{text-align:left}
+}
