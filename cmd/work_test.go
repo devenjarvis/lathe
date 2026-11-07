@@ -16,14 +16,14 @@ import (
 // discover the given base URL, and returns nothing — the env is set for the test.
 func pointWorkerAt(t *testing.T, url string) {
 	t.Helper()
-	t.Setenv("HOME", t.TempDir())
+	setHome(t, t.TempDir())
 	if err := config.WriteServeRuntime(&config.ServeRuntime{URL: url}); err != nil {
 		t.Fatalf("WriteServeRuntime: %v", err)
 	}
 }
 
 func TestWorkNextNoServerIsCleanError(t *testing.T) {
-	t.Setenv("HOME", t.TempDir()) // no serve.json written
+	setHome(t, t.TempDir()) // no serve.json written
 	err := workNextCmd.RunE(workNextCmd, nil)
 	if err == nil || !strings.Contains(err.Error(), "no lathe server") {
 		t.Fatalf("err = %v, want a clean 'no lathe server' error", err)

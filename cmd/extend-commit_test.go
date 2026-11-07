@@ -10,7 +10,7 @@ import (
 
 func TestExtendCommitAppendsPart(t *testing.T) {
 	homeDir := t.TempDir()
-	t.Setenv("HOME", homeDir)
+	setHome(t, homeDir)
 	tutDir := writeTutorial(t, homeDir, "test-slug", store.StatusExtending, []string{"part-01.md"})
 	// The skill wrote the new part before committing.
 	if err := os.WriteFile(filepath.Join(tutDir, "part-02.md"), []byte("# Part 2"), 0644); err != nil {
@@ -44,7 +44,7 @@ func TestExtendCommitAppendsPart(t *testing.T) {
 
 func TestExtendCommitIsIdempotent(t *testing.T) {
 	homeDir := t.TempDir()
-	t.Setenv("HOME", homeDir)
+	setHome(t, homeDir)
 	tutDir := writeTutorial(t, homeDir, "test-slug", store.StatusExtending, []string{"part-01.md"})
 	if err := os.WriteFile(filepath.Join(tutDir, "part-02.md"), []byte("# Part 2"), 0644); err != nil {
 		t.Fatal(err)
@@ -66,7 +66,7 @@ func TestExtendCommitIsIdempotent(t *testing.T) {
 
 func TestExtendCommitAppendsSources(t *testing.T) {
 	homeDir := t.TempDir()
-	t.Setenv("HOME", homeDir)
+	setHome(t, homeDir)
 	tutDir := writeTutorial(t, homeDir, "test-slug", store.StatusExtending, []string{"part-01.md"})
 	if err := os.WriteFile(filepath.Join(tutDir, "part-02.md"), []byte("# Part 2"), 0644); err != nil {
 		t.Fatal(err)
@@ -106,7 +106,7 @@ func TestExtendCommitAppendsSources(t *testing.T) {
 
 func TestExtendCommitUpdatesModel(t *testing.T) {
 	homeDir := t.TempDir()
-	t.Setenv("HOME", homeDir)
+	setHome(t, homeDir)
 	tutDir := writeTutorial(t, homeDir, "test-slug", store.StatusExtending, []string{"part-01.md"})
 	if err := os.WriteFile(filepath.Join(tutDir, "part-02.md"), []byte("# Part 2"), 0644); err != nil {
 		t.Fatal(err)
@@ -135,7 +135,7 @@ func TestExtendCommitUpdatesModel(t *testing.T) {
 
 func TestExtendCommitOmittedModelLeavesExisting(t *testing.T) {
 	homeDir := t.TempDir()
-	t.Setenv("HOME", homeDir)
+	setHome(t, homeDir)
 	tutDir := writeTutorial(t, homeDir, "test-slug", store.StatusExtending, []string{"part-01.md"})
 	if err := os.WriteFile(filepath.Join(tutDir, "part-02.md"), []byte("# Part 2"), 0644); err != nil {
 		t.Fatal(err)
@@ -161,7 +161,7 @@ func TestExtendCommitOmittedModelLeavesExisting(t *testing.T) {
 
 func TestExtendCommitRejectsMissingFile(t *testing.T) {
 	homeDir := t.TempDir()
-	t.Setenv("HOME", homeDir)
+	setHome(t, homeDir)
 	writeTutorial(t, homeDir, "test-slug", store.StatusExtending, []string{"part-01.md"})
 
 	if err := extendCommitCmd.RunE(extendCommitCmd, []string{"test-slug", "part-99.md"}); err == nil {

@@ -81,6 +81,42 @@ func Build() error {
 	return run("go", "build", "-ldflags", ldflags, "-o", "lathe")
 }
 
+// Desktop builds the binary with the desktop app (internal/desktop, Wails v3)
+// as ./lathe-desktop: the same CLI, plus `lathe`/`lathe app` opening the app.
+// "production" drops Wails' dev-mode logging and web inspector. On Linux it
+// needs cgo plus the GTK4 and WebKitGTK 6.0 dev packages (Debian/Ubuntu:
+// libgtk-4-dev libwebkitgtk-6.0-dev); macOS and Windows need nothing extra.
+//
+// Desktop and DesktopCheck are deliberately not part of Check: CI's ubuntu job
+// has no GTK/WebKit libraries, and the default build stays pure Go.
+func Desktop() error {
+	const pkg = "github.com/devenjarvis/lathe/internal/buildinfo"
+	ldflags := fmt.Sprintf("-X %s.Version=%s -X %s.Commit=%s", pkg, gitDescribe(), pkg, gitCommit())
+	return run("go", "build", "-tags", "desktop,production", "-ldflags", ldflags, "-o", "lathe-desktop", ".")
+}
+
+// DesktopCheck vets, lints and tests the desktop-tagged code, and checks the
+// Windows desktop build still cross-compiles without cgo. Needs the same
+// libraries as Desktop; not part of Check (see Desktop).
+func DesktopCheck() error {
+	steps := [][]string{
+		{"go", "vet", "-tags", "desktop", "./..."},
+		{"golangci-lint", "run", "--build-tags", "desktop", "./internal/desktop/...", "./cmd/..."},
+		{"go", "test", "-race", "-tags", "desktop", "./internal/desktop/...", "./cmd/..."},
+	}
+	for _, s := range steps {
+		fmt.Printf("==> %s\n", strings.Join(s, " "))
+		if err := run(s[0], s[1:]...); err != nil {
+			return err
+		}
+	}
+	fmt.Println("==> windows desktop cross-build")
+	cmd := exec.Command("go", "build", "-tags", "desktop", "-o", os.DevNull, ".")
+	cmd.Env = append(os.Environ(), "GOOS=windows", "GOARCH=amd64", "CGO_ENABLED=0")
+	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
+	return cmd.Run()
+}
+
 // gitDescribe returns `git describe --tags --always --dirty`, or "dev" if git
 // is unavailable (so Build never fails just because there are no tags yet).
 func gitDescribe() string {

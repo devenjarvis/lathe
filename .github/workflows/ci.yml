@@ -35,3 +35,57 @@ jobs:
       # Mirrors local `mage check`: fmt-check, skills-check, vet, lint, test (-race), build.
       - name: Run checks
         run: mage check
+
+  # Build-check the desktop app (`-tags desktop`, Wails v3) on every platform
+  # it supports. `check` above stays the CLI-only gate that mirrors `mage check`.
+  # Linux needs cgo + GTK4/WebKitGTK 6 headers (Linux release binaries stay
+  # CLI-only; the Linux app is build-from-source). macOS needs cgo + WebKit
+  # (Xcode CLT, preinstalled). Windows is pure Go (WebView2), CGO_ENABLED=0 to
+  # match the release build.
+  desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install GTK4 / WebKitGTK
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libgtk-4-dev libwebkitgtk-6.0-dev xvfb
+
+      - name: Disable cgo (Windows)
+        if: runner.os == 'Windows'
+        run: echo "CGO_ENABLED=0" >> "$GITHUB_ENV"
+
+      - name: Vet
+        run: go vet -tags desktop ./...
+
+      - name: Build
+        run: go build -tags desktop,production .
+
+      - name: Test
+        run: |
+          if [ "$RUNNER_OS" = Linux ]; then
+            xvfb-run -a go test -tags desktop ./internal/desktop/ ./cmd/
+          else
+            go test -tags desktop ./internal/desktop/ ./cmd/
+          fi
+
+      # Exercise the release packaging (universal build, bundle, icon, ad-hoc
+      # codesign, smoke test) on every PR so it isn't first run on a tag.
+      - name: Package Lathe.app (unsigned)
+        if: runner.os == 'macOS'
+        run: VERSION="0.0.0-ci-$(git rev-parse --short HEAD)" OUT_DIR="$RUNNER_TEMP/dist-macos" build/darwin/package.sh

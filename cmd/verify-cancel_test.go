@@ -15,7 +15,7 @@ import (
 
 func TestVerifyCancelFallsBackToUnverified(t *testing.T) {
 	homeDir := t.TempDir()
-	t.Setenv("HOME", homeDir)
+	setHome(t, homeDir)
 	tutDir := writeTutorial(t, homeDir, "test-slug", store.StatusVerifying, []string{"part-01.md"})
 
 	if err := verifyCancelCmd.RunE(verifyCancelCmd, []string{"test-slug"}); err != nil {
@@ -36,7 +36,7 @@ func TestVerifyCancelFallsBackToUnverified(t *testing.T) {
 
 func TestVerifyCancelRestoresPriorResult(t *testing.T) {
 	homeDir := t.TempDir()
-	t.Setenv("HOME", homeDir)
+	setHome(t, homeDir)
 	tutDir := writeTutorial(t, homeDir, "test-slug", store.StatusVerifying, []string{"part-01.md"})
 	prior := &store.VerifyResult{Status: store.StatusVerified, CheckedAt: "2026-06-01T00:00:00Z"}
 	if err := store.WriteVerifyResult(tutDir, prior); err != nil {
@@ -65,7 +65,7 @@ func TestVerifyCancelRestoresPriorResult(t *testing.T) {
 
 func TestVerifyCancelRejectsWhenNotVerifying(t *testing.T) {
 	homeDir := t.TempDir()
-	t.Setenv("HOME", homeDir)
+	setHome(t, homeDir)
 	for _, status := range []store.Status{store.StatusUnverified, store.StatusVerified, store.StatusExtending} {
 		slug := "slug-" + string(status)
 		tutDir := writeTutorial(t, homeDir, slug, status, []string{"part-01.md"})
@@ -85,14 +85,14 @@ func TestVerifyCancelRejectsWhenNotVerifying(t *testing.T) {
 }
 
 func TestVerifyCancelRejectsMissingTutorial(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	setHome(t, t.TempDir())
 	if err := verifyCancelCmd.RunE(verifyCancelCmd, []string{"no-such-slug"}); err == nil {
 		t.Error("verify-cancel should error on a missing tutorial")
 	}
 }
 
 func TestVerifyCancelRejectsBadSlug(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	setHome(t, t.TempDir())
 	for _, slug := range []string{"", ".", "..", "foo/bar", `foo\bar`} {
 		if err := verifyCancelCmd.RunE(verifyCancelCmd, []string{slug}); err == nil {
 			t.Errorf("verify-cancel %q should be rejected as invalid", slug)
@@ -105,7 +105,7 @@ func TestVerifyCancelRejectsBadSlug(t *testing.T) {
 // it rather than erroring that nothing is verifying.
 func TestVerifyCancelStopsHostedRun(t *testing.T) {
 	homeDir := t.TempDir()
-	t.Setenv("HOME", homeDir)
+	setHome(t, homeDir)
 	tutDir := writeTutorial(t, homeDir, "test-slug", store.StatusVerifying, []string{"part-01.md"})
 
 	var hit string
@@ -143,7 +143,7 @@ func TestVerifyCancelStopsHostedRun(t *testing.T) {
 // reset the status itself, as before.
 func TestVerifyCancelWithServerButNoHostedRun(t *testing.T) {
 	homeDir := t.TempDir()
-	t.Setenv("HOME", homeDir)
+	setHome(t, homeDir)
 	tutDir := writeTutorial(t, homeDir, "test-slug", store.StatusVerifying, []string{"part-01.md"})
 	srv := httptest.NewServer(http.NotFoundHandler())
 	defer srv.Close()

@@ -10,7 +10,7 @@ import (
 
 func TestCheckResultRecordsFromStdin(t *testing.T) {
 	homeDir := t.TempDir()
-	t.Setenv("HOME", homeDir)
+	setHome(t, homeDir)
 	tutDir := writeTutorial(t, homeDir, "test-slug", store.StatusUnverified, []string{"part-01.md", "part-02.md"})
 	t.Cleanup(func() { checkResultFile = "" })
 
@@ -33,7 +33,7 @@ func TestCheckResultRecordsFromStdin(t *testing.T) {
 
 func TestCheckResultRejectsUnknownFieldsAndBadResults(t *testing.T) {
 	homeDir := t.TempDir()
-	t.Setenv("HOME", homeDir)
+	setHome(t, homeDir)
 	writeTutorial(t, homeDir, "test-slug", store.StatusUnverified, []string{"part-01.md"})
 	t.Cleanup(func() { checkResultFile = ""; checkResultCmd.SetIn(nil) })
 

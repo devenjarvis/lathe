@@ -9,11 +9,13 @@ import (
 	"os/exec"
 	"os/signal"
 	"runtime"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/devenjarvis/lathe/internal/agents"
 	"github.com/devenjarvis/lathe/internal/config"
+	"github.com/devenjarvis/lathe/internal/loginenv"
 	"github.com/devenjarvis/lathe/internal/serve"
 	"github.com/spf13/cobra"
 )
@@ -30,6 +32,15 @@ var serveCmd = &cobra.Command{
 		dir, err := config.TutorialsDir()
 		if err != nil {
 			return err
+		}
+		// Put the agent_path dirs from config.json ahead of PATH before the
+		// agent is resolved, so the picker's detection and the agent launch
+		// both see them. Only those: unlike the desktop app, a terminal
+		// launch already has the login shell's PATH.
+		if rep, perr := loginenv.ApplyAgentPath(); perr != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "warning: could not apply agent_path: %v\n", perr)
+		} else if len(rep.PathAdded) > 0 {
+			fmt.Printf("Agent path: searching %s before PATH (agent_path in ~/.lathe/config.json)\n", strings.Join(rep.PathAdded, string(os.PathListSeparator)))
 		}
 		srv := serve.NewServer(dir)
 		// --agent wins; otherwise host the agent picked in the web UI's
