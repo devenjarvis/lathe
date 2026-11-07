@@ -275,7 +275,7 @@ func TestShortcutsTab(t *testing.T) {
 		t.Error("a group's rows are not kept together")
 	}
 	// Stubs (no built action yet) are not listed.
-	if strings.Contains(page, "<dt>Go to anything…</dt>") {
+	if strings.Contains(page, "<dt>New tutorial</dt>") {
 		t.Error("shortcuts tab lists a stub")
 	}
 }

@@ -60,6 +60,7 @@
   {{/* The masthead toggle: "<Agent name> ⌘J". The key hint is visual; the
        global shortcut is the shortcut registry's (#132). */}}
   <button type="button" id="agentToggle" class="agent-toggle" hidden aria-controls="agentPanel" aria-expanded="false" data-state="{{if .AgentName}}starting{{else}}none{{end}}"><span class="agent-dot" aria-hidden="true"></span><span class="agent-toggle-label" id="agentToggleName">{{if .AgentName}}{{.AgentName}}{{else}}Agent{{end}}</span><kbd class="agent-kbd agent-toggle-key" data-kbd aria-hidden="true">⌘J</kbd></button>
+  {{template "paletteButton" .}}
   {{template "themeToggle" .}}
 </header>
 <div class="layout">

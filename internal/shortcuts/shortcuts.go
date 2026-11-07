@@ -141,7 +141,7 @@ var registry = []Shortcut{
 	{ID: "library.home", Label: "Home", Menu: MenuView, Group: GroupLibrary, Scope: ScopeGlobal, Handler: HandlerPage,
 		Mac: "Cmd+Shift+H", Other: "Alt+Home", Href: "/",
 		Note: "The browsers' own Home combos (⇧⌘H on macOS, Alt+Home on Windows and Linux); neither is a system shortcut."},
-	{ID: "library.goto", Label: "Go to anything…", Menu: MenuView, Group: GroupLibrary, Scope: ScopeGlobal, Handler: HandlerPage, Stub: true,
+	{ID: "library.goto", Label: "Go to anything…", Menu: MenuView, Group: GroupLibrary, Scope: ScopeGlobal, Handler: HandlerPage,
 		Mac: "Cmd+K", Other: "Ctrl+K",
 		Note: "Ctrl+K is the browsers' search-bar key (Firefox, Chrome); the page can take it."},
 	{ID: "reading.bigger", Label: "Bigger text", Menu: MenuView, Group: GroupReading, Scope: ScopeGlobal, Handler: HandlerPage,
