@@ -119,7 +119,7 @@ func (c *mcpClient) mustCall(name string, args map[string]any) string {
 func TestMCPListsEveryWriteToolUnscoped(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	got := strings.Join(newMCPClient(t, "").tools(), " ")
-	want := "lathe_store lathe_verify_result lathe_extend_start lathe_extend_commit lathe_tag lathe_voice_add"
+	want := "lathe_store lathe_verify_result lathe_extend_start lathe_extend_commit lathe_tag lathe_check_result lathe_voice_add"
 	if got != want {
 		t.Errorf("tools = %s, want %s", got, want)
 	}
@@ -128,7 +128,7 @@ func TestMCPListsEveryWriteToolUnscoped(t *testing.T) {
 func TestMCPScopedServerOffersOnlyTutorialTools(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	got := strings.Join(newMCPClient(t, "synth").tools(), " ")
-	want := "lathe_verify_result lathe_extend_start lathe_extend_commit lathe_tag"
+	want := "lathe_verify_result lathe_extend_start lathe_extend_commit lathe_tag lathe_check_result"
 	if got != want {
 		t.Errorf("scoped tools = %s, want %s", got, want)
 	}
@@ -289,6 +289,34 @@ func TestMCPTag(t *testing.T) {
 	}
 	if _, isErr := c.call("lathe_tag", map[string]any{"add": []string{"x"}}); !isErr {
 		t.Error("an unscoped server needs a slug")
+	}
+}
+
+func TestMCPCheckResult(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	tutDir := writeTutorial(t, home, "synth", store.StatusUnverified, []string{"part-01.md", "part-02.md"})
+	c := newMCPClient(t, "synth")
+
+	text := c.mustCall("lathe_check_result", map[string]any{
+		"part":        "part-02.md",
+		"status":      "fail",
+		"summary":     "The checkpoint prints nothing.",
+		"findings":    []map[string]string{{"file": "main.zig", "nudge": "What does the loop return?", "where": "main.zig, near the end", "reveal": "return out;"}},
+		"divergences": []map[string]string{{"note": "You named it `buf`; fine.", "later_part": "part-02.md"}},
+	})
+	if !strings.Contains(text, "part-02.md") {
+		t.Errorf("result = %q", text)
+	}
+	got := store.LatestCheck(tutDir, "part-02.md")
+	if got == nil || got.Status != store.CheckFail || got.Findings[0].Where == "" || len(got.Divergences) != 1 {
+		t.Fatalf("recorded = %+v", got)
+	}
+	if _, isErr := c.call("lathe_check_result", map[string]any{"part": "part-01.md", "status": "fail"}); !isErr {
+		t.Error("a failing check with no findings should be rejected")
+	}
+	if _, isErr := c.call("lathe_check_result", map[string]any{"part": "part-01.md", "status": "pass", "hint": "x"}); !isErr {
+		t.Error("an unknown field should be rejected")
 	}
 }
 

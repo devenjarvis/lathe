@@ -1,6 +1,6 @@
 // Package queue is the in-memory job queue that bridges the lathe web UI and an
-// interactive coding-agent session. The browser enqueues a job (ask, verify, or
-// extend) and an agent running the /lathe-work loop long-polls Claim, does the
+// interactive coding-agent session. The browser enqueues a job (ask, verify,
+// extend, or check) and an agent running the /lathe-work loop long-polls Claim, does the
 // model work in its interactive session, and reports back. The queue is the only
 // piece of shared state between the two processes; jobs are ephemeral (server
 // lifetime) because verify/extend persist their real state to disk via the CLI
@@ -25,6 +25,9 @@ const (
 	JobAsk    JobType = "ask"
 	JobVerify JobType = "verify"
 	JobExtend JobType = "extend"
+	// JobCheck is "Check my work": check the learner's code in Path against
+	// Part.
+	JobCheck JobType = "check"
 )
 
 // State tracks a job through its short life: queued (waiting for a worker),
@@ -41,7 +44,8 @@ const (
 
 // Job is a unit of work enqueued by the browser and claimed by a worker. The
 // fields populated depend on Type: verify needs only Slug; extend adds optional
-// Guidance; ask adds Part, Question, and (on completion) Answer.
+// Guidance; ask adds Part, Question, and (on completion) Answer; check adds
+// Part and Path (the learner's workspace).
 type Job struct {
 	ID        string    `json:"id"`
 	Type      JobType   `json:"type"`
@@ -49,6 +53,7 @@ type Job struct {
 	Part      string    `json:"part,omitempty"`
 	Question  string    `json:"question,omitempty"`
 	Guidance  string    `json:"guidance,omitempty"`
+	Path      string    `json:"path,omitempty"`
 	State     State     `json:"state"`
 	Answer    string    `json:"answer,omitempty"`
 	CreatedAt time.Time `json:"created_at"`

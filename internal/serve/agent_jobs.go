@@ -168,15 +168,34 @@ func (h *agentHost) startJob(job, tutDir, slug, command string) (*agentRun, erro
 	}
 	c.SetPolicy(sid, policy)
 
+	run, err := h.launch(c, key, job, sid, jobPrompt(job, abs, scratch, slug, command), command, jobRunTimeout, func() string {
+		c.SetPolicy(sid, nil)
+		note := settleJob(job, tutDir)
+		_ = os.RemoveAll(scratch)
+		return note
+	})
+	if err != nil {
+		c.SetPolicy(sid, nil)
+		return fail(err)
+	}
+	return run, nil
+}
+
+// launch registers a run under key and starts driving prompt in session sid.
+// after runs once the prompt ends, before the final event (see agentRun).
+// It returns the busy error for key's job when another run holds the key.
+func (h *agentHost) launch(c *acp.Client, key, job, sid, prompt, fallback string, timeout time.Duration, after func() string) (*agentRun, error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if _, busy := h.active[key]; busy {
-		c.SetPolicy(sid, nil)
-		return fail(errJobBusy)
+		if job == jobCheck {
+			return nil, errCheckBusy
+		}
+		return nil, errJobBusy
 	}
 	h.pruneLocked()
 	h.counter++
-	runCtx, runCancel := context.WithTimeout(context.Background(), jobRunTimeout)
+	runCtx, runCancel := context.WithTimeout(context.Background(), timeout)
 	run := &agentRun{
 		id:       strconv.FormatInt(h.counter, 10),
 		job:      job,
@@ -186,17 +205,12 @@ func (h *agentHost) startJob(job, tutDir, slug, command string) (*agentRun, erro
 		perms:    map[string]chan string{},
 		done:     make(chan struct{}),
 		started:  time.Now(),
-		fallback: command,
-		after: func() string {
-			c.SetPolicy(sid, nil)
-			note := settleJob(job, tutDir)
-			_ = os.RemoveAll(scratch)
-			return note
-		},
+		fallback: fallback,
+		after:    after,
 	}
 	h.runs[run.id] = run
 	h.active[key] = run.id
-	go h.drive(c, key, sid, jobPrompt(job, abs, scratch, slug, command), run)
+	go h.drive(c, key, sid, prompt, run)
 	return run, nil
 }
 
