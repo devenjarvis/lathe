@@ -86,6 +86,7 @@ type jobTarget struct {
 	tutDir string
 	part   string // the checked part (check only)
 	parts  int    // how many parts the tutorial had when the job started (extend: did it add one?)
+	voice  string // the reserved voice name (a New voice run only)
 }
 
 func newAgentHost(command string, start agentStarter) *agentHost {
@@ -634,6 +635,28 @@ type agentRun struct {
 	textRev  int // bumped on every text append
 	// waiting is set while drive waits for a reply (POST /-/acp/{id}/reply).
 	waiting bool
+	// turnStart is where the current turn's text begins in text (moved on
+	// every reply), so a page can show the agent's latest message alone.
+	turnStart int
+}
+
+// progress reports whether the run waits for a reply and whether it has
+// finished.
+func (r *agentRun) progress() (waiting, finished bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.waiting, !r.finished.IsZero()
+}
+
+// turnText is the agent's text since the reader's last reply.
+func (r *agentRun) turnText() string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	t := r.text.String()
+	if r.turnStart > len(t) {
+		return ""
+	}
+	return strings.TrimSpace(t[r.turnStart:])
 }
 
 func (r *agentRun) appendLocked(ev runEvent) {
@@ -793,6 +816,8 @@ func (r *agentRun) verb() string {
 		return "check your work"
 	case jobNew:
 		return "write the tutorial"
+	case jobVoice:
+		return "draft the voice"
 	}
 	return "answer"
 }
@@ -807,6 +832,8 @@ func (r *agentRun) doing() string {
 		return "checking your work"
 	case jobNew:
 		return "writing the tutorial"
+	case jobVoice:
+		return "drafting the voice"
 	}
 	return "answering"
 }

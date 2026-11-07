@@ -243,6 +243,9 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 		"AllVoices":       append(append([]settingsVoice{}, builtinVoices...), yourVoices...),
 		"VoicesDir":       voicesDirDisplay(),
 		"VoicePane":       voicePane,
+		// AgentName is the hosted agent New voice drafts with ("" when none
+		// is set up: the pane offers /lathe-voice instead).
+		"AgentName":       agentName(h),
 		"DefaultVoice":    config.DefaultVoice(),
 		"TutorialsDir":    s.tutorialsDir,
 		"TutorialsShort":  displayPath(s.tutorialsDir),
@@ -272,6 +275,13 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_, _ = buf.WriteTo(w)
+}
+
+func agentName(h *agentHost) string {
+	if h == nil {
+		return ""
+	}
+	return h.name
 }
 
 // settingsPatch is a POST /-/settings body: any subset of the keys. Unknown

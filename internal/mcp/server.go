@@ -50,6 +50,13 @@ type Server struct {
 	// is offered too, storing only into that slug whatever the source dir is
 	// called. Without Slug it has no effect.
 	New bool
+	// VoiceDraft, when set, is a hosted New voice session's server (Settings
+	// › Voices › New voice): the name Lathe reserved for the voice
+	// (voice.ReserveDraft). It offers only the voice tools: lathe_voice_draft
+	// records a draft for the reader's preview, lathe_voice_show reads a
+	// voice's spec, and lathe_voice_add saves the draft the reader approved,
+	// under that name only. Exclusive with Slug.
+	VoiceDraft string
 	// Version is reported as serverInfo.version.
 	Version string
 }
@@ -123,6 +130,9 @@ func toolResult(text string, isError bool) map[string]any {
 }
 
 func (s *Server) instructions() string {
+	if s.VoiceDraft != "" {
+		return fmt.Sprintf("Lathe's voice tools, scoped to the new voice %q that Lathe reserved for this session. Record each draft with lathe_voice_draft (the reader sees its ## Sample as the preview); lathe_voice_add saves the draft the reader approved, and only after they click Save voice.", s.VoiceDraft)
+	}
 	if s.Slug != "" && s.New {
 		return fmt.Sprintf("Lathe's state-writing commands as tools, scoped to the new tutorial %q that Lathe reserved for this session. lathe_store stores into %q whatever your source directory is called. Use them instead of running the `lathe` CLI.", s.Slug, s.Slug)
 	}
@@ -148,6 +158,9 @@ type Tool struct {
 
 // Tools lists the tools this server offers.
 func (s *Server) Tools() []Tool {
+	if s.VoiceDraft != "" {
+		return voiceDraftTools(s.VoiceDraft)
+	}
 	var out []Tool
 	for _, t := range allTools() {
 		offered := s.Slug == "" || t.scoped || (s.New && t.reserved)

@@ -472,6 +472,7 @@ func (r *agentRun) reply(text string) bool {
 		return false // an answer is already on its way
 	}
 	r.waiting = false
+	r.turnStart = r.text.Len()
 	r.appendLocked(runEvent{Type: "reply", Text: text})
 	return true
 }
