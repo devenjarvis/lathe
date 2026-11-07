@@ -841,7 +841,7 @@ html[data-agent-popout] #agentPopout,html[data-agent-popout] #askClose,html[data
    .tutorial-body is display:contents, so its children (.meta, .tutorial-link,
    .tutorial-progress, .chips) sit directly in the card's grid, and ::before
    paints the colored top behind the first two rows. */
-body.list{max-width:76rem;margin:0 auto;padding:clamp(1.75rem,1rem + 3vw,4rem) clamp(1rem,.5rem + 2.5vw,2.5rem) 4rem}
+body.list{max-width:88rem;margin:0 auto;padding:clamp(1.75rem,1rem + 3vw,4rem) clamp(1rem,.5rem + 2.5vw,2.5rem) 4rem}
 body.list .header{display:flex;justify-content:space-between;align-items:flex-end;gap:1rem 2rem;flex-wrap:wrap;margin-bottom:2rem}
 body.list .header > div{min-width:0;display:flex;align-items:flex-end;gap:1rem 2rem;flex-wrap:wrap;flex:1 1 auto}
 body.list h1{font-size:clamp(3rem,2rem + 4.5vw,5.25rem);font-weight:1000;margin:0;line-height:.88;letter-spacing:-.05em}
@@ -855,9 +855,9 @@ body.list h1{font-size:clamp(3rem,2rem + 4.5vw,5.25rem);font-weight:1000;margin:
   .tutorial-list{row-gap:1.25rem}
   .tutorial-link{min-height:6.5rem}
 }
-.tutorial:nth-child(4n+2){--cover:var(--cover-2);--cover-ink:var(--cover-2-ink)}
-.tutorial:nth-child(4n+3){--cover:var(--cover-3);--cover-ink:var(--cover-3-ink)}
-.tutorial:nth-child(4n+4){--cover:var(--cover-4);--cover-ink:var(--cover-4-ink)}
+.tutorial:nth-of-type(4n+2){--cover:var(--cover-2);--cover-ink:var(--cover-2-ink)}
+.tutorial:nth-of-type(4n+3){--cover:var(--cover-3);--cover-ink:var(--cover-3-ink)}
+.tutorial:nth-of-type(4n+4){--cover:var(--cover-4);--cover-ink:var(--cover-4-ink)}
 .tutorial::before{content:'';grid-row:1/3;grid-column:1;background:var(--cover);border-bottom:var(--line) solid var(--rule);z-index:-1}
 .tutorial:hover{transform:translateY(-3px);box-shadow:var(--shadow-md)}
 .tutorial:has(.tutorial-link:focus-visible){outline:3px solid var(--focus);outline-offset:3px}
@@ -921,6 +921,95 @@ body.list h1{font-size:clamp(3rem,2rem + 4.5vw,5.25rem);font-weight:1000;margin:
 
 .tutorial.hidden{display:none}
 .no-results{color:var(--text-subtle);padding:2rem 0;font-size:1.05rem}
+
+/* Library — the sidebar beside the shelves (wide), collapsed to a one-line
+   disclosure above them (narrow, < 900px). The sidebar is a <details> that
+   is open by default, so with scripts off every link shows; its summary only
+   appears on narrow screens. */
+.library{display:grid;grid-template-columns:14rem minmax(0,1fr);gap:2.5rem;align-items:start}
+.library-main{min-width:0;outline:none}
+.library-nav{position:sticky;top:1.25rem;max-height:calc(100vh - 2.5rem);overflow-y:auto;margin:-.25rem;padding:.25rem}
+.library-nav-summary{display:none}
+.nav-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.1rem}
+.nav-link{display:flex;align-items:center;justify-content:space-between;gap:.6rem;padding:.42rem .75rem;border-radius:var(--radius-md);color:var(--text);text-decoration:none;font-weight:750;font-size:.98rem;line-height:1.3;transition:background var(--transition)}
+.nav-link:hover{background:var(--accent-soft);color:var(--text)}
+.nav-link:focus-visible{outline:3px solid var(--focus);outline-offset:1px}
+.nav-link[aria-current="page"]{background:var(--yellow);color:var(--on-yellow)}
+.nav-label{min-width:0;overflow-wrap:anywhere}
+.nav-count{flex-shrink:0;font-size:.8125rem;font-weight:800;color:var(--text-subtle);font-variant-numeric:tabular-nums}
+.nav-link[aria-current="page"] .nav-count{color:var(--on-yellow)}
+.nav-heading{font-family:var(--font-sans);font-variation-settings:normal;font-size:.8125rem;font-weight:850;letter-spacing:0;color:var(--teal);margin:1.4rem .75rem .35rem}
+.nav-attention{margin-top:1.4rem;padding-top:1rem;border-top:2px dotted var(--border-strong)}
+.nav-attention .nav-count{color:var(--badge-failed-text)}
+.new-shelf{margin-top:.15rem}
+.new-shelf-toggle{list-style:none;cursor:pointer;padding:.42rem .75rem;border-radius:var(--radius-md);color:var(--link);font-weight:800;font-size:.95rem}
+.new-shelf-toggle::-webkit-details-marker{display:none}
+.new-shelf-toggle:hover{background:var(--accent-soft)}
+.new-shelf-toggle:focus-visible{outline:3px solid var(--focus);outline-offset:1px}
+.new-shelf-form{display:flex;flex-wrap:wrap;gap:.4rem;padding:.35rem .5rem .5rem .75rem}
+.new-shelf-form input{flex:1 1 7rem;min-width:0;min-height:2.4rem;padding:.35rem .7rem;font:inherit;font-size:.95rem;color:var(--text);background:var(--surface);border:2px solid var(--rule);border-radius:var(--radius-md)}
+.new-shelf-form input:focus{outline:3px solid var(--focus);outline-offset:1px}
+.new-shelf-submit{min-height:2.4rem;padding:.35rem .9rem;font:inherit;font-size:.9rem;font-weight:850;color:var(--on-red);background:var(--red);border:2px solid var(--red);border-radius:var(--radius-pill);cursor:pointer}
+.new-shelf-submit:hover{background:var(--red-hover);border-color:var(--red-hover)}
+.new-shelf-error{flex-basis:100%;margin:.1rem 0 0;font-size:.875rem;font-weight:700;color:var(--badge-failed-text)}
+
+/* Home — "Pick up where you left off", then one row per shelf. A row is a
+   horizontal shelf of fixed-width covers that scrolls when it is longer than
+   the column; covers still share row tracks (subgrid), so their colored tops
+   line up. The padding gives the hover lift and focus ring room inside the
+   scroller. */
+.home-search{margin:0 0 1.75rem;display:flex}
+.home-search .search-input{max-width:34rem}
+.shelf{margin:0 0 2.25rem}
+.shelf-head,.view-head{display:flex;align-items:baseline;justify-content:space-between;gap:.5rem 1rem;flex-wrap:wrap;margin:0 0 .65rem}
+.view-head{margin-bottom:1.25rem}
+.shelf-head h2,.view-head h2{margin:0;font-size:1.6rem;line-height:1.1;letter-spacing:-.02em}
+.view-head h2{font-size:clamp(1.8rem,1.4rem + 1.4vw,2.4rem)}
+.shelf-count{display:inline-block;vertical-align:.2em;margin-left:.3rem;padding:.05rem .55rem;border-radius:var(--radius-pill);background:var(--surface-sunken);color:var(--text-subtle);font-family:var(--font-sans);font-variation-settings:normal;font-size:.8125rem;font-weight:800;letter-spacing:0;font-variant-numeric:tabular-nums}
+.see-all{font-weight:850;color:var(--link);text-decoration:none;white-space:nowrap}
+.see-all:hover{text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:3px}
+.shelf-empty{margin:0;color:var(--text-subtle);font-size:1rem;max-width:40rem}
+.shelf-row + .shelf-empty{margin-top:1.1rem}
+.shelf-row{position:relative;display:grid;grid-auto-flow:column;grid-auto-columns:12rem;grid-template-rows:auto 1fr auto auto auto;gap:0 1rem;overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x proximity;scroll-padding-inline:.6rem;margin:-.6rem;padding:.6rem .6rem .9rem}
+.shelf-row > *{scroll-snap-align:start}
+.shelf-row .tutorial{grid-row:span 5;min-height:17rem}
+.shelf-row .tutorial-link{font-size:1.4rem}
+/* Chips are for the All grid's filters; on Home a cover is a cover. */
+.shelf-row .chips{display:none}
+.new-cover,.more-tile{position:relative;grid-row:span 5;display:flex;flex-direction:column;border-radius:var(--radius-lg);min-height:17rem}
+.new-cover{gap:.5rem;padding:1.1rem 1.1rem 1rem;border:var(--line) dashed var(--rule);background:var(--surface);color:var(--text)}
+.new-cover-plus{display:inline-flex;align-items:center;justify-content:center;width:2.6rem;height:2.6rem;border-radius:var(--radius-pill);background:var(--red);color:var(--on-red);font-size:1.7rem;font-weight:900;line-height:1}
+.new-cover-title{margin:.35rem 0 0;font-size:1.4rem;line-height:1.05;letter-spacing:-.02em}
+.new-cover-hint{margin:0;color:var(--text-muted);font-size:.9rem;line-height:1.4}
+.new-cover-cmd{margin-top:auto;display:flex;flex-direction:column;align-items:flex-start;gap:.45rem}
+.new-cover-cmd code{display:block;width:100%;padding:.4rem .6rem;border-radius:var(--radius-sm);background:var(--cmd-bg);color:var(--cmd-text);font-family:var(--font-mono);font-variation-settings:var(--mono);font-size:.875rem;user-select:all}
+.new-cover-cmd var{font-style:normal;opacity:.75}
+.new-cover-copy{min-height:2.1rem;padding:.25rem .9rem;font:inherit;font-size:.85rem;font-weight:850;color:var(--text);background:var(--bg);border:2px solid var(--rule);border-radius:var(--radius-pill);cursor:pointer}
+.new-cover-copy:hover{background:var(--accent-soft)}
+.new-cover-copy:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+/* "+N more": a stack of spines, the shelf continuing past the row. */
+.more-tile{align-items:flex-start;justify-content:flex-end;gap:.15rem;padding:1.1rem;border:var(--line) solid var(--rule);color:var(--text);text-decoration:none;font-weight:800;background:repeating-linear-gradient(90deg,var(--surface-sunken) 0 1.1rem,var(--border) 1.1rem 1.25rem);transition:transform 150ms ease-out,box-shadow 150ms ease-out}
+.more-tile:hover{color:var(--text);transform:translateY(-3px);box-shadow:var(--shadow-md)}
+.more-tile:focus-visible{outline:3px solid var(--focus);outline-offset:3px}
+.more-count{display:block;padding:0 .4rem;border-radius:var(--radius-sm);background:var(--bg);font-family:var(--font-display);font-variation-settings:var(--casual);font-size:2.6rem;font-weight:950;line-height:1.1;letter-spacing:-.03em}
+.more-tile > :last-child{padding:0 .4rem;background:var(--bg);border-radius:var(--radius-sm)}
+
+@media (max-width:899px){
+  .library{display:block}
+  .library-nav{position:static;max-height:none;overflow:visible;margin:0 0 1.75rem;padding:0}
+  .library-nav-panel{border:var(--line) solid var(--rule);border-radius:var(--radius-lg);background:var(--surface);padding:.3rem}
+  .library-nav-panel[open]{padding-bottom:.8rem}
+  .library-nav-summary{display:flex;align-items:center;gap:.25rem;list-style:none;cursor:pointer;min-height:2.6rem;padding:.35rem .75rem;border-radius:var(--radius-md);font-weight:850}
+  .library-nav-summary::-webkit-details-marker{display:none}
+  .library-nav-summary::after{content:'';margin-left:auto;width:.5rem;height:.5rem;border-right:2.5px solid currentColor;border-bottom:2.5px solid currentColor;transform:translateY(-.15rem) rotate(45deg);transition:transform var(--transition)}
+  .library-nav-panel[open] > .library-nav-summary::after{transform:translateY(.1rem) rotate(-135deg)}
+  .library-nav-summary:focus-visible{outline:3px solid var(--focus);outline-offset:1px}
+  .library-nav-current{color:var(--text-subtle);font-weight:750}
+}
+@media (prefers-reduced-motion:reduce){
+  .more-tile{transition:none}
+  .more-tile:hover{transform:none}
+}
 
 /* ---- 5. Responsive ------------------------------------------------------- */
 

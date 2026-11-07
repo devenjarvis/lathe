@@ -9,12 +9,12 @@ import (
 	"fmt"
 	"html/template"
 	"io/fs"
+	"log"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -147,6 +147,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /{slug}/", s.handleTutorial)
 	mux.HandleFunc("GET /{slug}/{part}", s.handlePart)
 	mux.HandleFunc("POST /-/delete/{slug}", s.handleDelete)
+	// Library shelves (library.go): "+ New shelf" in the list page's sidebar.
+	mux.HandleFunc("POST /-/shelves", s.handleShelfCreate)
 	mux.HandleFunc("POST /-/ask/{slug}/{part}", s.handleAsk)
 	mux.HandleFunc("POST /-/progress/{slug}/{part}", s.handleProgress)
 	mux.HandleFunc("POST /-/extend/{slug}", s.handleExtend)
@@ -248,52 +250,30 @@ func (s *Server) handleStatic(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleList(w http.ResponseWriter, r *http.Request) {
-	entries, err := os.ReadDir(s.tutorialsDir)
+	tutorials, err := s.readTutorials()
 	if err != nil {
 		http.Error(w, "could not read tutorials", http.StatusInternalServerError)
 		return
 	}
-	var tutorials []*store.Tutorial
-	for _, e := range entries {
-		if !e.IsDir() {
-			continue
-		}
-		tut, err := store.ReadMetadata(filepath.Join(s.tutorialsDir, e.Name()))
-		if err != nil {
-			continue
-		}
-		tutorials = append(tutorials, tut)
-	}
-	// Flat, newest-first ordering — matches the previous within-group default so
-	// the JS-off initial order is unchanged. The client sort control re-orders
-	// from here.
-	sort.SliceStable(tutorials, func(a, b int) bool {
-		return tutorials[a].Created.After(tutorials[b].Created)
-	})
+	shelves := s.readShelvesForView()
 	if strings.Contains(r.Header.Get("Accept"), "application/json") {
-		type ProgressJSON struct {
-			Slug     string        `json:"slug"`
-			Progress *CardProgress `json:"progress"`
-		}
-		var list []ProgressJSON
-		for _, tut := range tutorials {
-			list = append(list, ProgressJSON{
-				Slug:     tut.Slug,
-				Progress: cardProgress(tut),
-			})
-		}
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(list)
+		s.writeListJSON(w, tutorials, shelves)
+		return
+	}
+	page, ok := buildLibrary(tutorials, shelves, r.URL.Query())
+	if !ok {
+		http.NotFound(w, r)
 		return
 	}
 	var buf bytes.Buffer
 	if err := s.listTmpl.Execute(&buf, map[string]any{
-		"Tutorials":    tutorials,
+		"Library":      page,
 		"CSS":          s.designCSS,
 		"HighlightCSS": s.highlightCSS,
 		// Native: the desktop shell is present (data-native on <html>).
 		"Native": s.nativeShell() != nil,
 	}); err != nil {
+		log.Printf("lathe: list template: %v", err)
 		http.Error(w, "template error", http.StatusInternalServerError)
 		return
 	}

@@ -237,7 +237,7 @@ func TestListPageRendersTagsAndControls(t *testing.T) {
 	}
 
 	srv := serve.NewServer(dir)
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/?view=all", nil)
 	w := httptest.NewRecorder()
 	srv.Handler().ServeHTTP(w, req)
 
@@ -308,7 +308,7 @@ func TestListPageRendersCardsAndVersions(t *testing.T) {
 	mk("standalone", "", nil, now.Add(-2*time.Hour), nil)
 
 	srv := serve.NewServer(dir)
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/?view=all", nil)
 	w := httptest.NewRecorder()
 	srv.Handler().ServeHTTP(w, req)
 	body := w.Body.String()

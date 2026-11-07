@@ -127,7 +127,8 @@ Each component is a class in `styles.css`. Markup it expects:
 | Progress toast | `.progress-status`, `#progressStatus` (`aria-hidden`) | layout.html |
 | Announced status region | `#statusAnnouncer` (`role="status"`, shared by the progress and copy flows) | layout.html |
 | Visually hidden utility | `.visually-hidden` | styles.css |
-| Bookshelf covers | `body.list`, `.tutorial-list`, `.tutorial` (+ `::before` cover), `.tutorial-body` (`display: contents`), `.meta`, `.tutorial-link`, `.chips` (wraps `.versions` + `.tags`), `.tutorial-actions`, `.delete-btn`, `.empty` | list.html |
+| Bookshelf covers | `body.list`, `.tutorial-list`, `.tutorial` (+ `::before` cover), `.tutorial-body` (`display: contents`), `.meta`, `.tutorial-link`, `.chips` (wraps `.versions` + `.tags`), `.tutorial-actions`, `.delete-btn`, `.empty` | list.html (`cover` partial) |
+| Library | `.library` (sidebar + `.library-main`), `.library-nav` > `details.library-nav-panel` (`.library-nav-summary` narrow only), `.nav-list`, `.nav-link` (`[aria-current="page"]` = yellow), `.nav-count`, `.nav-heading`, `.nav-attention`, `.new-shelf` (+`-toggle`/`-form`/`-submit`/`-error`); Home: `.home-search`, `.shelf`, `.shelf-head`, `.shelf-count`, `.see-all`, `.shelf-row` (horizontal shelf), `.shelf-empty`, `.new-cover` (+`-plus`/`-title`/`-hint`/`-cmd`/`-copy`), `.more-tile` + `.more-count`; grid views: `.view-head` | list.html |
 | List card progress | `.tutorial-progress`, `.tutorial-progress-track`, `.tutorial-progress-segments`, `.tutorial-progress-label` | list.html |
 | Callouts | `.callout.callout-<type>`, `.callout-label` | emitted by `renderer.go` |
 | Tutorial blocks | `.tutorial-block`, `.tutorial-block-command`/`-output`/`-code`, `.tutorial-block-label`, `.copy-command` | emitted by `renderer.go` |
@@ -193,7 +194,8 @@ source underneath.
 ### List page — the bookshelf
 
 Each tutorial is a **book cover**: a colored top (red, teal, yellow, navy,
-cycled by position) with its size and date and the title in big Casual type,
+cycled by position among the covers of a row or grid, `:nth-of-type`, so the
+blank cover and the more tile don't shift it) with its size and date and the title in big Casual type,
 and a paper strip below with version + tag chips, saved progress, the status
 badge and the delete button. It is built with CSS grid over the existing
 markup: `.tutorial-body` is `display: contents`, so `.meta`, `.tutorial-link`,
@@ -202,6 +204,15 @@ paints the cover behind the first two rows. With `subgrid`, covers in a row
 share row tracks, so their colored tops line up. The whole cover is one
 stretched link; the delete button sits above it and, on pointer devices, stays
 hidden until the cover is hovered or holds focus.
+
+The page is a **library**: a sidebar (`.library-nav`, a `<details>` open by
+default that collapses to a one-line "Library · <view>" disclosure below
+900px) beside the shelves. **Home** stacks shelves: each `.shelf-row` is a
+horizontal row of fixed 12rem covers that scrolls (snapping) when it is longer
+than the column, with the covers still on a shared subgrid. The first row opens
+with `.new-cover`, a dashed blank cover; a shelf with more than four covers ends
+in `.more-tile`, a striped stack of spines. Chips are hidden on Home rows (they
+are there for the All grid's filters).
 
 ### Block labels and captions
 
