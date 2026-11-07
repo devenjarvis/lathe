@@ -20,6 +20,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/devenjarvis/lathe/internal/agents"
 	"github.com/devenjarvis/lathe/internal/jig"
 	"github.com/devenjarvis/lathe/internal/queue"
 	"github.com/devenjarvis/lathe/internal/store"
@@ -60,7 +61,16 @@ type Server struct {
 	// agent, when set (lathe serve --agent), is the user's own coding agent
 	// hosted over the Agent Client Protocol. Ask streams from it directly; the
 	// queue and the handoff stay as fallbacks.
-	agent *agentHost
+	agent   *agentHost
+	agentMu sync.RWMutex
+	// switchMu serializes agent picks.
+	switchMu sync.Mutex
+	// hostFactory, when set, builds the host for a picked agent (tests use a
+	// fake agent); nil starts the real process.
+	hostFactory func(command string) *agentHost
+	// lookPath finds programs for the agent picker's PATH detection (nil:
+	// exec.LookPath).
+	lookPath agents.LookPath
 }
 
 // staticVersion fingerprints the embedded static assets so every page can ask
@@ -155,6 +165,11 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /-/work/{id}/answer", s.handleWorkAnswer)
 	mux.HandleFunc("POST /-/work/{id}/done", s.handleWorkDone)
 	mux.HandleFunc("GET /-/worker", s.handleWorker)
+	// Agent panel setup: the picker's PATH detection and choice, and the
+	// per-tutorial workspace.
+	mux.HandleFunc("GET /-/agents", s.handleAgents)
+	mux.HandleFunc("POST /-/agent", s.handleAgentPick)
+	mux.HandleFunc("POST /-/workspace/{slug}", s.handleWorkspace)
 	return mux
 }
 
@@ -607,9 +622,21 @@ func (s *Server) renderPart(w http.ResponseWriter, tut *store.Tutorial, tutDir, 
 		}
 	}
 
+	workspacePath, workspaceShort := workspaceDisplay(tutDir)
+	var agentName string
+	if h := s.hostedAgent(); h != nil {
+		agentName = h.name
+	}
+
 	var buf bytes.Buffer
 	if err := s.layoutTmpl.Execute(&buf, map[string]any{
-		"Title":             tut.Title,
+		"Title": tut.Title,
+		// The agent panel: the hosted agent's name ("" before one is picked,
+		// which opens the picker) and this tutorial's workspace.
+		"AgentName":         agentName,
+		"WorkspacePath":     workspacePath,
+		"WorkspaceShort":    workspaceShort,
+		"LastPart":          lastPart(tut),
 		"Tutorial":          tut,
 		"VerifyResult":      verifyResult,
 		"VerifiedDate":      verifiedDate,
@@ -659,6 +686,15 @@ func jigScriptFor(content []byte, script template.JS) template.JS {
 		return script
 	}
 	return ""
+}
+
+// lastPart is the tutorial's final part ("" when it has none), where the
+// agent panel's "Add a part" leads.
+func lastPart(tut *store.Tutorial) string {
+	if len(tut.Parts) == 0 {
+		return ""
+	}
+	return tut.Parts[len(tut.Parts)-1]
 }
 
 func pendingPartNumber(pendingPart string, fallback int) int {

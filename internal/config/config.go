@@ -51,6 +51,10 @@ type Config struct {
 	// DefaultVoice is the voice applied to a `/lathe` run when the user names
 	// none. Empty means the built-in DefaultVoiceName.
 	DefaultVoice string `json:"default_voice,omitempty"`
+	// Agent is the registry id (internal/agents) of the coding agent the
+	// reader picked in the web UI; `lathe serve` hosts it when no --agent is
+	// given. Empty means none picked yet (the panel shows the picker).
+	Agent string `json:"agent,omitempty"`
 }
 
 func configPath() (string, error) {
@@ -117,5 +121,26 @@ func SetDefaultVoice(name string) error {
 		return err
 	}
 	c.DefaultVoice = strings.TrimSpace(name)
+	return WriteConfig(c)
+}
+
+// Agent returns the picked agent's registry id, or "" when none is set or
+// config.json can't be read (the picker then simply shows again).
+func Agent() string {
+	c, err := ReadConfig()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(c.Agent)
+}
+
+// SetAgent records id as the picked agent. The caller validates it against
+// the registry.
+func SetAgent(id string) error {
+	c, err := ReadConfig()
+	if err != nil {
+		return err
+	}
+	c.Agent = strings.TrimSpace(id)
 	return WriteConfig(c)
 }

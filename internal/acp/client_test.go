@@ -234,3 +234,27 @@ func TestUnsupportedRequestRefused(t *testing.T) {
 		t.Errorf("err = %v, want method-not-found", err)
 	}
 }
+
+func TestNewSessionRecordsReportedModel(t *testing.T) {
+	plain, _ := pipeClient(t, &acptest.Agent{})
+	if _, err := plain.Initialize(ctx(t)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := plain.NewSession(ctx(t), "/tmp/tut"); err != nil {
+		t.Fatal(err)
+	}
+	if got := plain.Model(); got != "" {
+		t.Errorf("Model() with no model state = %q, want empty", got)
+	}
+
+	c, _ := pipeClient(t, &acptest.Agent{Model: "Claude Opus 5.5"})
+	if _, err := c.Initialize(ctx(t)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.NewSession(ctx(t), "/tmp/tut"); err != nil {
+		t.Fatal(err)
+	}
+	if got := c.Model(); got != "Claude Opus 5.5" {
+		t.Errorf("Model() = %q, want the current model's name", got)
+	}
+}

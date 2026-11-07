@@ -27,11 +27,12 @@ func writeHandoffNotice(w http.ResponseWriter, command, notice string) {
 // everything is sent, the stream ends; a reconnect after that gets 204, which
 // tells EventSource to stop.
 func (s *Server) handleAgentEvents(w http.ResponseWriter, r *http.Request) {
-	if s.agent == nil {
+	agent := s.hostedAgent()
+	if agent == nil {
 		http.NotFound(w, r)
 		return
 	}
-	run, ok := s.agent.run(r.PathValue("id"))
+	run, ok := agent.run(r.PathValue("id"))
 	if !ok {
 		http.NotFound(w, r)
 		return
@@ -92,11 +93,12 @@ func (s *Server) handleAgentPermission(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}
-	if s.agent == nil {
+	agent := s.hostedAgent()
+	if agent == nil {
 		http.NotFound(w, r)
 		return
 	}
-	run, ok := s.agent.run(r.PathValue("id"))
+	run, ok := agent.run(r.PathValue("id"))
 	if !ok {
 		http.NotFound(w, r)
 		return
@@ -125,11 +127,12 @@ func (s *Server) handleAgentCancel(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}
-	if s.agent == nil {
+	agent := s.hostedAgent()
+	if agent == nil {
 		http.NotFound(w, r)
 		return
 	}
-	run, ok := s.agent.run(r.PathValue("id"))
+	run, ok := agent.run(r.PathValue("id"))
 	if !ok {
 		http.NotFound(w, r)
 		return
@@ -142,17 +145,18 @@ func (s *Server) handleAgentCancel(w http.ResponseWriter, r *http.Request) {
 // written nothing) only when no agent is configured; every agent failure ends
 // in the copy-paste handoff with a notice, so the reader is never stuck.
 func (s *Server) askViaAgent(w http.ResponseWriter, tutDir, slug, part, question string) bool {
-	if s.agent == nil {
+	agent := s.hostedAgent()
+	if agent == nil {
 		return false
 	}
-	run, err := s.agent.startAsk(tutDir, slug, part, question)
+	run, err := agent.startAsk(tutDir, slug, part, question)
 	if err != nil {
 		if errors.Is(err, errAskBusy) {
 			http.Error(w, "Wait for the current answer to finish (or stop it) before asking again.", http.StatusConflict)
 			return true
 		}
 		writeHandoffNotice(w, "/lathe-ask "+slug+" "+part+"\n"+question,
-			"The agent ("+s.agent.command+") could not take this question: "+err.Error())
+			"The agent ("+agent.command+") could not take this question: "+err.Error())
 		return true
 	}
 	writeAgentRun(w, run.id)

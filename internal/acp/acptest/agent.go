@@ -51,6 +51,9 @@ type Agent struct {
 	Plan []string
 	// StepDelay is the pause while each plan step's tool call runs.
 	StepDelay time.Duration
+	// Model, when set, is reported as the session's current model in every
+	// session/new result (ACP's session model state).
+	Model string
 
 	mu        sync.Mutex
 	w         io.Writer
@@ -278,7 +281,14 @@ func (a *Agent) handle(f frame, crash func()) {
 		a.cwds[id] = p.Cwd
 		a.MCPServers = append(a.MCPServers, p.MCPServers)
 		a.mu.Unlock()
-		a.respond(f.ID, map[string]string{"sessionId": id})
+		res := map[string]any{"sessionId": id}
+		if a.Model != "" {
+			res["models"] = map[string]any{
+				"currentModelId":  "m-1",
+				"availableModels": []map[string]string{{"modelId": "m-0", "name": "Other"}, {"modelId": "m-1", "name": a.Model}},
+			}
+		}
+		a.respond(f.ID, res)
 	case "session/cancel":
 		var p struct {
 			SessionID string `json:"sessionId"`

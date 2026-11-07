@@ -17,6 +17,16 @@
       } catch (e) {
         document.documentElement.setAttribute('data-sidebar', 'open');
       }
+      // The agent panel: docked open or collapsed to a rail (wide screens
+      // only; CSS ignores it below 1100px), or alone in a pop-out window.
+      var root = document.documentElement;
+      if (/[?&]agent=popout(&|$)/.test(location.search)) {
+        root.setAttribute('data-agent-popout', '');
+      } else {
+        var dock = 'open';
+        try { dock = localStorage.getItem('lathe-agent-panel') || 'open'; } catch (e) {}
+        root.setAttribute('data-agent-dock', dock === 'collapsed' ? 'collapsed' : 'open');
+      }
     })();
   </script>
 </head>
@@ -43,6 +53,7 @@
         {{end}}
       </ul>
     </details>{{end}}</span>
+  <button type="button" id="agentToggle" class="agent-toggle" hidden aria-controls="agentPanel" aria-expanded="false" data-state="{{if .AgentName}}starting{{else}}none{{end}}"><span class="agent-dot" aria-hidden="true"></span><span class="agent-toggle-label">Agent<span class="agent-toggle-name"> · <span id="agentToggleName">{{if .AgentName}}{{.AgentName}}{{else}}not started{{end}}</span></span></span></button>
   {{template "themeToggle" .}}
 </header>
 <div class="layout">
@@ -183,22 +194,418 @@
   <button type="button" class="btn btn-ghost btn-sm progress-button" data-progress-save>Save progress</button>
   <button type="button" id="dockAsk" class="btn btn-primary btn-pill" data-ask-open aria-label="Ask a question about this tutorial">Ask</button>
 </div>
-<aside id="askDrawer" role="dialog" aria-modal="true" aria-labelledby="askTitle" data-slug="{{.Tutorial.Slug}}" data-part="{{.CurrentPart}}" aria-hidden="true" inert>
-  <header>
-    <h3 id="askTitle">Ask about "{{.Tutorial.Title}}"</h3>
-    <span id="workerStatus" class="worker-status" hidden title="An agent running /lathe-work is connected — Ask, Verify, and Extend run there directly.">● agent connected</span>
+{{/* The agent panel. Wide screens (≥1100px) dock it on the right, beside the
+     article, and collapse it to a slim rail; narrower screens open it over the
+     page as a dialog (a bottom sheet on phones), like the old Ask drawer. Its
+     setup view ("Bring your agent") shows until an agent is picked. */}}
+<aside id="agentPanel" class="agent-panel" aria-labelledby="agentPanelTitle" data-slug="{{.Tutorial.Slug}}" data-part="{{.CurrentPart}}" data-last-part="{{.LastPart}}" data-agent-name="{{.AgentName}}" data-workspace="{{.WorkspacePath}}" aria-hidden="true" inert>
+  <header class="agent-panel-head">
+    <h2 id="agentPanelTitle">Agent</h2>
+    <button type="button" id="agentPick" class="agent-pick" aria-controls="agentSetup" aria-expanded="{{if .AgentName}}false{{else}}true{{end}}"><span id="agentPickName">{{if .AgentName}}{{.AgentName}}{{else}}Pick an agent{{end}}</span><span aria-hidden="true"> ▾</span></button>
+    <span id="workerStatus" class="agent-state" data-state="{{if .AgentName}}starting{{else}}none{{end}}"><span class="agent-dot" aria-hidden="true"></span><span class="agent-state-text">{{if .AgentName}}Starting…{{else}}Not started{{end}}</span></span>
     <span id="agentIsolation" class="agent-isolation" hidden></span>
-    <button type="button" id="askClose" aria-label="Close">×</button>
+    <span class="agent-panel-tools">
+      <button type="button" id="agentPopout" class="icon-btn" aria-label="Open the agent panel in a separate window" title="Open in a separate window"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg></button>
+      <button type="button" id="askClose" class="icon-btn" aria-label="Collapse the agent panel" title="Collapse"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
+    </span>
+    <p id="agentModel" class="agent-model" hidden></p>
   </header>
-  <div id="askLog" role="log" aria-live="polite"></div>
-  <form id="askForm">
-    <textarea id="askInput" placeholder="Ask a question…" rows="2" required></textarea>
-    <div class="ask-controls">
-      <button type="submit" id="askSubmit" class="btn btn-primary btn-sm">Send</button>
+  <section id="agentSetup" class="agent-setup" aria-labelledby="agentSetupTitle"{{if .AgentName}} hidden{{end}}>
+    <h3 id="agentSetupTitle">Bring your agent</h3>
+    <p>Lathe runs your coding agent here, in a normal interactive session. Lathe never calls a model itself, so your agent's own sign-in and plan apply.</p>
+    <form id="agentSetupForm" novalidate>
+      <fieldset id="agentChoices" class="agent-choices">
+        <legend>Found on your PATH</legend>
+        <p class="agent-hint" id="agentChoicesEmpty">Looking for agents…</p>
+      </fieldset>
+      <details id="agentOthers" class="agent-others" hidden>
+        <summary>Other agents Lathe can host</summary>
+        <ul></ul>
+      </details>
+      <div class="agent-field">
+        <label for="workspaceSetupInput">Where are you typing the code?</label>
+        <input id="workspaceSetupInput" type="text" autocomplete="off" spellcheck="false" value="{{.WorkspaceShort}}" placeholder="~/code/{{.Tutorial.Slug}}" aria-describedby="workspaceSetupHint">
+        <p class="agent-hint" id="workspaceSetupHint">Optional. Lathe creates the folder and runs <code>git init</code> if it's empty.</p>
+      </div>
+      <div class="agent-setup-actions">
+        <button type="submit" id="agentStart" class="btn btn-primary" disabled>Start agent</button>
+        <button type="button" id="agentSetupCancel" class="btn btn-ghost btn-sm">Not now</button>
+      </div>
+      <p class="agent-error" id="agentSetupError" role="alert"></p>
+    </form>
+    <div class="agent-fallback">
+      <p class="agent-fallback-title">Rather use your own terminal?</p>
+      <div class="agent-fallback-cmd"><code>/lathe-work</code><button type="button" class="btn btn-sm" data-copy="/lathe-work" aria-label="Copy /lathe-work">Copy</button></div>
+      <p class="agent-hint">Run it in any agent session and this panel shows it as connected.</p>
     </div>
-  </form>
+  </section>
+  <div id="agentSession" class="agent-session"{{if not .AgentName}} hidden{{end}}>
+    <div id="askLog" role="log" aria-live="polite" aria-label="Agent session"></div>
+    <div class="agent-actions" role="group" aria-label="Agent actions">
+      <button type="button" class="btn btn-ghost btn-sm" data-agent-action="ask">Ask about this part</button>
+      <button type="button" class="btn btn-ghost btn-sm" data-agent-action="verify">Verify tutorial</button>
+      <button type="button" class="btn btn-ghost btn-sm" data-agent-action="extend">Add a part</button>
+    </div>
+    <form id="askForm">
+      <label for="askInput" class="visually-hidden">Ask a question about "{{.Tutorial.Title}}"</label>
+      <textarea id="askInput" placeholder="Ask a question…" rows="2" required></textarea>
+      <div class="ask-controls">
+        <button type="submit" id="askSubmit" class="btn btn-primary btn-sm">Send</button>
+      </div>
+    </form>
+  </div>
+  <footer class="agent-workspace" id="agentWorkspace"{{if not .AgentName}} hidden{{end}}>
+    <div class="agent-workspace-row">
+      <span class="agent-workspace-label">Workspace</span>
+      <code id="workspaceShort" title="{{.WorkspacePath}}">{{if .WorkspaceShort}}{{.WorkspaceShort}}{{else}}not set{{end}}</code>
+      <button type="button" id="workspaceChange" class="link-btn" aria-controls="workspaceForm" aria-expanded="false">{{if .WorkspacePath}}Change{{else}}Set{{end}}</button>
+    </div>
+    <form id="workspaceForm" class="agent-workspace-form" hidden>
+      <label for="workspaceInput" class="visually-hidden">Workspace folder</label>
+      <input id="workspaceInput" type="text" autocomplete="off" spellcheck="false" value="{{.WorkspaceShort}}" placeholder="~/code/{{.Tutorial.Slug}}">
+      <button type="submit" class="btn btn-primary btn-sm">Save</button>
+      <button type="button" id="workspaceCancel" class="btn btn-ghost btn-sm">Cancel</button>
+      <p class="agent-error" id="workspaceError" role="alert"></p>
+    </form>
+  </footer>
 </aside>
+<button type="button" id="agentRail" class="agent-rail" hidden aria-controls="agentPanel" aria-expanded="false" aria-label="Expand the agent panel"><span class="agent-dot" aria-hidden="true"></span><span class="agent-rail-label" aria-hidden="true">Agent</span></button>
 <div id="askBackdrop" hidden></div>
+<script>
+  // Agent panel controller. Three modes:
+  //  - docked (≥1100px): a non-modal column beside the article, open or
+  //    collapsed to a rail; the choice is remembered in localStorage;
+  //  - overlay (narrower): a dialog over the page (a bottom sheet on phones),
+  //    with a backdrop, Escape to close and focus kept inside;
+  //  - pop-out: alone in its own window (?agent=popout).
+  // It also runs the "Bring your agent" setup view and the workspace footer.
+  (function(){
+    var root = document.documentElement;
+    var panel = document.getElementById('agentPanel');
+    if (!panel) return;
+    var rail = document.getElementById('agentRail');
+    var toggle = document.getElementById('agentToggle');
+    // Both ship hidden, since without this script they would do nothing.
+    if (toggle) toggle.hidden = false;
+    if (rail) rail.hidden = false;
+    var backdrop = document.getElementById('askBackdrop');
+    var closeBtn = document.getElementById('askClose');
+    var popoutBtn = document.getElementById('agentPopout');
+    var setup = document.getElementById('agentSetup');
+    var session = document.getElementById('agentSession');
+    var pick = document.getElementById('agentPick');
+    var topBar = document.getElementById('topBar');
+    var slug = panel.getAttribute('data-slug') || '';
+    var popout = root.hasAttribute('data-agent-popout');
+    var wideQuery = window.matchMedia ? window.matchMedia('(min-width:1100px)') : null;
+    var overlayOpen = false;
+    var lastFocused = null;
+
+    function docked(){ return !popout && !!(wideQuery && wideQuery.matches); }
+    function dockState(){ return root.getAttribute('data-agent-dock') === 'collapsed' ? 'collapsed' : 'open'; }
+    function isOpen(){ return popout || (docked() ? dockState() === 'open' : overlayOpen); }
+
+    function syncTopbar(){
+      if (topBar) root.style.setProperty('--topbar-h', topBar.getBoundingClientRect().height + 'px');
+    }
+
+    // Apply the current mode to the panel's semantics: a dialog only when it
+    // covers the page; hidden from focus and assistive tech when closed.
+    function sync(){
+      var open = isOpen();
+      var overlay = !popout && !docked();
+      if (overlay) {
+        panel.setAttribute('role', 'dialog');
+        panel.setAttribute('aria-modal', 'true');
+      } else {
+        panel.removeAttribute('role');
+        panel.removeAttribute('aria-modal');
+      }
+      panel.classList.toggle('open', overlay && open);
+      panel.inert = !open;
+      panel.setAttribute('aria-hidden', open ? 'false' : 'true');
+      backdrop.hidden = !(overlay && open);
+      if (toggle) toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+      if (rail) rail.setAttribute('aria-expanded', open ? 'true' : 'false');
+      closeBtn.setAttribute('aria-label', overlay ? 'Close the agent panel' : 'Collapse the agent panel');
+      closeBtn.title = overlay ? 'Close' : 'Collapse';
+      syncTopbar();
+    }
+
+    function setDock(state){
+      root.setAttribute('data-agent-dock', state);
+      try { localStorage.setItem('lathe-agent-panel', state); } catch (e) {}
+    }
+
+    function showSetup(show){
+      setup.hidden = !show;
+      session.hidden = show;
+      document.getElementById('agentWorkspace').hidden = show;
+      pick.setAttribute('aria-expanded', show ? 'true' : 'false');
+      if (show) loadAgents();
+    }
+
+    // open({focus:'ask'|'setup', session:true}) shows the panel (expanding
+    // the rail or opening the overlay).
+    function open(opts){
+      opts = opts || {};
+      if (!isOpen()) lastFocused = document.activeElement;
+      if (docked()) setDock('open'); else overlayOpen = true;
+      if (opts.session) showSetup(false);
+      sync();
+      setTimeout(function(){
+        var target = null;
+        if (opts.focus === 'ask' && !session.hidden) target = document.getElementById('askInput');
+        if (!target && !setup.hidden) target = setup.querySelector('input:not([disabled]), button:not([disabled])');
+        if (!target) target = closeBtn;
+        try { target.focus(); } catch (e) {}
+      }, 50);
+    }
+    function close(){
+      var wasDocked = docked();
+      if (wasDocked) setDock('collapsed'); else overlayOpen = false;
+      sync();
+      var back = wasDocked ? rail : lastFocused;
+      if (!back || back.offsetParent === null) back = toggle && toggle.offsetParent !== null ? toggle : null;
+      if (back && typeof back.focus === 'function') { try { back.focus(); } catch (e) {} }
+    }
+
+    if (toggle) toggle.addEventListener('click', function(){ isOpen() ? close() : open(); });
+    if (rail) rail.addEventListener('click', function(){ open(); });
+    closeBtn.addEventListener('click', close);
+    backdrop.addEventListener('click', close);
+    pick.addEventListener('click', function(){ showSetup(setup.hidden); });
+    document.getElementById('agentSetupCancel').addEventListener('click', function(){ showSetup(false); });
+
+    document.addEventListener('keydown', function(ev){
+      if (docked() || popout || !overlayOpen) return;
+      if (ev.key === 'Escape') {
+        close();
+      } else if (ev.key === 'Tab') {
+        // Keep Tab/Shift+Tab inside the dialog while it covers the page.
+        var f = Array.prototype.filter.call(
+          panel.querySelectorAll('button, [href], input, textarea, select, summary, [tabindex]:not([tabindex="-1"])'),
+          function(n){ return !n.disabled && n.offsetParent !== null; });
+        if (!f.length) return;
+        if (ev.shiftKey && document.activeElement === f[0]) { ev.preventDefault(); f[f.length - 1].focus(); }
+        else if (!ev.shiftKey && document.activeElement === f[f.length - 1]) { ev.preventDefault(); f[0].focus(); }
+      }
+    });
+    if (wideQuery) {
+      var onMode = function(){ overlayOpen = false; sync(); };
+      if (wideQuery.addEventListener) wideQuery.addEventListener('change', onMode);
+      else if (wideQuery.addListener) wideQuery.addListener(onMode);
+    }
+    window.addEventListener('resize', syncTopbar);
+
+    // Pop-out: the same page with ?agent=popout shows only the panel; this
+    // window collapses its own copy.
+    popoutBtn.addEventListener('click', function(){
+      var url = location.pathname + '?agent=popout';
+      var w = window.open(url, 'lathe-agent-' + slug, 'popup,width=480,height=820');
+      if (w) { try { w.focus(); } catch (e) {} close(); }
+    });
+
+    // Panel actions. Ask focuses the question box; Verify submits the page's
+    // own verify form (its progress shows in the article, as from the button
+    // there); Add a part goes to the extend form on the last part.
+    panel.querySelectorAll('[data-agent-action]').forEach(function(b){
+      b.addEventListener('click', function(){
+        var action = b.getAttribute('data-agent-action');
+        if (action === 'ask') {
+          try { document.getElementById('askInput').focus(); } catch (e) {}
+          return;
+        }
+        if (!docked()) close();
+        if (action === 'verify') {
+          var vf = document.getElementById('verifyForm');
+          var region = document.getElementById('verifyRegion');
+          if (vf && typeof vf.requestSubmit === 'function') vf.requestSubmit();
+          (document.getElementById('verifyLive') || region).scrollIntoView({block: 'center'});
+          if (!vf && region) region.scrollIntoView({block: 'center'});
+        } else if (action === 'extend') {
+          var ef = document.getElementById('extendForm');
+          if (ef) {
+            ef.scrollIntoView({block: 'center'});
+            var ta = ef.querySelector('textarea');
+            if (ta) { try { ta.focus({preventScroll: true}); } catch (e) {} }
+          } else {
+            var last = panel.getAttribute('data-last-part');
+            if (last) location.href = '/' + encodeURIComponent(slug) + '/' + encodeURIComponent(last) + '#extendRegion';
+          }
+        }
+      });
+    });
+
+    // Copy buttons ([data-copy]).
+    panel.querySelectorAll('[data-copy]').forEach(function(b){
+      b.addEventListener('click', function(){
+        try {
+          navigator.clipboard.writeText(b.getAttribute('data-copy')).then(function(){
+            window.latheFlashLabel(b, 'Copied');
+            if (window.latheAnnounce) window.latheAnnounce('Copied');
+          });
+        } catch (e) {}
+      });
+    });
+
+    function postJSON(url, body){
+      return fetch(url, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(body)
+      }).then(function(r){
+        if (!r.ok) return r.text().then(function(t){ throw new Error((t || ('HTTP ' + r.status)).trim()); });
+        return r.json();
+      });
+    }
+
+    // ---- Setup: "Bring your agent" ----------------------------------------
+    var choices = document.getElementById('agentChoices');
+    var empty = document.getElementById('agentChoicesEmpty');
+    var others = document.getElementById('agentOthers');
+    var startBtn = document.getElementById('agentStart');
+    var setupForm = document.getElementById('agentSetupForm');
+    var setupError = document.getElementById('agentSetupError');
+    var agentsByID = {};
+
+    function el(tag, cls, text){
+      var n = document.createElement(tag);
+      if (cls) n.className = cls;
+      if (text != null) n.textContent = text;
+      return n;
+    }
+    function detail(a){
+      if (!a.ready) return a.command.split(' ')[0] + ' not found. ' + a.install;
+      var s = a.command;
+      if (a.skillsInstalled === true) s += ' · Lathe skills installed';
+      else if (a.skillsInstalled === false) s += ' · no Lathe skills needed, Lathe sends them';
+      return s;
+    }
+    function syncStart(){
+      var sel = choices.querySelector('input[name="agent"]:checked');
+      startBtn.disabled = !sel;
+      startBtn.textContent = sel ? 'Start ' + (agentsByID[sel.value] || {}).name : 'Start agent';
+    }
+    function renderAgents(data){
+      choices.querySelectorAll('.agent-choice').forEach(function(n){ n.remove(); });
+      var list = others.querySelector('ul');
+      list.textContent = '';
+      var current = data.current && data.current.id;
+      var found = 0, checked = false, rest = 0;
+      (data.agents || []).forEach(function(a){
+        agentsByID[a.id] = a;
+        if (!a.found) {
+          var li = el('li');
+          li.appendChild(el('strong', null, a.name));
+          li.appendChild(el('span', 'agent-choice-detail', a.install));
+          list.appendChild(li);
+          rest++;
+          return;
+        }
+        found++;
+        var label = el('label', 'agent-choice');
+        var radio = el('input');
+        radio.type = 'radio';
+        radio.name = 'agent';
+        radio.value = a.id;
+        radio.disabled = !a.ready;
+        if (a.ready && !checked && (a.id === current || !current)) { radio.checked = true; checked = true; }
+        var text = el('span', 'agent-choice-text');
+        text.appendChild(el('strong', null, a.name));
+        text.appendChild(el('span', 'agent-choice-detail', detail(a)));
+        label.appendChild(radio);
+        label.appendChild(text);
+        choices.appendChild(label);
+      });
+      empty.hidden = found > 0;
+      empty.textContent = 'No ACP agents found on your PATH. Install one below, then reload.';
+      others.hidden = rest === 0;
+      if (!found) others.open = true;
+      syncStart();
+    }
+    function loadAgents(){
+      fetch('/-/agents', {headers: {'Accept': 'application/json'}})
+        .then(function(r){ return r.ok ? r.json() : null; })
+        .then(function(data){ if (data) renderAgents(data); })
+        .catch(function(){ empty.textContent = 'Could not reach lathe serve.'; });
+    }
+    choices.addEventListener('change', syncStart);
+
+    // ---- Workspace -----------------------------------------------------------
+    var wsShort = document.getElementById('workspaceShort');
+    var wsChange = document.getElementById('workspaceChange');
+    var wsForm = document.getElementById('workspaceForm');
+    var wsInput = document.getElementById('workspaceInput');
+    var wsError = document.getElementById('workspaceError');
+    var wsSetupInput = document.getElementById('workspaceSetupInput');
+
+    function saveWorkspace(path){
+      return postJSON('/-/workspace/' + encodeURIComponent(slug), {path: path}).then(function(ws){
+        wsShort.textContent = ws.display;
+        wsShort.title = ws.path;
+        wsChange.textContent = 'Change';
+        wsInput.value = ws.display;
+        wsSetupInput.value = ws.display;
+        panel.setAttribute('data-workspace', ws.path);
+        var did = ws.created ? (ws.gitInit ? ', created it and ran git init' : ', created it') : (ws.gitInit ? ', ran git init' : '');
+        if (window.latheAnnounce) window.latheAnnounce('Workspace set to ' + ws.display + did);
+        return ws;
+      });
+    }
+    function showWsForm(show){
+      wsForm.hidden = !show;
+      wsChange.setAttribute('aria-expanded', show ? 'true' : 'false');
+      wsError.textContent = '';
+      if (show) { try { wsInput.focus(); wsInput.select(); } catch (e) {} }
+    }
+    wsChange.addEventListener('click', function(){ showWsForm(wsForm.hidden); });
+    document.getElementById('workspaceCancel').addEventListener('click', function(){ showWsForm(false); wsChange.focus(); });
+    wsForm.addEventListener('submit', function(ev){
+      ev.preventDefault();
+      var v = wsInput.value.trim();
+      if (!v) { wsError.textContent = 'Enter a folder path.'; return; }
+      saveWorkspace(v).then(function(){ showWsForm(false); wsChange.focus(); })
+        .catch(function(err){ wsError.textContent = err.message; });
+    });
+
+    setupForm.addEventListener('submit', function(ev){
+      ev.preventDefault();
+      setupError.textContent = '';
+      var sel = choices.querySelector('input[name="agent"]:checked');
+      if (!sel) return;
+      startBtn.disabled = true;
+      var ws = wsSetupInput.value.trim();
+      var first = ws && ws !== panel.getAttribute('data-workspace') && ws !== wsShort.textContent
+        ? saveWorkspace(ws) : Promise.resolve();
+      first.then(function(){ return postJSON('/-/agent', {id: sel.value}); })
+        .then(function(data){
+          var name = (data.agent && data.agent.name) || agentsByID[sel.value].name;
+          panel.setAttribute('data-agent-name', name);
+          document.getElementById('agentPickName').textContent = name;
+          var tn = document.getElementById('agentToggleName');
+          if (tn) tn.textContent = name;
+          showSetup(false);
+          if (window.latheRefreshWorker) window.latheRefreshWorker();
+          if (window.latheAnnounce) window.latheAnnounce(name + ' is starting');
+          try { document.getElementById('askInput').focus(); } catch (e) {}
+        })
+        .catch(function(err){ setupError.textContent = err.message; })
+        .then(syncStart);
+    });
+
+    window.latheAgentPanel = {open: open, close: close, showSetup: showSetup};
+
+    // Arriving from "Add a part" on an earlier part: focus the guidance box.
+    if (location.hash === '#extendRegion') {
+      var ta = document.querySelector('#extendForm textarea');
+      if (ta) setTimeout(function(){ try { ta.focus({preventScroll: true}); } catch (e) {} }, 100);
+    }
+
+    if (!setup.hidden) loadAgents();
+    sync();
+  })();
+</script>
 <script>
   // Theme toggle: attach to every element marked [data-theme-toggle] so the
   // sidebar button and the narrow bottom-dock button stay in sync.
@@ -508,7 +915,8 @@
       }
 
       var body = {ratio: ratio, heading_id: headingID, auto: isAuto};
-      if (exercises !== null) body.exercises = collectExercises();
+      var exercises = collectExercises();
+      if (exercises !== null) body.exercises = exercises;
 
       fetch('/-/progress/' + encodeURIComponent(slug) + '/' + encodeURIComponent(part), {
         method: 'POST',
@@ -871,64 +1279,23 @@
 </script>
 <script>
   (function(){
-    var drawer = document.getElementById('askDrawer');
+    var drawer = document.getElementById('agentPanel');
     var openButtons = document.querySelectorAll('[data-ask-open]');
-    var closeBtn = document.getElementById('askClose');
-    var backdrop = document.getElementById('askBackdrop');
     var log = document.getElementById('askLog');
     var form = document.getElementById('askForm');
     var input = document.getElementById('askInput');
     var submit = document.getElementById('askSubmit');
-    if (!drawer || !openButtons.length || !form) return;
+    if (!drawer || !form) return;
 
     var slug = drawer.getAttribute('data-slug') || '';
     var part = drawer.getAttribute('data-part') || '';
 
-    var lastFocused = null;
-
-    function openDrawer(){
-      lastFocused = document.activeElement;
-      drawer.classList.add('open');
-      drawer.inert = false;
-      drawer.setAttribute('aria-hidden', 'false');
-      backdrop.hidden = false;
-      setTimeout(function(){ try { input.focus(); } catch(e){} }, 50);
-    }
-    function closeDrawer(){
-      drawer.classList.remove('open');
-      drawer.inert = true;
-      drawer.setAttribute('aria-hidden', 'true');
-      backdrop.hidden = true;
-      if (lastFocused && typeof lastFocused.focus === 'function') {
-        try { lastFocused.focus(); } catch(e) {}
-      }
-    }
-
-    openButtons.forEach(function(b){ b.addEventListener('click', openDrawer); });
-    closeBtn.addEventListener('click', closeDrawer);
-    backdrop.addEventListener('click', closeDrawer);
-    document.addEventListener('keydown', function(ev){
-      if (ev.key === 'Escape' && drawer.classList.contains('open')) {
-        closeDrawer();
-      } else if (ev.key === 'Tab' && drawer.classList.contains('open')) {
-        trapFocus(ev);
-      }
+    // The Ask buttons open the agent panel on its session view, ready to type.
+    openButtons.forEach(function(b){
+      b.addEventListener('click', function(){
+        if (window.latheAgentPanel) window.latheAgentPanel.open({focus: 'ask', session: true});
+      });
     });
-
-    // Keep Tab/Shift+Tab cycling within the dialog while it is open.
-    function trapFocus(ev){
-      var focusables = drawer.querySelectorAll('button, [href], input, textarea, select, [tabindex]:not([tabindex="-1"])');
-      if (!focusables.length) return;
-      var first = focusables[0];
-      var last = focusables[focusables.length - 1];
-      if (ev.shiftKey && document.activeElement === first) {
-        ev.preventDefault();
-        last.focus();
-      } else if (!ev.shiftKey && document.activeElement === last) {
-        ev.preventDefault();
-        first.focus();
-      }
-    }
 
     function nearBottom(){
       return (log.scrollHeight - log.scrollTop - log.clientHeight) < 50;
@@ -1286,7 +1653,8 @@
           // poll for it. Otherwise fall back to the paste-able handoff (with a
           // note when a hosted agent could not take the question).
           if (data.mode === 'agent') {
-            return streamAgent(data.runId);
+            refreshAgentStatus();
+            return streamAgent(data.runId).then(refreshAgentStatus);
           } else if (data.mode === 'queued') {
             pollAskAnswer(data.jobId);
           } else {
@@ -1312,10 +1680,14 @@
   // (/lathe-work running) or fall back to the copy-paste handoff. Cheap and
   // best-effort: a failed fetch just leaves the last known state.
   (function(){
-    var dot = document.getElementById('workerStatus');
-    if (!dot) return;
-    var workerTitle = dot.getAttribute('title');
+    var status = document.getElementById('workerStatus');
+    if (!status) return;
+    var statusText = status.querySelector('.agent-state-text');
+    var toggle = document.getElementById('agentToggle');
+    var rail = document.getElementById('agentRail');
+    var model = document.getElementById('agentModel');
     var iso = document.getElementById('agentIsolation');
+    var timer = null;
     // Whether the hosted agent's file access goes through Lathe's per-job
     // policy ("enforced") or its own tools ("soft").
     function showIsolation(i){
@@ -1327,33 +1699,49 @@
         : i.state === 'soft' ? 'soft isolation' : 'isolation untested';
       iso.title = i.detail || '';
     }
-    // With a hosted agent (lathe serve --agent) the indicator reports that
-    // agent's state; otherwise whether a /lathe-work worker is connected.
+    var WORKING = {ask: 'Answering a question', verify: 'Verifying the tutorial', extend: 'Writing a part'};
+    function setState(state, text, title){
+      status.setAttribute('data-state', state);
+      statusText.textContent = text;
+      status.title = title || '';
+      if (toggle) toggle.setAttribute('data-state', state);
+      if (rail) {
+        rail.setAttribute('data-state', state);
+        rail.title = 'Agent: ' + text;
+      }
+    }
+    // With a hosted agent the indicator reports that agent's state; otherwise
+    // whether a /lathe-work worker is connected.
     function show(data){
       var a = data.agent;
       showIsolation(a && a.isolation);
-      if (a) {
-        dot.hidden = false;
-        dot.setAttribute('data-state', a.state);
-        if (a.state === 'ready') {
-          dot.textContent = '● agent ready';
-          dot.title = 'Ask runs in ' + a.command + ', hosted by lathe serve over ACP.';
-        } else if (a.state === 'starting') {
-          dot.textContent = '○ agent starting…';
-          dot.title = 'Starting ' + a.command + '…';
-        } else {
-          dot.textContent = '● agent down';
-          dot.title = (a.error || (a.command + ' is not running')) + ' — the next question restarts it, or hands you a command to paste.';
-        }
-        return;
+      if (model) {
+        model.hidden = !(a && a.model);
+        model.textContent = a && a.model ? 'Model: ' + a.model : '';
       }
-      dot.removeAttribute('data-state');
-      dot.textContent = '● agent connected';
-      dot.title = workerTitle;
-      dot.hidden = !data.connected;
+      var next = 30000;
+      if (a) {
+        if (a.state === 'ready' && a.working) {
+          setState('working', WORKING[a.working] || 'Working', a.name + ' is working, hosted by lathe serve over ACP.');
+          next = 5000;
+        } else if (a.state === 'ready') {
+          setState('ready', 'Waiting for jobs', 'Ask, Verify and Add a part run in ' + a.command + ', hosted by lathe serve over ACP.');
+        } else if (a.state === 'starting') {
+          setState('starting', 'Starting…', 'Starting ' + a.command + '…');
+          next = 3000;
+        } else {
+          setState('down', 'Not running', (a.error || (a.command + ' is not running')) + '. The next question restarts it, or hands you a command to paste.');
+        }
+      } else if (data.connected) {
+        setState('worker', 'Connected via /lathe-work', 'An agent running /lathe-work is connected: Ask, Verify and Add a part run there directly.');
+      } else {
+        setState('none', 'Not started', 'No agent yet: the buttons hand you a command to paste.');
+      }
+      clearTimeout(timer);
+      timer = setTimeout(refresh, next);
     }
     function refresh(){
-      if (document.hidden) return;
+      if (document.hidden) { clearTimeout(timer); timer = setTimeout(refresh, 30000); return; }
       fetch('/-/worker', {headers: {'Accept': 'application/json'}})
         .then(function(r){ return r.ok ? r.json() : null; })
         .then(function(data){ if (data) show(data); })
@@ -1361,7 +1749,6 @@
     }
     window.latheRefreshWorker = refresh;
     refresh();
-    setInterval(refresh, 30000);
   })();
 </script>
 <script>
@@ -1393,6 +1780,7 @@
     window.latheAttachJob = function(job, runId){
       var labels = LABELS[job];
       if (!labels || !runId) return;
+      if (window.latheRefreshWorker) setTimeout(window.latheRefreshWorker, 300);
       var slot = document.getElementById(labels.slot);
       if (!slot || slot.getAttribute('data-run-id') === String(runId)) return;
       slot.setAttribute('data-run-id', String(runId));

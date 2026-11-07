@@ -111,8 +111,8 @@ func (s *Server) handleWorkDone(w http.ResponseWriter, r *http.Request) {
 // indicator.
 func (s *Server) handleWorker(w http.ResponseWriter, r *http.Request) {
 	resp := map[string]any{"connected": s.queue.WorkerConnected()}
-	if s.agent != nil {
-		resp["agent"] = s.agent.status()
+	if agent := s.hostedAgent(); agent != nil {
+		resp["agent"] = agent.status()
 	}
 	writeJSON(w, resp)
 }

@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/devenjarvis/lathe/internal/agents"
 	"github.com/devenjarvis/lathe/internal/config"
 	"github.com/devenjarvis/lathe/internal/serve"
 	"github.com/spf13/cobra"
@@ -31,8 +32,16 @@ var serveCmd = &cobra.Command{
 			return err
 		}
 		srv := serve.NewServer(dir)
-		if serveAgent != "" {
-			srv.SetAgent(serveAgent)
+		// --agent wins; otherwise host the agent picked in the web UI's
+		// "Bring your agent" panel (remembered in ~/.lathe/config.json).
+		agentCmd := serveAgent
+		if agentCmd == "" {
+			if a, ok := agents.ByID(config.Agent()); ok {
+				agentCmd = a.Command
+			}
+		}
+		if agentCmd != "" {
+			srv.SetAgent(agentCmd)
 		}
 		defer srv.Close()
 		url := fmt.Sprintf("http://localhost:%d", servePort)
@@ -47,13 +56,12 @@ var serveCmd = &cobra.Command{
 		defer func() { _ = config.RemoveServeRuntime() }()
 
 		fmt.Printf("Serving tutorials at %s\n", url)
-		if serveAgent != "" {
-			fmt.Printf("Agent: Ask runs in %q over the Agent Client Protocol (its permission prompts appear in the Ask drawer).\n", serveAgent)
-			fmt.Println("Verify/Extend: run /lathe-work in your coding agent to drive them here (otherwise they hand you a command to paste).")
+		if agentCmd != "" {
+			fmt.Printf("Agent: Ask, Verify and Extend run in %q over the Agent Client Protocol (its permission prompts appear in the agent panel).\n", agentCmd)
 		} else {
 			// Nudge toward live mode. Starting the loop, or naming an agent to
 			// host, is the user's call — see the boundary note in AGENTS.md.
-			fmt.Println("Live mode: run /lathe-work in your coding agent to drive Ask/Verify/Extend here, or restart with --agent <acp-command> to host one (otherwise the buttons hand you a command to paste).")
+			fmt.Println("Live mode: pick your coding agent in the reader's agent panel, run /lathe-work in your coding agent, or restart with --agent <acp-command> (otherwise the buttons hand you a command to paste).")
 		}
 		openBrowser(url)
 
