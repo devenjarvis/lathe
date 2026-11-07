@@ -21,6 +21,7 @@ import (
 //
 //	POST /-/native/pick-folder  {"slug"}  → {"path", "display"} ("" when cancelled)
 //	POST /-/native/window       {"path"}  → 204
+//	POST /-/native/open-url     {"url"}   → 204 (links to other sites; nativeLinks in components.html)
 //
 // Notifications need no endpoint: the server posts one when a Verify, Extend
 // or Check my work run ends (notifyJob).
@@ -112,6 +113,66 @@ func (s *Server) handleNativeWindow(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// handleNativeOpenURL hands a link to another site to the system browser. The
+// app window shows Lathe's own pages only; following an external link in it
+// would leave the reader with no way back. Only absolute http, https and
+// mailto URLs are accepted, so a page can't make the shell launch other
+// handlers (file:, custom schemes).
+func (s *Server) handleNativeOpenURL(w http.ResponseWriter, r *http.Request) {
+	n := s.nativeShell()
+	if n == nil {
+		http.NotFound(w, r)
+		return
+	}
+	if !sameOrigin(r) {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+	var payload struct {
+		URL string `json:"url"`
+	}
+	if !readJSONBody(w, r, maxNativeBody, &payload) {
+		return
+	}
+	target, ok := ExternalURL(payload.URL)
+	if !ok {
+		http.Error(w, "not an external http, https or mailto URL", http.StatusBadRequest)
+		return
+	}
+	if err := n.OpenURL(target); err != nil {
+		http.Error(w, "could not open the link: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// ExternalURL reports whether raw is an absolute http(s) URL with a host, or
+// a mailto URL, and returns it re-encoded. The desktop shell checks it again
+// before launching anything.
+func ExternalURL(raw string) (string, bool) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" || strings.ContainsAny(raw, "\x00\r\n") {
+		return "", false
+	}
+	u, err := url.Parse(raw)
+	if err != nil {
+		return "", false
+	}
+	switch strings.ToLower(u.Scheme) {
+	case "http", "https":
+		if u.Host == "" || u.Opaque != "" {
+			return "", false
+		}
+	case "mailto":
+		if u.Opaque == "" {
+			return "", false
+		}
+	default:
+		return "", false
+	}
+	return u.String(), true
 }
 
 // popoutTutorial reports whether raw is exactly the pop-out path of one of

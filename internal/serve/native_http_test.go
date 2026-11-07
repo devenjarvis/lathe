@@ -27,6 +27,7 @@ type fakeNative struct {
 	openErr  error
 	picks    [][2]string // title, start
 	windows  [][2]string // path, title
+	urls     []string
 	notified chan [2]string
 }
 
@@ -40,6 +41,13 @@ func (f *fakeNative) PickFolder(title, start string) (string, error) {
 }
 
 func (f *fakeNative) Notify(title, body string) { f.notified <- [2]string{title, body} }
+
+func (f *fakeNative) OpenURL(u string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.urls = append(f.urls, u)
+	return f.openErr
+}
 
 func (f *fakeNative) OpenWindow(path, title string) error {
 	f.mu.Lock()
@@ -89,6 +97,7 @@ func TestNativeEndpointsNeedAShell(t *testing.T) {
 	for path, body := range map[string]string{
 		"/-/native/pick-folder": `{"slug":"series"}`,
 		"/-/native/window":      `{"path":"/series/part-01.md?agent=popout"}`,
+		"/-/native/open-url":    `{"url":"https://example.com/"}`,
 	} {
 		if w := nativePost(t, srv, path, body, ""); w.Code != http.StatusNotFound {
 			t.Errorf("%s without a shell = %d, want 404", path, w.Code)
@@ -201,6 +210,39 @@ func TestNativeWindowOpensOnlyThePopout(t *testing.T) {
 	}
 }
 
+func TestNativeOpenURLOnlyExternalLinks(t *testing.T) {
+	dir := t.TempDir()
+	srv := NewServer(dir)
+	n := newFakeNative()
+	srv.SetNative(n)
+
+	for _, u := range []string{"https://go.dev/doc/", "http://example.com/a?b=c#d", "mailto:someone@example.com"} {
+		body, _ := json.Marshal(map[string]string{"url": u})
+		if w := nativePost(t, srv, "/-/native/open-url", string(body), "wails://localhost"); w.Code != http.StatusNoContent {
+			t.Errorf("open %q = %d %s", u, w.Code, w.Body)
+		}
+	}
+	if len(n.urls) != 3 || n.urls[0] != "https://go.dev/doc/" {
+		t.Errorf("OpenURL calls = %v", n.urls)
+	}
+
+	for _, u := range []string{
+		"", "/series/part-01.md", "//example.com/x", "file:///etc/passwd", "javascript:alert(1)",
+		"vscode://open?x", "https:", "https:///nohost", "mailto:", "https://example.com/\nx", "ftp://example.com/",
+	} {
+		body, _ := json.Marshal(map[string]string{"url": u})
+		if w := nativePost(t, srv, "/-/native/open-url", string(body), ""); w.Code != http.StatusBadRequest {
+			t.Errorf("url %q = %d, want 400", u, w.Code)
+		}
+	}
+	if w := nativePost(t, srv, "/-/native/open-url", `{"url":"https://example.com/"}`, "http://evil.example"); w.Code != http.StatusForbidden {
+		t.Errorf("cross-site open-url = %d, want 403", w.Code)
+	}
+	if len(n.urls) != 3 {
+		t.Errorf("a refused request opened a URL: %v", n.urls)
+	}
+}
+
 func TestSameOriginAcceptsTheDesktopApp(t *testing.T) {
 	for _, origin := range []string{"wails://localhost", "http://wails.localhost", "http://localhost:4242"} {
 		r := httptest.NewRequest(http.MethodPost, "/-/workspace/x", nil)
@@ -228,7 +270,7 @@ func TestNativeMarkupOnlyWithAShell(t *testing.T) {
 	ts := httptest.NewServer(srv.Handler())
 	t.Cleanup(func() { ts.Close(); srv.Close() })
 
-	native := []string{` data-native>`, `id="workspacePick"`, `id="workspaceSetupPick"`, "/-/native/window", "/-/native/pick-folder"}
+	native := []string{` data-native>`, `id="workspacePick"`, `id="workspaceSetupPick"`, "/-/native/window", "/-/native/pick-folder", "/-/native/open-url"}
 	plain := get(t, ts, "/series/part-01.md")
 	list := get(t, ts, "/")
 	for _, m := range native {
@@ -253,8 +295,8 @@ func TestNativeMarkupOnlyWithAShell(t *testing.T) {
 	if !strings.Contains(page, `<html lang="en" data-native>`) {
 		t.Error("desktop page has no data-native on <html>")
 	}
-	if l := get(t, ts, "/"); !strings.Contains(l, `<html lang="en" data-native>`) {
-		t.Error("desktop list page has no data-native on <html>")
+	if l := get(t, ts, "/"); !strings.Contains(l, `<html lang="en" data-native>`) || !strings.Contains(l, "/-/native/open-url") {
+		t.Error("desktop list page has no data-native on <html> or no external-link handler")
 	}
 }
 

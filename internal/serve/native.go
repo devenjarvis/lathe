@@ -3,7 +3,8 @@ package serve
 // Native is what a desktop shell (the Wails app, internal/desktop) offers the
 // reader on top of the browser: a native folder picker for the tutorial's
 // workspace, a system notification when a Verify, Extend or Check run
-// finishes, and real windows for the agent panel's pop-out. lathe serve in a
+// finishes, real windows for the agent panel's pop-out, and the system
+// browser for links to other sites. lathe serve in a
 // browser has none of these, so every method is optional to use: a nil
 // Native (the default) keeps today's browser behavior exactly.
 //
@@ -21,6 +22,10 @@ type Native interface {
 	// OpenWindow opens path (a same-origin path such as
 	// "/slug/part-01.md?agent=popout") in a new app window titled title.
 	OpenWindow(path, title string) error
+	// OpenURL opens an external http, https or mailto URL in the system's
+	// default browser or mail app. A link to another site would otherwise
+	// navigate the app window away from Lathe.
+	OpenURL(url string) error
 }
 
 // SetNative installs the desktop shell's affordances. Call it before serving;

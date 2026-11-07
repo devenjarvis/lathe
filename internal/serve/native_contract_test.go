@@ -7,6 +7,7 @@ type nopNative struct{}
 func (nopNative) PickFolder(string, string) (string, error) { return "", nil }
 func (nopNative) Notify(string, string)                     {}
 func (nopNative) OpenWindow(string, string) error           { return nil }
+func (nopNative) OpenURL(string) error                      { return nil }
 
 // A plain browser server has no native shell until one is installed, and
 // SetNative(nil) removes it again.

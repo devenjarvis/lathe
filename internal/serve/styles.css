@@ -896,7 +896,11 @@ body.list h1{font-size:clamp(3rem,2rem + 4.5vw,5.25rem);font-weight:1000;margin:
 .toolbar{display:flex;gap:.6rem;flex-wrap:wrap;align-items:stretch}
 .search-input{flex:1 1 18rem;min-width:0;min-height:3.1rem;background:var(--surface);color:var(--text);border:var(--line) solid var(--rule);border-radius:var(--radius-pill);padding:.55rem 1.1rem .55rem 2.75rem;font-family:var(--font-body);font-size:1.05rem;line-height:1.4;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%236B6550' stroke-width='2.4' stroke-linecap='round'><circle cx='8.5' cy='8.5' r='5.5'/><path d='M13 13l4 4'/></svg>");background-repeat:no-repeat;background-position:1rem center;background-size:1.05rem}
 .search-input:focus{outline:3px solid var(--focus);outline-offset:2px}
-.sort-select{min-height:3.1rem;background:var(--surface);color:var(--text);border:var(--line) solid var(--rule);border-radius:var(--radius-pill);padding:.5rem 1rem;font-family:var(--font-sans);font-size:.95rem;font-weight:800;cursor:pointer}
+/* appearance:none so the select is drawn by our tokens, not the platform
+   theme: WebKitGTK (the Linux desktop app) otherwise paints a light GTK box
+   under the dark theme, hiding the cream text. The chevron is two gradients
+   in --text, so it follows the theme too. */
+.sort-select{-webkit-appearance:none;appearance:none;min-height:3.1rem;background-color:var(--surface);background-image:linear-gradient(45deg,transparent 50%,var(--text) 50%),linear-gradient(135deg,var(--text) 50%,transparent 50%);background-position:calc(100% - 1.35rem) 50%,calc(100% - 1rem) 50%;background-size:.35rem .35rem;background-repeat:no-repeat;color:var(--text);border:var(--line) solid var(--rule);border-radius:var(--radius-pill);padding:.5rem 2.4rem .5rem 1rem;font-family:var(--font-sans);font-size:.95rem;font-weight:800;cursor:pointer}
 .sort-select:focus{outline:3px solid var(--focus);outline-offset:2px}
 .filter-toggle{min-height:3.1rem;background:var(--yellow);color:var(--on-yellow);border:var(--line) solid #1C2140;border-radius:var(--radius-pill);padding:.5rem 1.3rem;font-family:var(--font-sans);font-size:.95rem;font-weight:850;cursor:pointer;transition:background var(--transition),color var(--transition)}
 .filter-toggle:hover{background:#FFD75E}

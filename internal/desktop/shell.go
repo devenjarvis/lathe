@@ -3,6 +3,7 @@
 package desktop
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/devenjarvis/lathe/internal/serve"
@@ -89,6 +90,17 @@ func (s *shell) parentWindow() application.Window {
 // Notify posts a system notification without blocking (see notifier).
 func (s *shell) Notify(title, body string) {
 	s.notes.Notify(title, body)
+}
+
+// OpenURL opens an external link in the system browser (or mail app). The
+// server already checked it; check again so the shell never launches a
+// file: or custom-scheme handler whatever calls it.
+func (s *shell) OpenURL(raw string) error {
+	target, ok := serve.ExternalURL(raw)
+	if !ok {
+		return fmt.Errorf("not an external http, https or mailto URL: %q", raw)
+	}
+	return s.app.Browser.OpenURL(target)
 }
 
 // OpenWindow opens path in a new app window, or focuses the window already

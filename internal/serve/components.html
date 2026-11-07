@@ -62,6 +62,31 @@
      it has never been shown before
      (localStorage), then fades after a few seconds. Self-contained markup +
      script so a single {{template "liveNudge"}} drops it into either page. */}}
+{{define "nativeLinks"}}
+{{/* Desktop app only: the window shows Lathe's own pages, so a link to
+     another site (tutorial sources, docs) opens in the system browser
+     instead of navigating the app away. Same-origin links are untouched. */}}
+<script>
+(function () {
+  document.addEventListener('click', function (e) {
+    if (e.defaultPrevented || e.button !== 0) return;
+    var a = e.target.closest && e.target.closest('a[href]');
+    if (!a) return;
+    var u;
+    try { u = new URL(a.href, location.href); } catch (_) { return; }
+    var external = (u.protocol === 'http:' || u.protocol === 'https:') ? u.origin !== location.origin : u.protocol === 'mailto:';
+    if (!external) return;
+    e.preventDefault();
+    fetch('/-/native/open-url', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: u.href })
+    }).catch(function () {});
+  });
+})();
+</script>
+{{end}}
+
 {{define "liveNudge"}}
 <div id="liveNudge" class="live-nudge" role="status" hidden>
   <span class="live-nudge-dot" aria-hidden="true">●</span>

@@ -181,6 +181,7 @@ func (s *Server) Handler() http.Handler {
 	// Desktop shell (native_http.go): 404 unless SetNative installed one.
 	mux.HandleFunc("POST /-/native/pick-folder", s.handleNativePickFolder)
 	mux.HandleFunc("POST /-/native/window", s.handleNativeWindow)
+	mux.HandleFunc("POST /-/native/open-url", s.handleNativeOpenURL)
 	return mux
 }
 
