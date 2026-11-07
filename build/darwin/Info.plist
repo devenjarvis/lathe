@@ -9,7 +9,8 @@
 
   LSMinimumSystemVersion is 12.0 (Monterey): Go 1.25+ binaries do not run on
   anything older, so Wails v3's 10.15 template default would be a lie. Keep it
-  in sync with MIN_MACOS in package.sh (the cgo deployment target) and with
+  in sync with MIN_MACOS in package.sh (the cgo deployment target),
+  darwinMinOS in magefile.go, and
   `depends_on macos:` in build/homebrew/cask.sh.
 -->
 <plist version="1.0">

@@ -104,7 +104,10 @@ trap cleanup EXIT
 ldflags="-s -w -X $BUILDINFO.Version=$VERSION -X $BUILDINFO.Commit=$COMMIT -X $BUILDINFO.Date=$DATE"
 for arch in arm64 amd64; do
 	log "go build -tags desktop,production (darwin/$arch)"
+	# The Go linker ignores MACOSX_DEPLOYMENT_TARGET and links for 11.0, so
+	# pass the minimum to ld too, or LC_BUILD_VERSION says 11.0.
 	CGO_ENABLED=1 GOOS=darwin GOARCH=$arch MACOSX_DEPLOYMENT_TARGET=$MIN_MACOS \
+		CGO_LDFLAGS="${CGO_LDFLAGS:-} -mmacosx-version-min=$MIN_MACOS" \
 		go build -tags desktop,production -ldflags "$ldflags" -o "$work/$BIN-$arch" .
 done
 lipo -create -output "$work/$BIN" "$work/$BIN-arm64" "$work/$BIN-amd64"
