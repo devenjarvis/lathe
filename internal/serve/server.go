@@ -137,13 +137,17 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /-/progress/{slug}/{part}", s.handleProgress)
 	mux.HandleFunc("POST /-/extend/{slug}", s.handleExtend)
 	mux.HandleFunc("POST /-/verify/{slug}", s.handleVerify)
+	// Stop the hosted agent's verify/extend run for a tutorial (used by
+	// `lathe verify-cancel`).
+	mux.HandleFunc("POST /-/verify/{slug}/cancel", s.handleJobCancel(jobVerify))
+	mux.HandleFunc("POST /-/extend/{slug}/cancel", s.handleJobCancel(jobExtend))
 	mux.HandleFunc("GET /-/status/{slug}/{part}", s.handleStatus)
 	// Worker bridge (all loopback). The worker long-polls /-/work to claim a job,
 	// reports an ask answer via .../answer or a verify/extend completion via
 	// .../done, and the browser polls GET /-/work/{id} for an ask answer.
 	mux.HandleFunc("GET /-/work", s.handleWorkNext)
-	// Hosted agent (lathe serve --agent): the drawer streams an ask's events and
-	// answers the agent's permission prompts.
+	// Hosted agent (lathe serve --agent): the drawer and the verify/extend
+	// panels stream a run's events and answer the agent's permission prompts.
 	mux.HandleFunc("GET /-/acp/{id}/events", s.handleAgentEvents)
 	mux.HandleFunc("POST /-/acp/{id}/permission", s.handleAgentPermission)
 	mux.HandleFunc("POST /-/acp/{id}/cancel", s.handleAgentCancel)
@@ -637,6 +641,9 @@ func (s *Server) renderPart(w http.ResponseWriter, tut *store.Tutorial, tutDir, 
 		// extendSection partial after an extend completes. On the full page it is
 		// nil, so the partial's "ready link" branch stays inert.
 		"JustAddedPart": nil,
+		// AgentRun is the hosted verify/extend run in flight, so a reloaded
+		// page reattaches to its progress stream.
+		"AgentRun": s.runningJob(filepath.Base(tutDir)),
 	}); err != nil {
 		http.Error(w, "template error", http.StatusInternalServerError)
 		return
@@ -743,6 +750,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 		"badge":  s.renderPartial("statusHeader", data),
 		"verify": s.renderPartial("verifySection", data),
 		"extend": extend,
+		"run":    s.runningJob(slug),
 	})
 }
 

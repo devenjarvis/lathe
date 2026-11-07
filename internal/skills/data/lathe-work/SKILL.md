@@ -11,6 +11,8 @@ This is just **long-poll → do the model work → report → repeat**, so it wo
 
 When this loop is **not** running, the buttons fall back to today's copy-paste handoff — so starting it is purely additive.
 
+If `lathe serve` was started with `--agent <cmd>`, it hosts that agent over ACP and Ask / Verify / Add-a-part run there first; this loop is the **fallback** for agents without ACP support and for anyone who prefers to watch the work in their own terminal. Jobs only reach this loop when the hosted agent isn't configured or couldn't start.
+
 ## Prerequisite
 
 `lathe serve` must be running (the loop talks to it via `~/.lathe/serve.json`). If `lathe work next` reports "no lathe server is running", tell the user to start `lathe serve` in another terminal, then start the loop.

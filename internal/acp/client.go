@@ -32,8 +32,19 @@ type SessionUpdate struct {
 	// messages of one turn.
 	MessageID string `json:"messageId,omitempty"`
 	// ToolKind is a tool call's kind (read, edit, execute, …).
-	ToolKind string          `json:"kind,omitempty"`
-	Raw      json.RawMessage `json:"-"`
+	ToolKind string `json:"kind,omitempty"`
+	// Entries is a plan update's full list of steps; each plan update
+	// replaces the last.
+	Entries []PlanEntry     `json:"entries,omitempty"`
+	Raw     json.RawMessage `json:"-"`
+}
+
+// PlanEntry is one step of an agent's plan. Status is pending, in_progress or
+// completed; Priority is high, medium or low.
+type PlanEntry struct {
+	Content  string `json:"content"`
+	Priority string `json:"priority,omitempty"`
+	Status   string `json:"status,omitempty"`
 }
 
 // Text returns the update's text when its content is a single text block (as

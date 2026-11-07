@@ -11,6 +11,8 @@ This skill is **read-only with respect to the tutorial**: never edit the parts o
 
 **Lathe MCP tools.** If your session has the `lathe_verify_result` tool (`lathe serve` provides Lathe's MCP tools when it hosts you as its agent), record every status with it instead of running `lathe verify-result`. The flags map one-to-one onto its arguments: `--status` → `status`, `--part` → `part`, `--failed-step` → `failed_step`, `--error` → `error`, `--code` → `code` (an absolute path); the session's slug is the default. Without the tool, run the CLI commands below as written.
 
+**Hosted by `lathe serve`.** When `lathe serve --agent` runs you for the Verify button, it makes the scratch dir for you and names it in the prompt: use that dir as `$SCRATCH` in step 2 instead of `mktemp -d` (Lathe deletes it after the run, once your result is recorded). Commands may only run there.
+
 **Opt-out:** if the user invoked `/lathe-verify <slug> --no-save`, skip every snapshot step below (no `git init`, no commits or tags, no `--code`). Everything else is unchanged.
 
 ## Protocol

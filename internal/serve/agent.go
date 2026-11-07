@@ -23,13 +23,14 @@ import (
 // the user's own login, and Lathe only relays the conversation and the
 // agent's permission prompts to the browser.
 //
-// MVP scope: Ask only. Verify/Extend keep using the /lathe-work queue or the
-// copy-paste handoff.
+// Ask, Verify and Extend all run here when an agent is configured (Verify and
+// Extend are in agent_jobs.go); the /lathe-work queue and the copy-paste
+// handoff stay as the fallback for agents without ACP support.
 //
 // Each session gets a file/terminal policy (acp.AskPolicy: read the tutorial
-// dir, no writes, no commands) that Lathe enforces on the agent's fs/* and
-// terminal/* requests. Agents that use their own tools instead are reported
-// as "soft" isolation in the drawer.
+// dir, no writes, no commands; VerifyPolicy and ExtendPolicy for the jobs)
+// that Lathe enforces on the agent's fs/* and terminal/* requests. Agents that
+// use their own tools instead are reported as "soft" isolation.
 
 const (
 	// agentStartTimeout bounds initialize; adapters launched through npx can
@@ -66,7 +67,7 @@ type agentHost struct {
 	lastErr  string
 	sessions map[string]string // "slug/part" → sessionId on the current client
 	primed   map[string]bool   // sessionId → already received the skill text
-	runs     map[string]*askRun
+	runs     map[string]*agentRun
 	active   map[string]string // "slug/part" → run id of the running ask
 	counter  int64
 }
@@ -77,7 +78,7 @@ func newAgentHost(command string, start agentStarter) *agentHost {
 		start:    start,
 		sessions: map[string]string{},
 		primed:   map[string]bool{},
-		runs:     map[string]*askRun{},
+		runs:     map[string]*agentRun{},
 		active:   map[string]string{},
 	}
 }
@@ -148,7 +149,7 @@ func (h *agentHost) close() {
 	h.mu.Lock()
 	c := h.client
 	h.client = nil
-	runs := make([]*askRun, 0, len(h.runs))
+	runs := make([]*agentRun, 0, len(h.runs))
 	for _, r := range h.runs {
 		runs = append(runs, r)
 	}
@@ -158,6 +159,16 @@ func (h *agentHost) close() {
 	}
 	if c != nil {
 		_ = c.Close()
+	}
+	// Let cancelled verify/extend runs restore the tutorial's status and
+	// remove their scratch dirs before the server exits.
+	deadline := time.After(10 * time.Second)
+	for _, r := range runs {
+		select {
+		case <-r.done:
+		case <-deadline:
+			return
+		}
 	}
 }
 
@@ -265,24 +276,35 @@ func (h *agentHost) status() agentStatus {
 // framed for the drawer, then the invocation exactly as the handoff would
 // paste it. Follow-ups in the same session send only the question.
 func askPrompt(tutDir, slug, part, question string) string {
-	var skill string
-	if all, err := skills.All(); err == nil {
-		for _, sk := range all {
-			if sk.Slug == "lathe-ask" {
-				skill = frontmatter.Strip(string(sk.Raw))
-			}
-		}
-	}
 	var b strings.Builder
 	b.WriteString("You are answering a reader's question from the Ask drawer of the Lathe web reader. ")
 	b.WriteString("Follow the /lathe-ask skill below. Your reply is shown to the reader as markdown, so reply with the answer itself — no preamble about the protocol.\n\n")
 	fmt.Fprintf(&b, "The tutorial is stored in %s (your working directory); the reader is on %s.\n", tutDir, part)
 	b.WriteString("Lathe lets this session read files under that directory only; it may not write files or run commands, and requests outside that are refused.\n\n")
-	b.WriteString("<skill name=\"lathe-ask\">\n")
-	b.WriteString(strings.TrimSpace(skill))
-	b.WriteString("\n</skill>\n\n")
+	writeSkill(&b, "lathe-ask")
 	fmt.Fprintf(&b, "/lathe-ask %s %s\n%s", slug, part, question)
 	return b.String()
+}
+
+// skillText returns an embedded skill's body (frontmatter stripped), or ""
+// if it isn't found.
+func skillText(slug string) string {
+	all, err := skills.All()
+	if err != nil {
+		return ""
+	}
+	for _, sk := range all {
+		if sk.Slug == slug {
+			return strings.TrimSpace(frontmatter.Strip(string(sk.Raw)))
+		}
+	}
+	return ""
+}
+
+// writeSkill writes a skill's text inside a <skill> tag, so the agent needs
+// no skills installed.
+func writeSkill(b *strings.Builder, slug string) {
+	fmt.Fprintf(b, "<skill name=%q>\n%s\n</skill>\n\n", slug, skillText(slug))
 }
 
 func followUpPrompt(part, question string) string {
@@ -294,7 +316,7 @@ var errAskBusy = errors.New("an answer to the last question is still streaming")
 // startAsk opens (or reuses) the session for this part and starts streaming
 // an answer. It returns an error — and the caller falls back to the handoff —
 // when the agent can't be started or the session can't be opened.
-func (h *agentHost) startAsk(tutDir, slug, part, question string) (*askRun, error) {
+func (h *agentHost) startAsk(tutDir, slug, part, question string) (*agentRun, error) {
 	key := slug + "/" + part
 	h.mu.Lock()
 	if id, ok := h.active[key]; ok {
@@ -339,12 +361,14 @@ func (h *agentHost) startAsk(tutDir, slug, part, question string) (*askRun, erro
 	h.pruneLocked()
 	h.counter++
 	ctx, cancel := context.WithTimeout(context.Background(), askRunTimeout)
-	run := &askRun{
+	run := &agentRun{
 		id:       strconv.FormatInt(h.counter, 10),
+		job:      jobAsk,
 		ctx:      ctx,
 		cancel:   cancel,
 		notify:   make(chan struct{}),
 		perms:    map[string]chan string{},
+		done:     make(chan struct{}),
 		started:  time.Now(),
 		fallback: "/lathe-ask " + slug + " " + part + "\n" + question,
 	}
@@ -362,7 +386,7 @@ func (h *agentHost) pruneLocked() {
 	}
 }
 
-func (h *agentHost) run(id string) (*askRun, bool) {
+func (h *agentHost) run(id string) (*agentRun, bool) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	r, ok := h.runs[id]
@@ -371,7 +395,8 @@ func (h *agentHost) run(id string) (*askRun, bool) {
 
 // drive runs one prompt to completion and turns the outcome into the run's
 // final event.
-func (h *agentHost) drive(c *acp.Client, key, sid, prompt string, run *askRun) {
+func (h *agentHost) drive(c *acp.Client, key, sid, prompt string, run *agentRun) {
+	defer close(run.done)
 	defer run.cancel()
 	stopRender := make(chan struct{})
 	rendered := make(chan struct{})
@@ -384,6 +409,14 @@ func (h *agentHost) drive(c *acp.Client, key, sid, prompt string, run *askRun) {
 	delete(h.active, key)
 	h.mu.Unlock()
 
+	// A job's cleanup (restore a status the agent left in flight, remove the
+	// scratch dir) runs before the final event, so a browser that polls the
+	// status when it sees "done" already finds it settled.
+	var note string
+	if run.after != nil {
+		note = run.after()
+	}
+
 	switch {
 	case err != nil && !alive(c):
 		// The process died mid-answer. Forget its sessions so the next ask
@@ -394,20 +427,20 @@ func (h *agentHost) drive(c *acp.Client, key, sid, prompt string, run *askRun) {
 			h.lastErr = "the agent exited: " + reason
 		}
 		h.mu.Unlock()
-		run.finish(runEvent{Type: "error", Message: "The agent exited before it finished answering (" + reason + ").", Command: run.fallback})
+		run.finish(runEvent{Type: "error", Message: withNote("The agent exited before it finished "+run.doing()+" ("+reason+").", note), Command: run.fallback})
 	case err != nil && run.ctx.Err() == nil:
 		// The agent refused the prompt (not logged in, bad request, …). The
 		// session may be unusable, so drop it.
 		h.mu.Lock()
 		delete(h.sessions, key)
 		h.mu.Unlock()
-		run.finish(runEvent{Type: "error", Message: "The agent could not answer: " + err.Error(), Command: run.fallback})
+		run.finish(runEvent{Type: "error", Message: withNote("The agent could not "+run.verb()+": "+err.Error(), note), Command: run.fallback})
 	default:
 		if stop == "" {
 			stop = "cancelled"
 		}
 		text := run.answer()
-		ev := runEvent{Type: "done", StopReason: stop}
+		ev := runEvent{Type: "done", StopReason: stop, Message: note}
 		if text != "" {
 			if html, rerr := RenderMarkdown([]byte(text)); rerr == nil {
 				ev.HTML = string(html)
@@ -417,10 +450,17 @@ func (h *agentHost) drive(c *acp.Client, key, sid, prompt string, run *askRun) {
 	}
 }
 
-// runEvent is one entry in an ask run's event stream (sent to the browser as
+func withNote(msg, note string) string {
+	if note == "" {
+		return msg
+	}
+	return msg + " " + note
+}
+
+// runEvent is one entry in a run's event stream (sent to the browser as
 // server-sent events).
 type runEvent struct {
-	Type string `json:"type"` // chunk, html, tool, activity, permission, permission_resolved, done, error
+	Type string `json:"type"` // chunk, html, plan, tool, tool_update, activity, permission, permission_resolved, done, error
 	Text string `json:"text,omitempty"`
 	// html (the answer so far, rendered) and done
 	// permission / permission_resolved
@@ -429,23 +469,34 @@ type runEvent struct {
 	Options []acp.PermissionOption `json:"options,omitempty"`
 	Choice  string                 `json:"choice,omitempty"`
 	HTML    string                 `json:"html,omitempty"`
+	// tool / tool_update: the agent's tool call, keyed by ID
+	Status string `json:"status,omitempty"`
+	Kind   string `json:"kind,omitempty"`
+	// plan: the agent's whole current plan (each plan event replaces the last)
+	Entries []acp.PlanEntry `json:"entries,omitempty"`
 	// done
 	StopReason string `json:"stopReason,omitempty"`
 	// activity: a file read/write or command Lathe ran (or refused) for the
 	// agent under the session's policy
 	Activity *acp.Activity `json:"activity,omitempty"`
-	// error
+	// error, and done when a job's cleanup has something to say
 	Message string `json:"message,omitempty"`
 	Command string `json:"command,omitempty"`
 }
 
-// askRun is one streamed answer. It implements acp.SessionHandler.
-type askRun struct {
+// agentRun is one streamed prompt: an Ask answer, or a Verify/Extend job. It
+// implements acp.SessionHandler.
+type agentRun struct {
 	id       string
+	job      string // "ask", "verify" or "extend"
 	ctx      context.Context
 	cancel   context.CancelFunc
 	started  time.Time
 	fallback string // the handoff command, offered on failure
+	// after, when set, runs once the prompt has ended, before the final
+	// event; what it returns is added to that event's message.
+	after func() string
+	done  chan struct{} // closed when drive has returned
 
 	mu       sync.Mutex
 	events   []runEvent
@@ -464,7 +515,7 @@ type askRun struct {
 	textRev  int // bumped on every text append
 }
 
-func (r *askRun) appendLocked(ev runEvent) {
+func (r *agentRun) appendLocked(ev runEvent) {
 	if ev.Type == "html" {
 		if r.lastHTML > 0 {
 			r.events[r.lastHTML-1].HTML = ""
@@ -476,7 +527,7 @@ func (r *askRun) appendLocked(ev runEvent) {
 	r.notify = make(chan struct{})
 }
 
-func (r *askRun) push(ev runEvent) {
+func (r *agentRun) push(ev runEvent) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if !r.finished.IsZero() {
@@ -485,7 +536,7 @@ func (r *askRun) push(ev runEvent) {
 	r.appendLocked(ev)
 }
 
-func (r *askRun) finish(ev runEvent) {
+func (r *agentRun) finish(ev runEvent) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if !r.finished.IsZero() {
@@ -495,13 +546,13 @@ func (r *askRun) finish(ev runEvent) {
 	r.finished = time.Now()
 }
 
-func (r *askRun) finishedBefore(t time.Time) bool {
+func (r *agentRun) finishedBefore(t time.Time) bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return !r.finished.IsZero() && r.finished.Before(t)
 }
 
-func (r *askRun) answer() string {
+func (r *agentRun) answer() string {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.text.String()
@@ -509,7 +560,7 @@ func (r *askRun) answer() string {
 
 // since returns the events from index i on, whether the run is finished, and
 // a channel closed on the next append.
-func (r *askRun) since(i int) ([]runEvent, bool, <-chan struct{}) {
+func (r *agentRun) since(i int) ([]runEvent, bool, <-chan struct{}) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	var out []runEvent
@@ -528,7 +579,7 @@ func (r *askRun) since(i int) ([]runEvent, bool, <-chan struct{}) {
 // renderLive re-renders the answer so far every liveRenderEvery while the
 // prompt runs, so the drawer shows formatted markdown as it streams. It
 // closes done when it has stopped.
-func (r *askRun) renderLive(stop <-chan struct{}, done chan<- struct{}) {
+func (r *agentRun) renderLive(stop <-chan struct{}, done chan<- struct{}) {
 	defer close(done)
 	t := time.NewTicker(liveRenderEvery)
 	defer t.Stop()
@@ -556,7 +607,7 @@ func (r *askRun) renderLive(stop <-chan struct{}, done chan<- struct{}) {
 
 // Update relays the parts of the agent's stream the drawer shows: answer text,
 // and a one-line note when the agent starts a tool call.
-func (r *askRun) Update(u acp.SessionUpdate) {
+func (r *agentRun) Update(u acp.SessionUpdate) {
 	switch u.Kind {
 	case "agent_message_chunk":
 		t := u.Text()
@@ -589,20 +640,49 @@ func (r *askRun) Update(u acp.SessionUpdate) {
 	case "tool_call":
 		r.markNewBlock()
 		if u.Title != "" {
-			r.push(runEvent{Type: "tool", Title: u.Title})
+			r.push(runEvent{Type: "tool", ID: u.ToolCallID, Title: u.Title, Status: u.Status, Kind: u.ToolKind})
 		}
-	case "agent_thought_chunk", "tool_call_update", "plan":
+	case "tool_call_update":
+		r.markNewBlock()
+		if u.ToolCallID != "" && (u.Status != "" || u.Title != "") {
+			r.push(runEvent{Type: "tool_update", ID: u.ToolCallID, Title: u.Title, Status: u.Status})
+		}
+	case "plan":
+		r.markNewBlock()
+		r.push(runEvent{Type: "plan", Entries: u.Entries})
+	case "agent_thought_chunk":
 		r.markNewBlock()
 	}
 }
 
 // Activity shows a file read/write or command Lathe handled for the agent —
 // including ones the policy refused — in the drawer.
-func (r *askRun) Activity(a acp.Activity) {
+func (r *agentRun) Activity(a acp.Activity) {
 	r.push(runEvent{Type: "activity", Activity: &a})
 }
 
-func (r *askRun) markNewBlock() {
+// verb and doing name the run's work for error messages.
+func (r *agentRun) verb() string {
+	switch r.job {
+	case jobVerify:
+		return "verify the tutorial"
+	case jobExtend:
+		return "write the part"
+	}
+	return "answer"
+}
+
+func (r *agentRun) doing() string {
+	switch r.job {
+	case jobVerify:
+		return "verifying"
+	case jobExtend:
+		return "writing the part"
+	}
+	return "answering"
+}
+
+func (r *agentRun) markNewBlock() {
 	r.mu.Lock()
 	r.newBlock = true
 	r.mu.Unlock()
@@ -610,7 +690,7 @@ func (r *askRun) markNewBlock() {
 
 // RequestPermission shows the agent's prompt in the drawer and waits for the
 // reader's choice.
-func (r *askRun) RequestPermission(ctx context.Context, req acp.PermissionRequest) (string, bool) {
+func (r *agentRun) RequestPermission(ctx context.Context, req acp.PermissionRequest) (string, bool) {
 	ch := make(chan string, 1)
 	r.mu.Lock()
 	if !r.finished.IsZero() {
@@ -651,7 +731,7 @@ func (r *askRun) RequestPermission(ctx context.Context, req acp.PermissionReques
 
 // answerPermission delivers the reader's choice. It reports false if the
 // prompt is no longer waiting.
-func (r *askRun) answerPermission(id, optionID string) bool {
+func (r *agentRun) answerPermission(id, optionID string) bool {
 	r.mu.Lock()
 	ch, ok := r.perms[id]
 	delete(r.perms, id)

@@ -13,6 +13,9 @@
 //	[owntool]     report a completed read tool call without asking the
 //	              client, the way an agent using its own tools does
 //
+// Setting Agent.Plan makes every prompt also report a plan and work through
+// it, one tool call per step, the way an agent following a skill does.
+//
 // A relative PATH is joined to the session's cwd. The outcome of each client
 // call is streamed before the reply, e.g. "(read ok: 12 bytes)" or
 // "(write refused: …)".
@@ -42,6 +45,12 @@ type Agent struct {
 	Reply func(prompt string) string
 	// ChunkDelay is the pause between streamed chunks.
 	ChunkDelay time.Duration
+	// Plan, when set, is reported as a plan before the reply; each step then
+	// runs as a tool call (tool_call, tool_call_update completed) and the
+	// plan is re-sent with that step completed.
+	Plan []string
+	// StepDelay is the pause while each plan step's tool call runs.
+	StepDelay time.Duration
 
 	mu        sync.Mutex
 	w         io.Writer
@@ -359,6 +368,8 @@ func (a *Agent) prompt(f frame, crash func()) {
 		}
 	}
 
+	a.followPlan(p.SessionID)
+
 	if strings.Contains(prompt, "[tool]") {
 		a.chunk(p.SessionID, "Let me check part 2.")
 		a.notify("session/update", map[string]any{
@@ -392,6 +403,42 @@ func (a *Agent) prompt(f frame, crash func()) {
 		}
 	}
 	a.respond(f.ID, map[string]string{"stopReason": "end_turn"})
+}
+
+func (a *Agent) followPlan(session string) {
+	if len(a.Plan) == 0 {
+		return
+	}
+	update := func(u map[string]any) {
+		a.notify("session/update", map[string]any{"sessionId": session, "update": u})
+	}
+	sendPlan := func(done int) {
+		entries := make([]map[string]string, len(a.Plan))
+		for i, step := range a.Plan {
+			status := "pending"
+			switch {
+			case i < done:
+				status = "completed"
+			case i == done:
+				status = "in_progress"
+			}
+			entries[i] = map[string]string{"content": step, "priority": "medium", "status": status}
+		}
+		update(map[string]any{"sessionUpdate": "plan", "entries": entries})
+	}
+	for i, step := range a.Plan {
+		sendPlan(i)
+		id := "step-" + strconv.Itoa(i+1)
+		update(map[string]any{"sessionUpdate": "tool_call", "toolCallId": id, "title": step, "kind": "other", "status": "in_progress"})
+		if a.StepDelay > 0 {
+			time.Sleep(a.StepDelay)
+		}
+		if a.isCancelled(session) {
+			return
+		}
+		update(map[string]any{"sessionUpdate": "tool_call_update", "toolCallId": id, "status": "completed"})
+	}
+	sendPlan(len(a.Plan))
 }
 
 // splitChunks breaks s into word-ish pieces, the way agents stream tokens.

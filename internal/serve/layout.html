@@ -22,7 +22,7 @@
 </head>
 <body>
 <a class="skip-link" href="#top">Skip to content</a>
-<div id="statusPoll" data-slug="{{.Tutorial.Slug}}" data-part="{{.CurrentPart}}" data-status="{{.Tutorial.Status}}" hidden></div>
+<div id="statusPoll" data-slug="{{.Tutorial.Slug}}" data-part="{{.CurrentPart}}" data-status="{{.Tutorial.Status}}"{{with .AgentRun}} data-run-id="{{.ID}}" data-run-job="{{.Job}}"{{end}} hidden></div>
 <div id="progressBar" aria-hidden="true" data-slug="{{.Tutorial.Slug}}" data-part="{{.CurrentPart}}" data-saved-progress="{{if .CurrentProgress}}{{.CurrentProgress.Ratio}}{{end}}" data-saved-heading-id="{{if .CurrentProgress}}{{.CurrentProgress.HeadingID}}{{end}}" data-current-part-number="{{.CurrentPartNumber}}" data-saved-part-number="{{.SavedPartNumber}}" data-total-parts="{{.TotalParts}}" data-saved-exercises="{{range $i, $e := .CheckedExercises}}{{if $i}},{{end}}{{$e}}{{end}}"><div></div><span id="savedProgressMarker" hidden></span></div>
 <header id="topBar">
   <button type="button" id="hamburger" aria-label="Toggle navigation" aria-controls="sidebar" aria-expanded="false">≡</button>
@@ -99,6 +99,10 @@
     </header>
     {{.Content}}
     <div id="verifyRegion" aria-live="polite">{{template "verifySection" .}}</div>
+    {{/* Live progress of a verify run on the hosted agent (lathe serve
+         --agent). Outside #verifyRegion so the status poller's swaps leave it
+         alone; filled by latheAttachJob. */}}
+    <div id="verifyLive" class="agent-job-slot"></div>
     {{if .Tutorial.IsSeries}}
     <section class="series-toc" aria-label="In this series">
       <h2>In this series</h2>
@@ -132,6 +136,7 @@
     </nav>
     {{end}}
     <div id="extendRegion" aria-live="polite">{{if .IsLastPart}}{{template "extendSection" .}}{{end}}</div>
+    <div id="extendLive" class="agent-job-slot"></div>
   </main>
   {{if gt (len .TOC) 1}}
   <nav id="tocRail" aria-label="On this page">
@@ -1360,6 +1365,248 @@
   })();
 </script>
 <script>
+  // Verify / Extend on the hosted agent (lathe serve --agent). The POST answers
+  // {"mode":"agent","runId"}; this panel streams GET /-/acp/{runId}/events —
+  // the agent's plan, its tool calls, the files and commands Lathe ran for it
+  // (or refused), permission prompts, and its closing report — and offers Stop
+  // (session/cancel). The status regions above keep updating from the status
+  // poller; a reloaded page reattaches through #statusPoll's data-run-id.
+  (function(){
+    var LABELS = {
+      verify: {running: 'Your agent is verifying this tutorial', done: 'Verification run finished', slot: 'verifyLive'},
+      extend: {running: 'Your agent is writing the next part', done: 'The agent finished writing', slot: 'extendLive'}
+    };
+    function el(tag, cls, text){
+      var n = document.createElement(tag);
+      if (cls) n.className = cls;
+      if (text !== undefined) n.textContent = text;
+      return n;
+    }
+    function shortPath(p){
+      var parts = String(p || '').split('/').filter(Boolean);
+      return parts.length > 2 ? '…/' + parts.slice(-2).join('/') : (p || '');
+    }
+    function post(url, body){
+      return fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: body ? JSON.stringify(body) : '{}'});
+    }
+
+    window.latheAttachJob = function(job, runId){
+      var labels = LABELS[job];
+      if (!labels || !runId) return;
+      var slot = document.getElementById(labels.slot);
+      if (!slot || slot.getAttribute('data-run-id') === String(runId)) return;
+      slot.setAttribute('data-run-id', String(runId));
+      slot.innerHTML = '';
+      // One hosted job per tutorial: hide the verify/extend forms while it
+      // runs (the server would answer 409), whatever status the regions show.
+      document.documentElement.setAttribute('data-agent-job', job);
+
+      var panel = el('section', 'agent-job');
+      panel.setAttribute('data-job', job);
+      panel.setAttribute('data-state', 'running');
+      panel.setAttribute('aria-label', 'Agent progress');
+      var head = el('div', 'agent-job-head');
+      var title = el('p', 'agent-job-title');
+      var spin = el('span', 'status-spinner');
+      spin.setAttribute('aria-hidden', 'true');
+      var titleText = el('span', '', labels.running + '…');
+      title.appendChild(spin);
+      title.appendChild(titleText);
+      head.appendChild(title);
+      var stop = el('button', 'btn btn-sm btn-ghost agent-job-stop', 'Stop');
+      stop.type = 'button';
+      stop.addEventListener('click', function(){
+        stop.disabled = true;
+        stop.textContent = 'Stopping…';
+        post('/-/acp/' + encodeURIComponent(runId) + '/cancel').catch(function(){});
+      });
+      head.appendChild(stop);
+      panel.appendChild(head);
+
+      var plan = el('ol', 'agent-plan');
+      plan.hidden = true;
+      plan.setAttribute('aria-label', "The agent's plan");
+      panel.appendChild(plan);
+      var perms = el('div', 'agent-perms');
+      panel.appendChild(perms);
+      var steps = el('details', 'agent-steps');
+      var stepsSum = el('summary', '', 'Steps');
+      steps.appendChild(stepsSum);
+      var stepList = el('ul', 'agent-step-list');
+      steps.appendChild(stepList);
+      steps.hidden = true;
+      panel.appendChild(steps);
+      var report = el('div', 'agent-report ask-rich');
+      report.hidden = true;
+      panel.appendChild(report);
+      var note = el('p', 'agent-job-note');
+      note.setAttribute('role', 'status');
+      panel.appendChild(note);
+      slot.appendChild(panel);
+
+      var count = 0;
+      function addStep(li){
+        steps.hidden = false;
+        stepList.appendChild(li);
+        count++;
+        stepsSum.textContent = 'Steps (' + count + ')';
+        stepList.scrollTop = stepList.scrollHeight;
+        return li;
+      }
+      function step(text, cls, tip){
+        var li = el('li', 'agent-step' + (cls ? ' ' + cls : ''), text);
+        if (tip) li.title = tip;
+        return addStep(li);
+      }
+      function toolStatus(li, status){
+        if (status) li.setAttribute('data-status', status);
+      }
+      function showPlan(entries){
+        plan.innerHTML = '';
+        plan.hidden = !entries || !entries.length;
+        (entries || []).forEach(function(e){
+          var li = el('li', 'agent-plan-entry', e.content || '');
+          li.setAttribute('data-status', e.status || 'pending');
+          plan.appendChild(li);
+        });
+      }
+      function activity(a){
+        if (!a) return;
+        if (a.denied) {
+          var what = a.kind === 'terminal' ? 'run ' + (a.command || 'a command') : a.kind + ' ' + shortPath(a.path);
+          step('Blocked by Lathe: ' + what, 'agent-step-blocked', a.error || '');
+        } else if (a.kind === 'read') step('Read ' + shortPath(a.path), 'agent-step-io', a.path);
+        else if (a.kind === 'write') step('Wrote ' + shortPath(a.path), 'agent-step-io', a.path);
+        else if (a.kind === 'terminal') step(a.error ? 'Could not run ' + a.command + ': ' + a.error : 'Running ' + a.command, 'agent-step-io', a.path);
+        else if (a.kind === 'terminal_exit') {
+          var li = el('li', 'agent-step agent-step-term');
+          var d = el('details', 'ask-terminal');
+          var code = (a.exitCode === undefined || a.exitCode === null) ? 'was stopped' : 'exited ' + a.exitCode;
+          d.appendChild(el('summary', '', a.command + ' ' + code));
+          d.appendChild(el('pre', '', a.output || '(no output)'));
+          li.appendChild(d);
+          addStep(li);
+        }
+      }
+      function permission(ev){
+        var card = el('div', 'ask-permission');
+        card.setAttribute('role', 'group');
+        card.setAttribute('data-permission', ev.id);
+        card.appendChild(el('p', 'ask-permission-label', 'The agent asks permission to:'));
+        card.appendChild(el('p', 'ask-permission-title', ev.title || 'use a tool'));
+        var row = el('div', 'ask-permission-options');
+        (ev.options || []).forEach(function(opt){
+          var allow = (opt.kind || '').indexOf('allow') === 0;
+          var b = el('button', 'btn btn-sm ' + (allow ? 'btn-primary' : 'btn-ghost'), opt.name || opt.optionId);
+          b.type = 'button';
+          b.setAttribute('data-option', opt.optionId);
+          b.setAttribute('data-kind', opt.kind || '');
+          b.addEventListener('click', function(){
+            row.querySelectorAll('button').forEach(function(x){ x.disabled = true; });
+            post('/-/acp/' + encodeURIComponent(runId) + '/permission', {permissionId: ev.id, optionId: opt.optionId})
+              .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); })
+              .catch(function(){ row.querySelectorAll('button').forEach(function(x){ x.disabled = false; }); });
+          });
+          row.appendChild(b);
+        });
+        card.appendChild(row);
+        perms.appendChild(card);
+        var first = row.querySelector('button');
+        if (first) { try { first.focus(); } catch(e){} }
+      }
+      function resolvePermission(ev){
+        var card = perms.querySelector('[data-permission="' + ev.id + '"]');
+        if (!card) return;
+        var picked = ev.choice ? card.querySelector('[data-option="' + ev.choice + '"]') : null;
+        var row = card.querySelector('.ask-permission-options');
+        var text = 'No answer — the agent skipped it.';
+        if (picked) {
+          var allowed = (picked.getAttribute('data-kind') || '').indexOf('allow') === 0;
+          text = (allowed ? 'Allowed' : 'Denied') + ' (' + picked.textContent + ')';
+        }
+        if (row) row.replaceWith(el('p', 'ask-permission-result', text));
+        card.classList.add('resolved');
+      }
+      function finish(state, text, message){
+        panel.setAttribute('data-state', state);
+        document.documentElement.removeAttribute('data-agent-job');
+        spin.remove();
+        titleText.textContent = text;
+        if (message) note.textContent = message;
+        stop.textContent = 'Dismiss';
+        stop.disabled = false;
+        stop.onclick = null;
+        var fresh = stop.cloneNode(true);
+        stop.replaceWith(fresh);
+        fresh.addEventListener('click', function(){
+          slot.innerHTML = '';
+          slot.removeAttribute('data-run-id');
+        });
+        if (window.lathePollNow) window.lathePollNow();
+        if (window.latheRefreshWorker) window.latheRefreshWorker();
+      }
+
+      var es = new EventSource('/-/acp/' + encodeURIComponent(runId) + '/events');
+      es.onmessage = function(msg){
+        var ev;
+        try { ev = JSON.parse(msg.data); } catch (e) { return; }
+        if (ev.type === 'plan') showPlan(ev.entries);
+        else if (ev.type === 'tool') {
+          var li = step(ev.title || 'Tool call', 'agent-step-tool');
+          if (ev.id) li.setAttribute('data-tool', ev.id);
+          toolStatus(li, ev.status || 'pending');
+        } else if (ev.type === 'tool_update') {
+          var t = ev.id ? stepList.querySelector('[data-tool="' + CSS.escape(ev.id) + '"]') : null;
+          if (t) {
+            if (ev.title) t.textContent = ev.title;
+            toolStatus(t, ev.status);
+          }
+        } else if (ev.type === 'activity') activity(ev.activity);
+        else if (ev.type === 'permission') permission(ev);
+        else if (ev.type === 'permission_resolved') resolvePermission(ev);
+        else if (ev.type === 'html') {
+          report.hidden = false;
+          report.innerHTML = ev.html || '';
+        } else if (ev.type === 'chunk') {
+          // Raw text until the first rendered snapshot lands.
+          if (!report.innerHTML || report.hidden) {
+            report.hidden = false;
+            report.appendChild(document.createTextNode(ev.text || ''));
+          }
+        } else if (ev.type === 'done') {
+          es.close();
+          if (ev.html) { report.hidden = false; report.innerHTML = ev.html; }
+          var stopped = ev.stopReason === 'cancelled';
+          var text = stopped ? 'Stopped' : labels.done;
+          if (ev.stopReason === 'refusal') text = 'The agent declined';
+          else if (ev.stopReason === 'max_tokens' || ev.stopReason === 'max_turn_requests') text = 'The agent hit its limit';
+          finish(stopped ? 'stopped' : 'done', text, ev.message || '');
+        } else if (ev.type === 'error') {
+          es.close();
+          finish('error', 'The agent stopped', ev.message || '');
+          if (ev.command) {
+            var hp = el('div', 'handoff-panel');
+            hp.appendChild(el('p', 'handoff-note', 'Run it in your own coding agent instead:'));
+            hp.appendChild(el('pre', 'handoff-cmd', ev.command));
+            var copy = el('button', 'btn btn-sm', 'Copy');
+            copy.type = 'button';
+            copy.addEventListener('click', function(){
+              try { navigator.clipboard.writeText(ev.command).then(function(){ window.latheFlashLabel(copy, 'Copied'); }); } catch (e) {}
+            });
+            hp.appendChild(copy);
+            panel.appendChild(hp);
+          }
+        }
+      };
+      es.onerror = function(){
+        if (es.readyState === EventSource.CLOSED && panel.getAttribute('data-state') === 'running') {
+          finish('error', 'Lost the connection to lathe serve', 'Reload the page to see where the run got to.');
+        }
+      };
+    };
+  })();
+</script>
+<script>
   // Verify and "Add Part" drive a connected worker when one is present (mode
   // "queued"), else hand off to the user's interactive coding-agent session
   // (mode "handoff"). On handoff we render a "copy this and paste it into your
@@ -1410,7 +1657,7 @@
       section.appendChild(panel);
     }
 
-    function wire(formId, errClass, lead, queuedLead, bodyFn, pollFrom){
+    function wire(formId, errClass, lead, queuedLead, agentLead, bodyFn, pollFrom){
       var form = document.getElementById(formId);
       // Idempotent: the status poller re-runs the wiring after swapping a fresh
       // verify/extend form into the DOM. A swapped-in form is a brand-new node
@@ -1438,10 +1685,15 @@
               // paste. Either way start polling now so the page picks up the
               // transition into verifying/extending (and through to done) without
               // the reader having to hard-refresh.
-              if (data.mode === 'queued') {
+              if (data.mode === 'agent') {
+                // The hosted agent took it: its progress streams into the
+                // panel below this section.
+                renderQueued(section, agentLead);
+                if (window.latheAttachJob) window.latheAttachJob(pollFrom === 'verifying' ? 'verify' : 'extend', data.runId);
+              } else if (data.mode === 'queued') {
                 renderQueued(section, queuedLead);
               } else {
-                renderHandoff(section, data.command || '', lead);
+                renderHandoff(section, data.command || '', data.notice ? data.notice + ' ' + lead : lead);
               }
               if (pollFrom && window.latheStartStatusPoll) window.latheStartStatusPoll(pollFrom);
             });
@@ -1463,10 +1715,12 @@
       wire('verifyForm', '.verify-error',
         'To verify this tutorial, paste this into your coding agent:',
         'Your connected agent is verifying this tutorial…',
+        'Your agent is starting the verification — progress below.',
         function(){ return null; }, 'verifying');
       wire('extendForm', '.extend-error',
         'To add this part, paste this into your coding agent:',
         'Your connected agent is writing this part…',
+        'Your agent is starting on the next part — progress below.',
         function(form){
           var guidance = form.querySelector('textarea[name="guidance"]').value;
           return JSON.stringify({guidance: guidance});
@@ -1533,6 +1787,12 @@
       }
 
       setInterval(poll, 5000);
+      // A finished hosted run asks for an immediate poll, so the badge and
+      // the regions settle without waiting for the next tick. It forces the
+      // swap even when the status ended where it started (a stopped or
+      // crashed run), replacing the "your agent is starting" note with the
+      // form again.
+      window.lathePollNow = function(){ rendered = null; poll(); };
       function poll(){
         // A backgrounded tab can't show updates anyway; skip the fetch and resume
         // when it's visible again so an all-day-open page isn't polling localhost
@@ -1542,6 +1802,9 @@
           .then(function(r){ return r.ok ? r.json() : null; })
           .then(function(data){
             if (!data) return;
+            // A verify/extend running on the hosted agent (started in another
+            // tab, say): show its live progress here too.
+            if (data.run && window.latheAttachJob) window.latheAttachJob(data.run.job, data.run.id);
             // Track a live transient state so the next poll uses the right ?from=.
             if (data.status === 'verifying' || data.status === 'extending') from = data.status;
             // Reconcile: when the live status differs from what's on screen, swap
@@ -1561,6 +1824,10 @@
     // transition into verifying/extending. The load-time status seeds ?from=; live
     // data corrects it. JS-off readers fall back to the <noscript> meta-refresh.
     window.latheStartStatusPoll(el.getAttribute('data-status'));
+    // A page loaded mid-run reattaches to the hosted agent's progress stream.
+    if (el.getAttribute('data-run-id') && window.latheAttachJob) {
+      window.latheAttachJob(el.getAttribute('data-run-job'), el.getAttribute('data-run-id'));
+    }
   })();
 </script>
 {{template "liveNudge" .}}

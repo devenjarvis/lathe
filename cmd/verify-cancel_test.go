@@ -1,10 +1,15 @@
 package cmd
 
 import (
+	"bytes"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
+	"github.com/devenjarvis/lathe/internal/config"
 	"github.com/devenjarvis/lathe/internal/store"
 )
 
@@ -92,5 +97,63 @@ func TestVerifyCancelRejectsBadSlug(t *testing.T) {
 		if err := verifyCancelCmd.RunE(verifyCancelCmd, []string{slug}); err == nil {
 			t.Errorf("verify-cancel %q should be rejected as invalid", slug)
 		}
+	}
+}
+
+// With `lathe serve --agent` running the verification, verify-cancel asks the
+// server to stop it; the server restores the status, and the command reports
+// it rather than erroring that nothing is verifying.
+func TestVerifyCancelStopsHostedRun(t *testing.T) {
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+	tutDir := writeTutorial(t, homeDir, "test-slug", store.StatusVerifying, []string{"part-01.md"})
+
+	var hit string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hit = r.Method + " " + r.URL.Path
+		// What the server does once its agent has wound down.
+		if _, err := store.CancelVerify(tutDir); err != nil {
+			t.Error(err)
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+	if err := config.WriteServeRuntime(&config.ServeRuntime{URL: srv.URL}); err != nil {
+		t.Fatal(err)
+	}
+
+	var out bytes.Buffer
+	verifyCancelCmd.SetOut(&out)
+	defer verifyCancelCmd.SetOut(nil)
+	if err := verifyCancelCmd.RunE(verifyCancelCmd, []string{"test-slug"}); err != nil {
+		t.Fatalf("verify-cancel: %v", err)
+	}
+	if hit != "POST /-/verify/test-slug/cancel" {
+		t.Errorf("server got %q", hit)
+	}
+	if !strings.Contains(out.String(), "Stopped the hosted agent's verification") {
+		t.Errorf("output = %q", out.String())
+	}
+	if got, _ := store.ReadMetadata(tutDir); got.Status != store.StatusUnverified {
+		t.Errorf("Status = %q, want unverified", got.Status)
+	}
+}
+
+// A server with no hosted run for the slug (404) leaves verify-cancel to
+// reset the status itself, as before.
+func TestVerifyCancelWithServerButNoHostedRun(t *testing.T) {
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+	tutDir := writeTutorial(t, homeDir, "test-slug", store.StatusVerifying, []string{"part-01.md"})
+	srv := httptest.NewServer(http.NotFoundHandler())
+	defer srv.Close()
+	if err := config.WriteServeRuntime(&config.ServeRuntime{URL: srv.URL}); err != nil {
+		t.Fatal(err)
+	}
+	if err := verifyCancelCmd.RunE(verifyCancelCmd, []string{"test-slug"}); err != nil {
+		t.Fatalf("verify-cancel: %v", err)
+	}
+	if got, _ := store.ReadMetadata(tutDir); got.Status != store.StatusUnverified {
+		t.Errorf("Status = %q, want unverified", got.Status)
 	}
 }

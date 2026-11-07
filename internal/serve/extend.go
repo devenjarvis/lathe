@@ -13,7 +13,8 @@ import (
 const maxGuidanceBytes = 2 * 1024
 
 // handleExtend never spawns a generator — the binary never drives a model
-// itself. When a /lathe-work worker is connected it enqueues an extend job
+// itself. With a hosted agent (lathe serve --agent) it runs the /lathe-extend
+// skill there over ACP. Else, when a /lathe-work worker is connected it enqueues an extend job
 // (folding in any guidance the reader typed) for that interactive session to
 // claim; otherwise it falls back to handing back the exact skill command. Either
 // way the /lathe-extend protocol runs in the interactive session, which reserves
@@ -61,16 +62,25 @@ func (s *Server) handleExtend(w http.ResponseWriter, r *http.Request) {
 
 	guidance := strings.Join(strings.Fields(strings.TrimSpace(payload.Guidance)), " ")
 
+	command := "/lathe-extend " + slug
+	if guidance != "" {
+		// Collapse newlines so the handoff stays a single pasteable line.
+		command += " " + guidance
+	}
+
+	// Order of preference: the hosted agent, a /lathe-work worker, the handoff.
+	handled, notice := s.jobViaAgent(w, jobExtend, tutDir, slug, command)
+	if handled {
+		return
+	}
 	if s.queue.WorkerConnected() {
 		id := s.queue.Enqueue(queue.Job{Type: queue.JobExtend, Slug: slug, Guidance: guidance})
 		writeQueued(w, id)
 		return
 	}
-
-	command := "/lathe-extend " + slug
-	if guidance != "" {
-		// Collapse newlines so the handoff stays a single pasteable line.
-		command += " " + guidance
+	if notice != "" {
+		writeHandoffNotice(w, command, notice)
+		return
 	}
 	writeHandoff(w, command)
 }

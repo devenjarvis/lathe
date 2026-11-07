@@ -40,10 +40,15 @@ type ActivityHandler interface {
 }
 
 // SetPolicy sets the file/terminal policy for a session. Until a session has
-// one, every fs/* and terminal/* request in it is refused.
+// one, every fs/* and terminal/* request in it is refused. A nil p forgets
+// the session's policy, so a finished job's session is refused everything.
 func (c *Client) SetPolicy(sessionID string, p *Policy) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if p == nil {
+		delete(c.policies, sessionID)
+		return
+	}
 	c.policies[sessionID] = p
 }
 
