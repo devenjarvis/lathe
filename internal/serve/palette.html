@@ -1,0 +1,38 @@
+{{/* Go to anything (#144): the ⌘K / Ctrl+K palette over the current page.
+     "palette" is included once per page, from the "shortcuts" partial, so
+     every page that carries the shortcut registry carries the palette. Its
+     results come from GET /-/index (index.go); palette.js filters them. */}}
+{{define "palette"}}
+<dialog class="palette" id="palette" aria-labelledby="paletteLabel">
+  <div class="palette-field">
+    <svg class="palette-glyph" viewBox="0 0 20 20" width="20" height="20" aria-hidden="true" focusable="false"><circle cx="8.5" cy="8.5" r="5.5" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M12.6 12.6 17 17" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg>
+    <label id="paletteLabel" for="paletteInput" class="visually-hidden">Go to anything</label>
+    <span class="palette-mode" id="paletteMode" hidden>Actions</span>
+    <input id="paletteInput" class="palette-input" type="text" role="combobox" aria-expanded="true" aria-controls="paletteList" aria-autocomplete="list" aria-describedby="paletteHelp" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="go" placeholder="Go to a tutorial, part or section…">
+    <button type="button" class="palette-esc" id="paletteClose" aria-label="Close">esc</button>
+  </div>
+  <div class="palette-list" id="paletteList" role="listbox" aria-label="Results"></div>
+  <p class="palette-foot" id="paletteHelp"><span><kbd>↑</kbd><kbd>↓</kbd> move</span><span><kbd>↩</kbd> open</span><span><kbd data-palette-kbd>⌘↩</kbd> new window</span><span><kbd>&gt;</kbd> actions</span></p>
+  <p class="visually-hidden" id="paletteStatus" role="status" aria-live="polite"></p>
+</dialog>
+{{/* ⌘↩ opens a result in a new window: an app window in the desktop app
+     (like the agent pop-out), a browser tab otherwise. */}}
+<script>
+  window.lathePaletteOpenWindow = function (path) {
+    {{- if .Native}}
+    return fetch('/-/native/window', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({path: path})})
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); });
+    {{- else}}
+    // With noopener window.open returns null even when it opened the tab.
+    window.open(path, '_blank', 'noopener');
+    return Promise.resolve();
+    {{- end}}
+  };
+</script>
+<script>{{paletteJS}}</script>
+{{end}}
+
+{{/* paletteButton — the masthead search button. A link to All tutorials, so
+     with scripts off it still finds things; palette.js turns it into the
+     button that opens the palette. */}}
+{{define "paletteButton"}}<a class="palette-open" href="/?view=all" data-palette-open aria-keyshortcuts="Meta+K Control+K"><svg class="palette-open-glyph" viewBox="0 0 20 20" width="16" height="16" aria-hidden="true" focusable="false"><circle cx="8.5" cy="8.5" r="5.5" fill="none" stroke="currentColor" stroke-width="2.6"/><path d="M12.6 12.6 17 17" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"/></svg><span class="palette-open-label">Search</span><kbd class="palette-open-key" data-palette-kbd aria-hidden="true">⌘K</kbd></a>{{end}}

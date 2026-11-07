@@ -121,6 +121,7 @@ func (s *Server) handleCheckGet(w http.ResponseWriter, r *http.Request) {
 	if view.Result != nil {
 		resp["checkedAt"] = view.Result.CheckedAt
 		resp["status"] = view.Result.Status
+		resp["findings"] = len(view.Findings)
 	}
 	writeJSON(w, resp)
 }
@@ -256,7 +257,11 @@ func (s *Server) runningCheck(slug string) *jobRunInfo {
 	if !ok {
 		return nil
 	}
-	return &jobRunInfo{ID: id, Job: jobCheck}
+	info := &jobRunInfo{ID: id, Job: jobCheck}
+	if run, ok := agent.runs[id]; ok {
+		info.Started = run.started.UnixMilli()
+	}
+	return info
 }
 
 // checkView is what the checkSection / checkResult partials render.
@@ -272,8 +277,10 @@ type checkView struct {
 	Divergences  []divergenceView
 	HasWorkspace bool
 	Workspace    string
-	// RunID is the hosted check in flight, for a reload to reattach.
-	RunID string
+	// RunID is the hosted check in flight, for a reload to reattach, and
+	// RunStarted when it began (Unix milliseconds).
+	RunID      string
+	RunStarted int64
 }
 
 type findingView struct {
@@ -297,7 +304,7 @@ func (s *Server) checkViewFor(tut *store.Tutorial, tutDir, part string) checkVie
 	full, short := workspaceDisplay(tutDir)
 	v.HasWorkspace, v.Workspace = full != "", short
 	if run := s.runningCheck(v.Slug); run != nil {
-		v.RunID = run.ID
+		v.RunID, v.RunStarted = run.ID, run.Started
 	}
 	res := store.LatestCheck(tutDir, part)
 	if res == nil {

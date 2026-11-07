@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="en"{{if .Native}} data-native{{end}}>
+<head>
+  {{template "head" .}}
+  <title>Settings — Lathe</title>
+</head>
+<body class="settings">
+{{/* The Settings window (settings.go). Each tab is a <section> with the tab's
+     id, so /-/settings#agent deep-links to it. Without scripts every section
+     shows, one under the other, and the tab bar jumps between them; the
+     script below turns them into tabs. Controls save as they change. */}}
+<a class="skip-link" href="#settingsMain">Skip to settings</a>
+<header class="settings-bar">
+  <div class="settings-bar-row">
+    <a class="back-link settings-back" href="/"><span aria-hidden="true">←</span> Library</a>
+    <h1 class="settings-title">Settings</h1>
+    <p class="settings-saved" id="settingsSaved" role="status" aria-live="polite"></p>
+  </div>
+  <nav class="settings-tabs" aria-label="Settings sections">
+    <div role="tablist" id="settingsTabs">
+    {{- range .Tabs}}
+      <a role="tab" id="tab-{{.ID}}" href="#{{.ID}}" aria-controls="{{.ID}}" data-tab="{{.ID}}">{{.Label}}</a>
+    {{- end}}
+    </div>
+  </nav>
+</header>
+<noscript><p class="settings-noscript">Settings save as you change them, which needs JavaScript. You can also edit <code>~/.lathe/config.json</code> by hand.</p></noscript>
+<main id="settingsMain" class="settings-main">
+
+<section id="agent" class="settings-panel" role="tabpanel" aria-labelledby="tab-agent">
+  <h2>Agent</h2>
+  <p class="settings-lead">Lathe runs your own coding agent for Ask, Verify, Add a part and Check my work. It never calls a model itself, so your agent's sign-in and plan apply.</p>
+
+  <form id="agentForm" class="settings-group" novalidate>
+    <fieldset class="agent-choices settings-agents">
+      <legend>Agents Lathe can host</legend>
+      {{- range .Agents}}
+      <label class="agent-choice settings-agent{{if .Current}} is-current{{end}}" data-agent="{{.ID}}">
+        <input type="radio" name="agent" value="{{.ID}}"{{if .Current}} checked{{end}}{{if not .Ready}} disabled{{end}}>
+        <span class="agent-choice-text">
+          <strong>{{.Name}}</strong>
+          {{- if .Current}}
+          <span class="settings-agent-status" data-agent-live data-state="{{.State}}"><span class="agent-dot" aria-hidden="true"></span><span class="settings-agent-live">{{.Status}}</span></span>
+          <span class="agent-choice-detail">{{.Command}}</span>
+          {{- else if .Ready}}
+          <span class="settings-agent-status is-found">Found on your PATH</span>
+          <span class="agent-choice-detail">{{.Command}}</span>
+          {{- else}}
+          <span class="settings-agent-status is-missing">{{if .Found}}{{.Program}} not found{{else}}Not installed{{end}}</span>
+          {{- if .InstallCmd}}
+          <span class="settings-install"><code>{{.Install}}</code><button type="button" class="btn btn-sm" data-copy="{{.Install}}" aria-label="Copy the install command for {{.Name}}">Copy</button></span>
+          {{- else}}
+          <span class="agent-choice-detail">{{.Install}}</span>
+          {{- end}}
+          {{- end}}
+        </span>
+      </label>
+      {{- end}}
+    </fieldset>
+    <div class="settings-actions">
+      <button type="submit" id="agentUse" class="btn btn-primary" disabled>Use this agent</button>
+      <button type="button" id="agentRestart" class="btn btn-ghost"{{if not .Current}} hidden{{end}}>Restart</button>
+      <p class="agent-error" id="agentError" role="alert"></p>
+    </div>
+  </form>
+
+  <div class="settings-group">
+    <h3>Custom command</h3>
+    {{- if .CustomCommand}}
+    <p>Lathe is hosting <code>{{.CustomCommand}}</code>, given with <code>--agent</code>.</p>
+    {{- else}}
+    <p>To host an agent that isn't listed, start Lathe with its ACP command. For safety, a page can't start a command line it supplies.</p>
+    {{- end}}
+    <div class="agent-fallback-cmd"><code>lathe serve --agent "&lt;command&gt;"</code><button type="button" class="btn btn-sm" data-copy='lathe serve --agent ""' aria-label="Copy the lathe serve --agent command">Copy</button></div>
+  </div>
+
+  <div class="settings-group">
+    <h3>Folders to search for agents</h3>
+    <p class="agent-hint">Searched before your <code>PATH</code>. Add the folder an agent is installed in when Lathe can't find it, which is common when the app starts from the Dock.</p>
+    <ul class="settings-paths" id="agentPathList">
+      {{- range .AgentPath}}
+      <li data-path="{{.Raw}}"><code>{{.Raw}}</code>{{if .Missing}}<span class="settings-missing">not found</span>{{end}}<button type="button" class="link-btn" data-remove-path="{{.Raw}}" aria-label="Remove {{.Raw}}">Remove</button></li>
+      {{- end}}
+    </ul>
+    <p class="agent-hint" id="agentPathEmpty"{{if .AgentPath}} hidden{{end}}>No extra folders.</p>
+    <form id="agentPathForm" class="settings-inline" novalidate>
+      <label for="agentPathInput" class="visually-hidden">Folder to add</label>
+      <input id="agentPathInput" type="text" autocomplete="off" spellcheck="false" placeholder="~/.npm-global/bin">
+      <button type="submit" class="btn btn-ghost btn-sm">Add folder</button>
+      {{- if .Native}}
+      <button type="button" id="agentPathPick" class="btn btn-ghost btn-sm">Choose folder…</button>
+      {{- end}}
+    </form>
+    <p class="agent-error" id="agentPathError" role="alert"></p>
+  </div>
+
+  <div class="settings-group agent-fallback">
+    <p class="agent-fallback-title">Rather use your own terminal?</p>
+    <div class="agent-fallback-cmd"><code>/lathe-work</code><button type="button" class="btn btn-sm" data-copy="/lathe-work" aria-label="Copy /lathe-work">Copy</button></div>
+    <p class="agent-hint">Run it in any agent session while Lathe is open, and the buttons hand their work to it. <span id="workerState">{{if .WorkerConnected}}A /lathe-work session is connected now.{{else}}No /lathe-work session is connected.{{end}}</span></p>
+  </div>
+</section>
+
+<section id="voices" class="settings-panel" role="tabpanel" aria-labelledby="tab-voices">
+  <h2>Voices</h2>
+  <p class="settings-lead">A voice sets the tone a tutorial is written in, never what it says. New tutorials use <strong data-voice-default-name>{{.DefaultVoice}}</strong> unless you name another.</p>
+  {{- /* Two columns: the list (Built in, Yours, + New voice, Compare) and one
+       detail pane per voice. Links carry ?voice=, so with scripts off each
+       is a page load; the script below switches panes in place. */}}
+  <div class="voices" id="voicesPane">
+    <nav class="voices-list" aria-label="Voices">
+      <p class="voices-group" id="voicesBuiltinLabel">Built in</p>
+      <ul aria-labelledby="voicesBuiltinLabel">
+        {{- range .BuiltinVoices}}
+        <li><a class="voices-item" href="?voice={{.Name}}#voices" data-voice-pick="{{.Name}}"{{if .Selected}} aria-current="true"{{end}}><span class="voices-item-name">{{.Name}}</span><span class="voices-item-default"{{if not .Default}} hidden{{end}}>Default</span></a></li>
+        {{- end}}
+      </ul>
+      <p class="voices-group" id="voicesYoursLabel">Yours</p>
+      <ul aria-labelledby="voicesYoursLabel" id="voicesYours">
+        {{- range .YourVoices}}
+        <li data-voice-row="{{.Name}}"><a class="voices-item" href="?voice={{.Name}}#voices" data-voice-pick="{{.Name}}"{{if .Selected}} aria-current="true"{{end}}><span class="voices-item-name">{{.Name}}</span><span class="voices-item-default"{{if not .Default}} hidden{{end}}>Default</span></a></li>
+        {{- end}}
+      </ul>
+      <p class="voices-none" id="voicesYoursEmpty"{{if .YourVoices}} hidden{{end}}>None yet.</p>
+      <a class="voices-item voices-new" href="?voice=new#voices" data-voice-pick="new"{{if eq .VoicePane "new"}} aria-current="true"{{end}}>+ New voice</a>
+      <a class="voices-item voices-compare-link" href="?voice=compare#voices" data-voice-pick="compare"{{if eq .VoicePane "compare"}} aria-current="true"{{end}}>Compare samples</a>
+    </nav>
+
+    <div class="voices-detail">
+      {{- range .AllVoices}}
+      <article class="voice-detail" data-voice="{{.Name}}" aria-labelledby="voice-title-{{.Name}}"{{if not .Selected}} hidden{{end}}>
+        <header class="voice-head">
+          <h3 id="voice-title-{{.Name}}">{{.Name}}</h3>
+          <span class="settings-chip is-quiet">{{if .Builtin}}Built in{{else}}Yours{{end}}</span>
+        </header>
+        {{- if .Description}}<p class="voice-desc">{{.Description}}</p>{{end}}
+        <p class="voice-used">{{if eq .UsedBy 0}}Not used by any tutorials yet{{else if eq .UsedBy 1}}Used by 1 tutorial{{else}}Used by {{.UsedBy}} tutorials{{end}}</p>
+        <div class="voice-default-row">
+          <p class="voice-is-default" data-voice-is-default{{if not .Default}} hidden{{end}}><span aria-hidden="true">✓</span> Default for new tutorials</p>
+          <button type="button" class="btn btn-ghost btn-sm" data-voice-make-default="{{.Name}}"{{if .Default}} hidden{{end}}>Make default</button>
+        </div>
+
+        <h4 class="voice-sounds">Sounds like</h4>
+        {{- if .Sample}}
+        <blockquote class="voice-sample">{{range .Sample}}<p>{{.}}</p>{{end}}</blockquote>
+        {{- else}}
+        <p class="voice-sample is-empty">No sample yet.</p>
+        {{- end}}
+
+        <div class="voice-actions">
+          {{- if .Builtin}}
+          <button type="button" class="btn btn-ghost btn-sm" data-voice-open="dup-{{.Name}}" aria-expanded="false" aria-controls="dup-{{.Name}}">Duplicate and edit</button>
+          {{- else}}
+          <button type="button" class="btn btn-ghost btn-sm" data-voice-open="edit-{{.Name}}" aria-expanded="false" aria-controls="edit-{{.Name}}">Edit with agent</button>
+          {{- if $.CanReveal}}
+          <button type="button" class="btn btn-ghost btn-sm" data-voice-reveal>Show file</button>
+          {{- else}}
+          <button type="button" class="btn btn-ghost btn-sm" data-copy="{{.Path}}" aria-label="Copy the path to {{.Name}}'s file">Copy file path</button>
+          {{- end}}
+          <button type="button" class="btn btn-ghost btn-sm voice-delete-btn" data-voice-open="del-{{.Name}}" aria-expanded="false" aria-controls="del-{{.Name}}">Delete voice…</button>
+          {{- end}}
+        </div>
+
+        {{- if .Builtin}}
+        <form class="voice-drawer" id="dup-{{.Name}}" data-voice-dup="{{.Name}}" hidden novalidate>
+          <label for="dup-input-{{.Name}}">Name for your copy</label>
+          <p class="agent-hint">Lowercase letters, digits and hyphens. Built-in voices stay as they are; you edit the copy.</p>
+          <div class="settings-inline">
+            <input id="dup-input-{{.Name}}" type="text" autocomplete="off" spellcheck="false" placeholder="my-{{.Name}}">
+            <button type="submit" class="btn btn-primary btn-sm">Duplicate</button>
+          </div>
+          <p class="agent-error" role="alert"></p>
+        </form>
+        {{- else}}
+        <div class="voice-drawer" id="edit-{{.Name}}" hidden>
+          <p>Run this in your agent to change the voice with its help. It saves the new version over this file.</p>
+          <div class="agent-fallback-cmd"><code>/lathe-voice {{.Name}}</code><button type="button" class="btn btn-sm" data-copy="/lathe-voice {{.Name}}" aria-label="Copy /lathe-voice {{.Name}}">Copy</button></div>
+          <p class="agent-hint">Or edit the file yourself: <code class="voice-path" title="{{.Path}}">{{.PathShort}}</code></p>
+        </div>
+        <div class="voice-drawer voice-confirm" id="del-{{.Name}}" hidden>
+          <p><strong>Delete {{.Name}}?</strong> {{if .UsedBy}}Tutorials written in it keep its name in their byline; the spec is no longer shown.{{else}}No tutorials use it.{{end}}<span data-voice-default-note{{if not .Default}} hidden{{end}}> New tutorials go back to plainspoken.</span></p>
+          <div class="settings-actions">
+            <button type="button" class="btn btn-primary btn-sm" data-voice-delete="{{.Name}}">Delete voice</button>
+            <button type="button" class="btn btn-ghost btn-sm" data-voice-close="del-{{.Name}}">Cancel</button>
+          </div>
+          <p class="agent-error" role="alert"></p>
+        </div>
+        {{- end}}
+      </article>
+      {{- end}}
+
+      <article class="voice-detail" data-voice="new" aria-labelledby="voice-title-new"{{if ne .VoicePane "new"}} hidden{{end}}>
+        <header class="voice-head"><h3 id="voice-title-new">New voice</h3></header>
+        <p>Your agent drafts a voice with you: it asks how the prose should sound, writes the spec and a sample paragraph, and saves it once you approve.</p>
+        <div class="agent-fallback-cmd"><code>/lathe-voice &lt;name&gt;</code><button type="button" class="btn btn-sm" data-copy="/lathe-voice " aria-label="Copy /lathe-voice">Copy</button></div>
+        <p class="agent-hint">Or start from a built-in: pick one and choose <strong>Duplicate and edit</strong>. Custom voices live in <code>{{.VoicesDir}}</code>.</p>
+      </article>
+
+      <article class="voice-detail voice-compare" data-voice="compare" aria-labelledby="voice-title-compare"{{if ne .VoicePane "compare"}} hidden{{end}}>
+        <header class="voice-head"><h3 id="voice-title-compare">Compare samples</h3></header>
+        <p class="agent-hint">The same paragraph, about a ring buffer, in each voice.</p>
+        <div class="voice-compare-grid">
+          {{- range .AllVoices}}
+          <section class="voice-compare-card" data-voice-card="{{.Name}}" aria-label="{{.Name}}">
+            <h4><a href="?voice={{.Name}}#voices" data-voice-pick="{{.Name}}">{{.Name}}</a> <span class="voices-item-default" data-voice-default-chip{{if not .Default}} hidden{{end}}>Default</span></h4>
+            {{- if .Sample}}
+            <div class="voice-sample">{{range .Sample}}<p>{{.}}</p>{{end}}</div>
+            {{- else}}
+            <p class="voice-sample is-empty">No sample yet.</p>
+            {{- end}}
+          </section>
+          {{- end}}
+        </div>
+      </article>
+    </div>
+  </div>
+  <p class="agent-error" id="voiceError" role="alert"></p>
+  <div class="voice-toast" id="voiceToast" role="status" aria-live="polite" hidden><span id="voiceToastText"></span><button type="button" class="btn btn-sm" id="voiceUndo">Undo</button></div>
+</section>
+
+<section id="library" class="settings-panel" role="tabpanel" aria-labelledby="tab-library">
+  <h2>Library</h2>
+  <div class="settings-group">
+    <h3>Tutorials folder</h3>
+    <div class="settings-inline"><code class="settings-path" title="{{.TutorialsDir}}">{{.TutorialsShort}}</code>
+      {{- if .CanReveal}}<button type="button" id="revealTutorials" class="btn btn-ghost btn-sm">Show in Finder</button>{{else}}<button type="button" class="btn btn-ghost btn-sm" data-copy="{{.TutorialsDir}}" aria-label="Copy the tutorials folder path">Copy path</button>{{end}}</div>
+    <p class="agent-error" id="revealError" role="alert"></p>
+  </div>
+  <div class="settings-group">
+    <h3><label for="codeRootInput">Code folder</label></h3>
+    <p class="agent-hint" id="codeRootHint">Where you type each tutorial's code. A new tutorial suggests <code id="codeRootExample">{{.CodeRootExample}}</code>.</p>
+    <form id="codeRootForm" class="settings-inline" novalidate>
+      <input id="codeRootInput" type="text" autocomplete="off" spellcheck="false" value="{{.Settings.CodeRoot}}" aria-describedby="codeRootHint">
+      <button type="submit" class="btn btn-ghost btn-sm">Save</button>
+    </form>
+    <p class="agent-error" id="codeRootError" role="alert"></p>
+  </div>
+  <fieldset class="settings-group settings-seg-group">
+    <legend>Trash</legend>
+    <p class="agent-hint" id="trashHint">Deleted tutorials wait in the Trash, so you can put them back. Delete them for good after:</p>
+    <div class="settings-seg" aria-describedby="trashHint">
+      {{- $td := .Settings.TrashDays}}
+      {{- range .TrashChoices}}
+      <label><input type="radio" name="trash_days" value="{{.Value}}" data-setting="trash_days" data-setting-int{{if eq (print $td) .Value}} checked{{end}}><span>{{.Label}}</span></label>
+      {{- end}}
+    </div>
+    <p class="settings-inline settings-trash-link"><a class="btn btn-ghost btn-sm" href="/?view=trash">Show Trash{{with .TrashCount}} · {{.}}{{end}}</a></p>
+  </fieldset>
+  <div class="settings-group">
+    <label class="settings-check"><input type="checkbox" data-setting="keep_verified_code"{{if .Settings.KeepVerifiedCode}} checked{{end}}><span><strong>Keep verified code</strong><span class="agent-hint">After a verify run, keep its code with the tutorial, one git tag per part, so you can compare yours against it.</span></span></label>
+  </div>
+  <fieldset class="settings-group settings-checks" id="autoVerifyGroup">
+    <legend>After writing</legend>
+    <label class="settings-check"><input type="checkbox" data-setting="auto_verify"{{if .Settings.AutoVerify}} checked{{end}}><span><strong>Verify after writing a part</strong><span class="agent-hint">Your agent follows the new part in a scratch folder. Off by default.</span></span></label>
+  </fieldset>
+</section>
+
+<section id="reading" class="settings-panel" role="tabpanel" aria-labelledby="tab-reading">
+  <h2>Reading</h2>
+  <fieldset class="settings-group settings-seg-group">
+    <legend>Appearance</legend>
+    <div class="settings-seg">
+      {{- $ap := .Settings.Appearance}}
+      {{- range .Appearances}}
+      <label><input type="radio" name="appearance" value="{{.Value}}" data-setting="appearance"{{if eq $ap .Value}} checked{{end}}><span>{{.Label}}</span></label>
+      {{- end}}
+    </div>
+    {{- if not $ap}}<p class="agent-hint">Not chosen yet: each browser uses its own dark-mode toggle.</p>{{end}}
+  </fieldset>
+  <fieldset class="settings-group settings-seg-group">
+    <legend>Text size</legend>
+    <div class="settings-seg">
+      {{- $ts := .Settings.TextSize}}
+      {{- range .TextSizes}}
+      <label><input type="radio" name="text_size" value="{{.Value}}" data-setting="text_size"{{if eq $ts .Value}} checked{{end}}><span>{{.Label}}</span></label>
+      {{- end}}
+    </div>
+    {{- if .Native}}<p class="agent-hint">Or press <kbd>⌘</kbd><kbd>+</kbd> and <kbd>⌘</kbd><kbd>−</kbd> while reading.</p>{{end}}
+  </fieldset>
+  <fieldset class="settings-group settings-seg-group">
+    <legend>Line width</legend>
+    <div class="settings-seg">
+      {{- $lw := .Settings.LineWidth}}
+      {{- range .LineWidths}}
+      <label><input type="radio" name="line_width" value="{{.Value}}" data-setting="line_width"{{if eq $lw .Value}} checked{{end}}><span>{{.Label}}</span></label>
+      {{- end}}
+    </div>
+  </fieldset>
+  <div class="settings-group settings-checks">
+    <label class="settings-check"><input type="checkbox" data-setting="remember_place"{{if .Settings.RememberPlace}} checked{{end}}><span><strong>Remember my place</strong><span class="agent-hint">Reopen a tutorial at the part you saved.</span></span></label>
+    <label class="settings-check"><input type="checkbox" data-setting="panel_suggestions"{{if .Settings.PanelSuggestions}} checked{{end}}><span><strong>Suggestions in the agent panel</strong><span class="agent-hint">Offer questions to ask about the part you're reading.</span></span></label>
+    <label class="settings-check"><input type="checkbox" data-setting="panel_window"{{if .Settings.PanelWindow}} checked{{end}}><span><strong>Agent panel in its own window</strong><span class="agent-hint">Open the panel in a separate window instead of beside the article.</span></span></label>
+  </div>
+  <fieldset class="settings-group settings-checks">
+    <legend>Notify me when</legend>
+    <label class="settings-check"><input type="checkbox" data-setting="notify_verify"{{if .Settings.NotifyVerify}} checked{{end}}><span><strong>A verify run finishes</strong></span></label>
+    <label class="settings-check"><input type="checkbox" data-setting="notify_extend"{{if .Settings.NotifyExtend}} checked{{end}}><span><strong>A new part is written</strong></span></label>
+    <label class="settings-check"><input type="checkbox" data-setting="notify_check"{{if .Settings.NotifyCheck}} checked{{end}}><span><strong>Check my work has feedback</strong></span></label>
+    {{- if not .Native}}<p class="agent-hint">Notifications appear in the desktop app.</p>{{end}}
+  </fieldset>
+</section>
+
+<section id="shortcuts" class="settings-panel" role="tabpanel" aria-labelledby="tab-shortcuts">
+  <h2>Shortcuts</h2>
+  {{- range .Shortcuts}}
+  <h3>{{.Name}}</h3>
+  <dl class="settings-shortcuts">
+    {{- range .Items}}
+    <div data-mac-label="{{.MacLabel}}" data-mac-combo="{{.MacCombo}}" data-other-label="{{.OtherLabel}}" data-other-combo="{{.OtherCombo}}"{{if not .Combo}} hidden{{end}}><dt>{{.Label}}</dt><dd><kbd>{{.Combo}}</kbd></dd></div>
+    {{- end}}
+  </dl>
+  {{- end}}
+  <p class="agent-hint">The menu bar shows the same keys. Items that aren't built yet (Go to anything, New tutorial) appear once they are.</p>
+</section>
+
+</main>
+<script>
+(function(){
+  var root = document.documentElement;
+  var saved = document.getElementById('settingsSaved');
+  var savedTimer;
+  function flash(text){
+    clearTimeout(savedTimer);
+    saved.textContent = text;
+    savedTimer = setTimeout(function(){ saved.textContent = ''; }, 2500);
+  }
+  function postJSON(url, body){
+    return fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json', 'Accept': 'application/json'}, body: JSON.stringify(body)})
+      .then(function(r){
+        if (!r.ok) return r.text().then(function(t){ throw new Error((t || ('HTTP ' + r.status)).trim()); });
+        return r.status === 204 ? null : r.json();
+      });
+  }
+  function save(patch){
+    return window.lathePrefs.save(patch).then(function(st){ flash('Saved'); return st; })
+      .catch(function(err){ flash('Not saved: ' + err.message); throw err; });
+  }
+
+  // ---- Tabs ---------------------------------------------------------------
+  var tabs = Array.prototype.slice.call(document.querySelectorAll('[role="tab"]'));
+  var panels = tabs.map(function(t){ return document.getElementById(t.getAttribute('aria-controls')); });
+  root.classList.add('settings-js');
+  function show(id, focus){
+    var found = false;
+    tabs.forEach(function(t, i){
+      var on = t.getAttribute('data-tab') === id;
+      found = found || on;
+      t.setAttribute('aria-selected', on ? 'true' : 'false');
+      t.tabIndex = on ? 0 : -1;
+      panels[i].hidden = !on;
+      if (on && focus) t.focus();
+    });
+    if (!found) show(tabs[0].getAttribute('data-tab'), focus);
+  }
+  tabs.forEach(function(t, i){
+    t.addEventListener('click', function(ev){
+      ev.preventDefault();
+      var id = t.getAttribute('data-tab');
+      show(id);
+      if (location.hash !== '#' + id) history.replaceState(null, '', '#' + id);
+    });
+    t.addEventListener('keydown', function(ev){
+      var n = null;
+      if (ev.key === 'ArrowRight') n = (i + 1) % tabs.length;
+      else if (ev.key === 'ArrowLeft') n = (i - 1 + tabs.length) % tabs.length;
+      else if (ev.key === 'Home') n = 0;
+      else if (ev.key === 'End') n = tabs.length - 1;
+      if (n === null) return;
+      ev.preventDefault();
+      tabs[n].click();
+      tabs[n].focus();
+    });
+  });
+  // A tab is a page of its own: start it at the top, not scrolled so its
+  // heading sits under the sticky tab bar.
+  function fromHash(){ show((location.hash || '#agent').slice(1)); window.scrollTo(0, 0); }
+  window.addEventListener('hashchange', fromHash);
+  fromHash();
+
+  // ---- Copy buttons -----------------------------------------------------
+  document.addEventListener('click', function(ev){
+    var b = ev.target.closest && ev.target.closest('[data-copy]');
+    if (!b) return;
+    var text = b.getAttribute('data-copy');
+    var done = function(){ var l = b.textContent; b.textContent = 'Copied'; setTimeout(function(){ b.textContent = l; }, 1500); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, function(){});
+  });
+
+  // ---- Simple settings: checkboxes and radio groups save on change ------
+  document.querySelectorAll('[data-setting]').forEach(function(input){
+    input.addEventListener('change', function(){
+      var key = input.getAttribute('data-setting');
+      var patch = {};
+      patch[key] = input.type === 'checkbox' ? input.checked : (input.hasAttribute('data-setting-int') ? parseInt(input.value, 10) : input.value);
+      input.disabled = true;
+      save(patch).catch(function(){ if (input.type === 'checkbox') input.checked = !input.checked; })
+        .then(function(){ input.disabled = false; });
+    });
+  });
+  // Another window (or ⌘+ / the masthead toggle) changed a reading setting:
+  // keep the radios in step.
+  function syncRadios(p){
+    ['appearance', 'text_size', 'line_width'].forEach(function(k){
+      if (!p[k]) return;
+      var r = document.querySelector('input[name="' + k + '"][value="' + p[k] + '"]');
+      if (r) r.checked = true;
+    });
+  }
+  try { new BroadcastChannel('lathe-settings').onmessage = function(ev){ if (ev.data) syncRadios(ev.data); }; } catch (e) {}
+  var baseSave = window.lathePrefs.save;
+  window.lathePrefs.save = function(p){ return baseSave(p).then(function(st){ syncRadios(st); return st; }); };
+
+  // ---- Library: code folder and Show in Finder --------------------------
+  var crForm = document.getElementById('codeRootForm');
+  var crInput = document.getElementById('codeRootInput');
+  var crError = document.getElementById('codeRootError');
+  crForm.addEventListener('submit', function(ev){
+    ev.preventDefault();
+    crError.textContent = '';
+    save({code_root: crInput.value.trim()}).then(function(st){
+      crInput.value = st.code_root;
+      document.getElementById('codeRootExample').textContent = st.code_root.replace(/\/+$/, '') + '/digital-synth-zig';
+    }).catch(function(err){ crError.textContent = err.message; });
+  });
+  var reveal = document.getElementById('revealTutorials');
+  if (reveal) reveal.addEventListener('click', function(){
+    document.getElementById('revealError').textContent = '';
+    postJSON('/-/native/reveal', {what: 'tutorials'}).catch(function(err){ document.getElementById('revealError').textContent = err.message; });
+  });
+
+  // ---- Agent: pick, restart, live status --------------------------------
+  var form = document.getElementById('agentForm');
+  var useBtn = document.getElementById('agentUse');
+  var restart = document.getElementById('agentRestart');
+  var agentError = document.getElementById('agentError');
+  function picked(){ return form.querySelector('input[name="agent"]:checked'); }
+  function current(){ return form.querySelector('.settings-agent.is-current'); }
+  function syncUse(){
+    var sel = picked();
+    var cur = current();
+    var same = sel && cur && cur.getAttribute('data-agent') === sel.value;
+    useBtn.disabled = !sel || same;
+    useBtn.textContent = sel && !same ? 'Use ' + sel.parentNode.querySelector('strong').textContent : (same ? 'In use' : 'Use this agent');
+  }
+  form.addEventListener('change', syncUse);
+  syncUse();
+  form.addEventListener('submit', function(ev){
+    ev.preventDefault();
+    var sel = picked();
+    if (!sel) return;
+    agentError.textContent = '';
+    useBtn.disabled = true;
+    postJSON('/-/agent', {id: sel.value}).then(function(){ location.reload(); })
+      .catch(function(err){ agentError.textContent = err.message; syncUse(); });
+  });
+  restart.addEventListener('click', function(){
+    agentError.textContent = '';
+    restart.disabled = true;
+    restart.setAttribute('aria-busy', 'true');
+    postJSON('/-/agent/restart', {}).then(function(){ flash('Restarting the agent'); poll(); })
+      .catch(function(err){ agentError.textContent = err.message; })
+      .then(function(){ restart.disabled = false; restart.removeAttribute('aria-busy'); });
+  });
+  var live = document.querySelector('[data-agent-live]');
+  var workerState = document.getElementById('workerState');
+  function describe(a){
+    var parts = [];
+    if (a.state === 'starting') parts.push('Starting…');
+    else if (a.state === 'ready') parts.push(a.working ? 'Running · ' + a.working : 'Running');
+    else parts.push(a.error ? 'Stopped: ' + a.error : 'Stopped');
+    if (a.model) parts.push(a.model);
+    if (a.isolation && a.isolation.state && a.isolation.state !== 'unknown') parts.push(a.isolation.state === 'enforced' ? 'isolation enforced' : 'isolation soft');
+    return parts.join(' · ');
+  }
+  var pollTimer;
+  function poll(){
+    clearTimeout(pollTimer);
+    fetch('/-/worker', {headers: {'Accept': 'application/json'}})
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){
+        if (!d) return;
+        workerState.textContent = d.connected ? 'A /lathe-work session is connected now.' : 'No /lathe-work session is connected.';
+        if (live && d.agent) {
+          live.querySelector('.settings-agent-live').textContent = describe(d.agent);
+          live.setAttribute('data-state', d.agent.state);
+        }
+      })
+      .catch(function(){})
+      .then(function(){ pollTimer = setTimeout(poll, document.hidden ? 15000 : 3000); });
+  }
+  poll();
+
+  // ---- Agent search folders ---------------------------------------------
+  var list = document.getElementById('agentPathList');
+  var empty = document.getElementById('agentPathEmpty');
+  var pathForm = document.getElementById('agentPathForm');
+  var pathInput = document.getElementById('agentPathInput');
+  var pathError = document.getElementById('agentPathError');
+  function renderPaths(dirs){
+    list.textContent = '';
+    dirs.forEach(function(d){
+      var li = document.createElement('li');
+      var code = document.createElement('code');
+      code.textContent = d;
+      var rm = document.createElement('button');
+      rm.type = 'button';
+      rm.className = 'link-btn';
+      rm.textContent = 'Remove';
+      rm.setAttribute('data-remove-path', d);
+      rm.setAttribute('aria-label', 'Remove ' + d);
+      li.appendChild(code);
+      li.appendChild(rm);
+      list.appendChild(li);
+    });
+    empty.hidden = dirs.length > 0;
+  }
+  function changePath(body){
+    pathError.textContent = '';
+    return postJSON('/-/settings/agent-path', body).then(function(res){
+      renderPaths(res.agentPath);
+      flash(body.add ? 'Added. Reopen Settings to look for agents there.' : 'Removed. Takes effect when Lathe restarts.');
+    }).catch(function(err){ pathError.textContent = err.message; throw err; });
+  }
+  pathForm.addEventListener('submit', function(ev){
+    ev.preventDefault();
+    var v = pathInput.value.trim();
+    if (!v) { pathError.textContent = 'Enter a folder path.'; return; }
+    changePath({add: v}).then(function(){ pathInput.value = ''; }, function(){});
+  });
+  list.addEventListener('click', function(ev){
+    var b = ev.target.closest && ev.target.closest('[data-remove-path]');
+    if (b) changePath({remove: b.getAttribute('data-remove-path')}).catch(function(){});
+  });
+  var pick = document.getElementById('agentPathPick');
+  if (pick) pick.addEventListener('click', function(){
+    pick.disabled = true;
+    postJSON('/-/native/pick-folder', {'for': 'agent-path'})
+      .then(function(res){ if (res && res.path) return changePath({add: res.path}); })
+      .catch(function(err){ pathError.textContent = err.message; })
+      .then(function(){ pick.disabled = false; });
+  });
+
+  // ---- Voices: pick, make default, duplicate, delete with Undo ----------
+  var vPane = document.getElementById('voicesPane');
+  var vError = document.getElementById('voiceError');
+  var each = function(sel, fn){ Array.prototype.forEach.call(vPane.querySelectorAll(sel), fn); };
+  function voiceURL(name){ return '?voice=' + encodeURIComponent(name) + '#voices'; }
+  // goVoice reloads the page open on a voice (after a change on disk).
+  function goVoice(name){
+    var u = voiceURL(name);
+    if (location.search === u.split('#')[0]) location.reload();
+    else location.href = u;
+  }
+  function pickVoice(name, focus){
+    var shown = null;
+    each('.voice-detail', function(d){
+      var on = d.getAttribute('data-voice') === name;
+      d.hidden = !on;
+      if (on) shown = d;
+    });
+    if (!shown) return false;
+    each('.voices-list [data-voice-pick]', function(a){
+      if (a.getAttribute('data-voice-pick') === name) a.setAttribute('aria-current', 'true');
+      else a.removeAttribute('aria-current');
+    });
+    vError.textContent = '';
+    history.replaceState(null, '', voiceURL(name));
+    if (focus) {
+      var h = shown.querySelector('h3');
+      h.tabIndex = -1;
+      h.focus({preventScroll: true});
+      // Stacked (narrow) layout: the pane is under the list.
+      if (window.matchMedia('(max-width: 699px)').matches) shown.scrollIntoView({block: 'start', behavior: 'smooth'});
+    }
+    return true;
+  }
+  vPane.addEventListener('click', function(ev){
+    var t = ev.target.closest ? ev.target : null;
+    if (!t) return;
+    var a = t.closest('[data-voice-pick]');
+    if (a && !ev.metaKey && !ev.ctrlKey && !ev.shiftKey) {
+      if (pickVoice(a.getAttribute('data-voice-pick'), true)) ev.preventDefault();
+      return;
+    }
+    var open = t.closest('[data-voice-open]');
+    if (open) {
+      var dr = document.getElementById(open.getAttribute('data-voice-open'));
+      var show = dr.hidden;
+      // One drawer at a time in a pane.
+      Array.prototype.forEach.call(open.closest('.voice-detail').querySelectorAll('.voice-drawer'), function(d){ d.hidden = true; });
+      Array.prototype.forEach.call(open.closest('.voice-detail').querySelectorAll('[data-voice-open]'), function(b){ b.setAttribute('aria-expanded', 'false'); });
+      dr.hidden = !show;
+      open.setAttribute('aria-expanded', show ? 'true' : 'false');
+      if (show) { var f = dr.querySelector('input, button'); if (f) f.focus(); }
+      return;
+    }
+    var close = t.closest('[data-voice-close]');
+    if (close) {
+      document.getElementById(close.getAttribute('data-voice-close')).hidden = true;
+      var opener = vPane.querySelector('[aria-controls="' + close.getAttribute('data-voice-close') + '"]');
+      if (opener) { opener.setAttribute('aria-expanded', 'false'); opener.focus(); }
+      return;
+    }
+    var mk = t.closest('[data-voice-make-default]');
+    if (mk) { makeDefault(mk); return; }
+    var del = t.closest('[data-voice-delete]');
+    if (del) { deleteVoice(del); return; }
+    if (t.closest('[data-voice-reveal]')) {
+      vError.textContent = '';
+      postJSON('/-/native/reveal', {what: 'voices'}).catch(function(err){ vError.textContent = err.message; });
+    }
+  });
+
+  // markDefault moves every "Default" marker to name.
+  function markDefault(name){
+    each('.voice-detail[data-voice]', function(d){
+      var on = d.getAttribute('data-voice') === name;
+      var badge = d.querySelector('[data-voice-is-default]');
+      var btn = d.querySelector('[data-voice-make-default]');
+      if (badge) badge.hidden = !on;
+      if (btn) btn.hidden = on;
+      var note = d.querySelector('[data-voice-default-note]');
+      if (note) note.hidden = !on;
+    });
+    each('.voices-list [data-voice-pick]', function(a){
+      var chip = a.querySelector('.voices-item-default');
+      if (chip) chip.hidden = a.getAttribute('data-voice-pick') !== name;
+    });
+    each('[data-voice-card]', function(c){
+      c.querySelector('[data-voice-default-chip]').hidden = c.getAttribute('data-voice-card') !== name;
+    });
+    document.querySelector('[data-voice-default-name]').textContent = name;
+  }
+  function makeDefault(btn){
+    var name = btn.getAttribute('data-voice-make-default');
+    btn.disabled = true;
+    vError.textContent = '';
+    postJSON('/-/voices/default', {name: name}).then(function(res){
+      markDefault(res['default']);
+      flash('New tutorials use ' + res['default']);
+      var badge = btn.parentNode.querySelector('[data-voice-is-default]');
+      if (badge) { badge.tabIndex = -1; badge.focus(); }
+    }).catch(function(err){ vError.textContent = err.message; })
+      .then(function(){ btn.disabled = false; });
+  }
+
+  // Duplicate and edit: copy a built-in, then open the copy with its
+  // /lathe-voice command showing.
+  each('[data-voice-dup]', function(form){
+    form.addEventListener('submit', function(ev){
+      ev.preventDefault();
+      var input = form.querySelector('input');
+      var err = form.querySelector('.agent-error');
+      var name = input.value.trim().toLowerCase();
+      err.textContent = '';
+      if (!name) { err.textContent = 'Enter a name for your copy.'; input.focus(); return; }
+      postJSON('/-/voices/duplicate', {from: form.getAttribute('data-voice-dup'), name: name}).then(function(res){
+        try { sessionStorage.setItem('lathe-voice-created', res.name); } catch (e) {}
+        goVoice(res.name);
+      }).catch(function(e){ err.textContent = e.message; input.focus(); });
+    });
+  });
+  var created = null;
+  try { created = sessionStorage.getItem('lathe-voice-created'); sessionStorage.removeItem('lathe-voice-created'); } catch (e) {}
+  if (created) {
+    var drawer = document.getElementById('edit-' + created);
+    if (drawer) {
+      drawer.hidden = false;
+      var ob = vPane.querySelector('[aria-controls="edit-' + created + '"]');
+      if (ob) ob.setAttribute('aria-expanded', 'true');
+      flash('Created ' + created + '. Refine it with your agent.');
+    }
+  }
+
+  // Delete with Undo: the row goes at once and a toast offers Undo; the
+  // server keeps the text for a while and rewrites the file on Undo.
+  var toast = document.getElementById('voiceToast');
+  var toastText = document.getElementById('voiceToastText');
+  var undoBtn = document.getElementById('voiceUndo');
+  var toastTimer, undoName = null;
+  function hideToast(){ clearTimeout(toastTimer); toast.hidden = true; undoName = null; }
+  function deleteVoice(btn){
+    var name = btn.getAttribute('data-voice-delete');
+    var detail = btn.closest('.voice-detail');
+    var err = btn.closest('.voice-drawer').querySelector('.agent-error');
+    btn.disabled = true;
+    err.textContent = '';
+    postJSON('/-/voices/delete', {name: name}).then(function(res){
+      each('[data-voice-row]', function(li){ if (li.getAttribute('data-voice-row') === name) li.hidden = true; });
+      each('[data-voice-card]', function(c){ if (c.getAttribute('data-voice-card') === name) c.hidden = true; });
+      detail.removeAttribute('data-voice');
+      detail.hidden = true;
+      var left = 0;
+      each('[data-voice-row]', function(li){ if (!li.hidden) left++; });
+      document.getElementById('voicesYoursEmpty').hidden = left > 0;
+      if (res.wasDefault) markDefault(res['default']);
+      pickVoice(res['default'], false);
+      toastText.textContent = 'Deleted ' + name + '.' + (res.wasDefault ? ' New tutorials use ' + res['default'] + '.' : '');
+      undoName = name;
+      toast.hidden = false;
+      undoBtn.focus();
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(hideToast, 10000);
+    }).catch(function(e){ err.textContent = e.message; btn.disabled = false; });
+  }
+  undoBtn.addEventListener('click', function(){
+    if (!undoName) return;
+    var name = undoName;
+    undoBtn.disabled = true;
+    postJSON('/-/voices/restore', {name: name}).then(function(){
+      goVoice(name);
+    }).catch(function(e){ hideToast(); vError.textContent = e.message; })
+      .then(function(){ undoBtn.disabled = false; });
+  });
+  toast.addEventListener('keydown', function(ev){ if (ev.key === 'Escape') hideToast(); });
+})();
+</script>
+<script>
+// Shortcuts tab: label keys for the browser's platform (the server's may
+// differ: a Mac browser on lathe serve running on Linux).
+(function(){
+  var mac = /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent || '');
+  var fam = mac ? 'mac' : 'other';
+  document.querySelectorAll('.settings-shortcuts > div[data-' + fam + '-label]').forEach(function(row){
+    var combo = row.getAttribute('data-' + fam + '-combo') || '';
+    row.hidden = !combo;
+    row.querySelector('dt').textContent = row.getAttribute('data-' + fam + '-label');
+    row.querySelector('kbd').textContent = combo;
+  });
+})();
+</script>
+{{template "shortcuts" .}}
+{{- if .Native}}
+{{template "nativeLinks"}}
+{{- end}}
+</body>
+</html>

@@ -239,16 +239,159 @@ func TestPagePanelStates(t *testing.T) {
 		return string(b)
 	}
 	page := get()
-	for _, want := range []string{`id="agentPanel"`, `id="agentToggle"`, `data-last-part="part-02.md"`, `data-agent-name=""`, `Agent<span class="agent-toggle-name"> · <span id="agentToggleName">not started</span>`, "Bring your agent", "/lathe-work"} {
+	for _, want := range []string{
+		`id="agentPanel"`, `id="agentToggle"`, `data-last-part="part-02.md"`, `data-agent-name=""`,
+		`<span class="agent-toggle-label" id="agentToggleName">Agent</span><kbd class="agent-kbd agent-toggle-key" data-kbd aria-hidden="true">⌘J</kbd>`,
+		`<span id="agentChipName">Pick an agent</span>`,
+		`<span class="agent-menu-label" id="agentPickLabel">Pick an agent</span>`,
+		`id="agentRestart" class="agent-menu-item" role="menuitem" tabindex="-1" data-menu="restart" hidden>`,
+		`<div id="agentWorkspace" class="agent-context" hidden>`,
+		"Bring your agent", "/lathe-work",
+	} {
 		if !strings.Contains(page, want) {
 			t.Errorf("first-run page missing %q", want)
 		}
 	}
 	srv.SetAgent("claude-agent-acp")
 	page = get()
-	for _, want := range []string{`data-agent-name="Claude Code"`, `Agent<span class="agent-toggle-name"> · <span id="agentToggleName">Claude Code</span>`} {
+	for _, want := range []string{
+		`data-agent-name="Claude Code"`,
+		`<span class="agent-toggle-label" id="agentToggleName">Claude Code</span>`,
+		`<span id="agentChipName">Claude Code</span>`,
+		`<span class="agent-menu-label" id="agentPickLabel">Switch agent</span>`,
+		`id="agentRestart" class="agent-menu-item" role="menuitem" tabindex="-1" data-menu="restart">Restart agent</button>`,
+		`<div id="agentWorkspace" class="agent-context">`,
+	} {
 		if !strings.Contains(page, want) {
 			t.Errorf("page with an agent missing %q", want)
 		}
+	}
+}
+
+// The panel's structure (#142): one header chip whose menu holds the agent's
+// settings, a context strip, and one composer whose + menu holds the actions.
+func TestPagePanelStructure(t *testing.T) {
+	_, ts, _, _ := panelServer(t, "")
+	resp, err := http.Get(ts.URL + "/series/part-01.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	page := string(b)
+
+	for _, want := range []string{
+		// Header chip and its menu.
+		`id="agentChip" class="agent-chip" aria-haspopup="menu" aria-expanded="false" aria-controls="agentChipMenu"`,
+		`id="agentChipMenu" class="agent-menu agent-chip-menu" role="menu" aria-labelledby="agentChip" hidden`,
+		`id="agentMenuModel"`, `id="agentMenuAccess"`, `aria-describedby="agentIsolationDetail"`,
+		`data-menu="workspace">Workspace…</button>`,
+		`>Open in new window</span><kbd class="agent-kbd agent-menu-key" data-kbd aria-hidden="true">⌥⌘J</kbd>`,
+		`<a href="/-/settings#agent" class="agent-menu-item" role="menuitem"`,
+		`>Agent settings…</span><kbd class="agent-kbd agent-menu-key" data-kbd aria-hidden="true">⌘,</kbd>`,
+		// Context strip.
+		`id="agentPlace" class="agent-place" data-part-label="Part 1"`,
+		`id="workspaceChange" class="agent-ws-btn" aria-controls="workspaceForm" aria-expanded="false"`,
+		`<code id="workspaceShort" data-empty>Set a workspace</code>`,
+		// Composer and its action menu.
+		`id="agentActionsButton" class="agent-plus" aria-haspopup="menu" aria-expanded="false" aria-controls="agentActionMenu"`,
+		`placeholder="Ask about Part 1…"`,
+		`id="agentActionMenu" class="agent-menu agent-action-menu" role="menu" aria-label="Agent actions" hidden`,
+		`data-agent-action="check" aria-labelledby="actCheckLabel" aria-describedby="actCheckDesc"`,
+		`>Check my work</span><kbd class="agent-kbd agent-menu-key" data-kbd aria-hidden="true">⇧⌘K</kbd>`,
+		`>Verify tutorial</span><kbd class="agent-kbd agent-menu-key" data-kbd aria-hidden="true">⇧⌘V</kbd>`,
+		`>Write Part 3</span><kbd class="agent-kbd agent-menu-key" data-kbd aria-hidden="true">⇧⌘N</kbd>`,
+		// The one suggestion (on by default; .PanelSuggestions).
+		`id="agentSuggestion" class="agent-suggestion"`,
+		// Jobs are cards in the log (#143); the About box keeps one line
+		// beside the badge that links to the newest card.
+		`<dd><span id="badgeRegion" aria-live="polite">`,
+		`<button type="button" id="jobLine" class="tb-job" hidden>`,
+		`window.latheAttachJob = function(job, runId, opts)`,
+		`window.lathePermissionCard = permissionCard;`,
+		`'Allow once', '↩'`, `'Allow for this job'`, `'Deny', 'esc'`,
+		`'In the scratch copy, not your folder'`,
+	} {
+		if !strings.Contains(page, want) {
+			t.Errorf("page missing %q", want)
+		}
+	}
+	for _, gone := range []string{
+		`class="agent-actions"`, `data-agent-action="ask"`, `id="agentPickName"`,
+		`id="agentPopout" class="icon-btn"`, `id="saveProgressButton"`, `<footer class="agent-workspace"`,
+		// The article's job slots are gone: progress lives in the panel.
+		`id="verifyLive"`, `id="extendLive"`, `id="checkLive"`, `class="agent-job"`, `class="ask-permission"`,
+	} {
+		if strings.Contains(page, gone) {
+			t.Errorf("page still has %q", gone)
+		}
+	}
+}
+
+// With suggestions turned off the page carries no suggestion slot at all.
+func TestPanelSuggestionsOff(t *testing.T) {
+	srv, ts, _, _ := panelServer(t, "")
+	srv.noPanelSuggestions = true
+	resp, err := http.Get(ts.URL + "/series/part-01.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if strings.Contains(string(b), `id="agentSuggestion"`) {
+		t.Error("suggestions are off but the page has a suggestion slot")
+	}
+}
+
+func TestAgentRestart(t *testing.T) {
+	srv, ts, _, f := panelServer(t, "")
+	if code, _ := postJSONBody(t, ts.URL+"/-/agent/restart", map[string]string{}); code != http.StatusConflict {
+		t.Errorf("restart with no agent = %d, want 409", code)
+	}
+	if code, body := postJSONBody(t, ts.URL+"/-/agent", map[string]string{"id": "claude"}); code != http.StatusOK {
+		t.Fatalf("pick = %d %s", code, body)
+	}
+	old := srv.hostedAgent()
+	code, out := askJSON(t, ts, "why?")
+	if code != http.StatusOK || out["mode"] != "agent" {
+		t.Fatalf("ask = %d %v", code, out)
+	}
+	eventStream(t, ts, out["runId"], nil)
+
+	code, body := postJSONBody(t, ts.URL+"/-/agent/restart", map[string]string{})
+	if code != http.StatusOK {
+		t.Fatalf("restart = %d %s", code, body)
+	}
+	h := srv.hostedAgent()
+	if h == old || h.command != old.command || h.id != "claude" || h.name != "Claude Code" {
+		t.Fatalf("host after restart = %+v (old %+v)", h, old)
+	}
+	if h.lastCounter() < 1 {
+		t.Errorf("restarted host counter = %d, want it to continue", h.lastCounter())
+	}
+	// The fresh host starts its own agent process.
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		f.mu.Lock()
+		starts := f.starts
+		f.mu.Unlock()
+		if starts >= 2 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("agent starts = %d after restart, want 2", starts)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	req, _ := http.NewRequest(http.MethodPost, ts.URL+"/-/agent/restart", strings.NewReader(`{}`))
+	req.Header.Set("Origin", "https://evil.example")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusForbidden {
+		t.Errorf("cross-site restart = %d, want 403", resp.StatusCode)
 	}
 }

@@ -379,7 +379,7 @@ func TestStoreDoesNotSpawnVerifier(t *testing.T) {
 	}
 }
 
-func TestDeleteRemovesTutorial(t *testing.T) {
+func TestDeleteMovesTutorialToTrash(t *testing.T) {
 	src := t.TempDir()
 	if err := os.WriteFile(filepath.Join(src, "index.md"), []byte("# Hello"), 0644); err != nil {
 		t.Fatal(err)
@@ -396,17 +396,24 @@ func TestDeleteRemovesTutorial(t *testing.T) {
 		t.Fatalf("tutorial dir not created: %v", err)
 	}
 
-	if err := store.Delete(tut.Slug); err != nil {
+	entry, err := store.Delete(tut.Slug)
+	if err != nil {
 		t.Fatalf("Delete() error = %v", err)
 	}
 	if _, err := os.Stat(tutDir); !os.IsNotExist(err) {
 		t.Errorf("tutorial dir still exists after Delete: stat err = %v", err)
 	}
+	if want := filepath.Join(homeDir, ".lathe", "trash", entry.ID); entry.Path != want {
+		t.Errorf("trash path = %q, want %q", entry.Path, want)
+	}
+	if _, err := os.Stat(filepath.Join(entry.Path, "index.md")); err != nil {
+		t.Errorf("trashed tutorial lost its files: %v", err)
+	}
 }
 
 func TestDeleteMissingSlug(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
-	if err := store.Delete("does-not-exist"); err == nil {
+	if _, err := store.Delete("does-not-exist"); err == nil {
 		t.Error("Delete() of missing slug should error")
 	}
 }
@@ -421,7 +428,7 @@ func TestDeleteRejectsBadSlugs(t *testing.T) {
 	}
 
 	for _, slug := range []string{"", ".", "..", "../sentinel", "foo/bar", `foo\bar`} {
-		if err := store.Delete(slug); err == nil {
+		if _, err := store.Delete(slug); err == nil {
 			t.Errorf("Delete(%q) should reject as invalid", slug)
 		}
 	}

@@ -71,3 +71,15 @@ the tone those rules are delivered in.
 >
 > ✅ "That completes the oscillator and filter. One note held through the filter
 > still rings forever — which is the problem envelopes solve, next."
+
+## Sample
+
+A ring buffer is a fixed-size array with two indices: one marks where the next
+value is written, the other where the next value is read. Each index moves
+forward one slot per operation and wraps to zero at the end of the array, so
+the same storage is reused instead of grown. When the write index catches up
+with the read index the buffer is full, and there are two choices: overwrite
+the oldest value, or make the writer wait. Audio code usually overwrites — an
+old sample dropped is better than a new one played late. Nothing is allocated
+after setup, which is why this shape appears wherever a producer and a
+consumer run at different speeds.

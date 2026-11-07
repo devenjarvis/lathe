@@ -26,6 +26,10 @@ type StoreOptions struct {
 	Tools   []Tool   // languages/tools + versions (NormalizeTools)
 	Voice   string   // writing voice the tutorial was generated in (NormalizeVoice)
 	Model   string   // LLM that authored the tutorial, a display label (NormalizeModel)
+	// Slug, when set, stores into this slug instead of the one derived from
+	// the source dir's name. The scoped store of a hosted new-tutorial run
+	// (`lathe mcp --slug <slug> --new`) uses it to fill its reservation.
+	Slug string
 }
 
 // Store copies a tutorial directory into ~/.lathe/tutorials/ and writes its
@@ -38,6 +42,12 @@ func Store(srcPath string, opts StoreOptions) (*Tutorial, error) {
 	// namespaces the temp dir). Strip it so the prefix doesn't leak into the
 	// stored slug — and from there into the derived title.
 	slug = strings.TrimPrefix(slug, "lathe-")
+	if opts.Slug != "" {
+		if err := ValidateSlug(opts.Slug); err != nil {
+			return nil, err
+		}
+		slug = opts.Slug
+	}
 
 	tutorialsDir, err := config.TutorialsDir()
 	if err != nil {
@@ -153,31 +163,6 @@ func detectParts(dir string) []string {
 	}
 	sort.Strings(parts)
 	return parts
-}
-
-func Delete(slug string) error {
-	if slug == "" || slug == "." || slug == ".." || strings.ContainsAny(slug, `/\`) {
-		return fmt.Errorf("invalid slug: %q", slug)
-	}
-	tutorialsDir, err := config.TutorialsDir()
-	if err != nil {
-		return err
-	}
-	target := filepath.Join(tutorialsDir, slug)
-	if !strings.HasPrefix(target, tutorialsDir+string(filepath.Separator)) {
-		return fmt.Errorf("invalid slug: %q", slug)
-	}
-	info, err := os.Stat(target)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return fmt.Errorf("tutorial %q not found", slug)
-		}
-		return err
-	}
-	if !info.IsDir() {
-		return fmt.Errorf("not a tutorial directory: %q", slug)
-	}
-	return os.RemoveAll(target)
 }
 
 // NormalizeTags cleans a tag list: trims surrounding whitespace, lowercases,

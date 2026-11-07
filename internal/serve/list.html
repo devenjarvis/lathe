@@ -5,81 +5,119 @@
   <title>Lathe — Tutorials</title>
 </head>
 <body class="list">
-{{if .Tutorials}}<a class="skip-link" href="#searchInput">Skip to search</a>{{end}}
+{{with .Library}}
+<a class="skip-link" href="{{if .Cards}}#searchInput{{else}}#libraryMain{{end}}">{{if .Cards}}Skip to search{{else}}Skip to the library{{end}}</a>
 <div class="header">
   <div>
     <h1>Lathe</h1>
-    <p class="subtitle">{{if .Tutorials}}{{len .Tutorials}} tutorial{{if ne (len .Tutorials) 1}}s{{end}} on your shelf. Want another? Type <code>/lathe</code> and a topic in your agent.{{else}}Hands-on tutorials you build yourself, written by your coding agent.{{end}}</p>
+    <p class="subtitle">{{if .Total}}{{.Total}} tutorial{{if ne .Total 1}}s{{end}}{{if .ShelfCount}} on {{.ShelfCount}} shel{{if ne .ShelfCount 1}}ves{{else}}f{{end}}{{else}} in your library{{end}}.{{else}}Hands-on tutorials you build yourself, written by your coding agent.{{end}}</p>
   </div>
-  {{template "themeToggle" .}}
+  <div class="header-tools">{{template "paletteButton" $}}{{template "settingsLink" ""}}{{template "themeToggle" $}}</div>
 </div>
-{{if .Tutorials}}
-<div class="controls">
-  <div class="toolbar">
-    <input type="search" id="searchInput" class="search-input" placeholder="Search by title, topic, tag, repo, or version…" aria-label="Search tutorials" autocomplete="off">
-    <select id="sortSelect" class="sort-select" aria-label="Sort tutorials">
-      <option value="newest">Newest</option>
-      <option value="oldest">Oldest</option>
-      <option value="title">Title A–Z</option>
-    </select>
-    <button type="button" id="filterToggle" class="filter-toggle" aria-expanded="false" aria-controls="filterPanel">Filters</button>
-  </div>
-  <div class="filter-panel" id="filterPanel">
-    <div class="filter-row" id="statusFilters">
-      <span class="filter-label">Status</span>
-      <button type="button" class="filter-pill" aria-pressed="false" data-status="verified">Verified</button>
-      <button type="button" class="filter-pill" aria-pressed="false" data-status="failed">Failed</button>
-      <button type="button" class="filter-pill" aria-pressed="false" data-status="skipped">Skipped</button>
-      <button type="button" class="filter-pill" aria-pressed="false" data-status="unverified">Unverified</button>
-    </div>
-    <div class="filter-row" id="typeFilters">
-      <span class="filter-label">Type</span>
-      <button type="button" class="filter-pill" aria-pressed="false" data-series="false">Single</button>
-      <button type="button" class="filter-pill" aria-pressed="false" data-series="true">Series</button>
-    </div>
-    <div class="filter-row" id="tagFilters" hidden>
-      <span class="filter-label">Tags</span>
-    </div>
-    <div class="filter-row" id="versionFilters" hidden>
-      <span class="filter-label">Versions</span>
-    </div>
-  </div>
-</div>
-<div class="tutorial-list" id="tutorialList">
-{{range .Tutorials}}
-  <div class="tutorial" data-title="{{.Title}}" data-slug="{{.Slug}}" data-topic="{{.Topic}}" data-tags="{{range .Tags}}{{.}},{{end}}" data-repo="{{.RepoDisplay}}" data-tools="{{range .Tools}}{{.Name}}{{if .Version}} {{.Version}}{{end}},{{end}}" data-status="{{.Status}}" data-created="{{.Created.Format "2006-01-02T15:04:05Z07:00"}}" data-series="{{.IsSeries}}">
-    <div class="tutorial-body">
-      <a class="tutorial-link" href="/{{.Slug}}/">{{.Title}}</a>
-      <div class="meta">{{if .IsSeries}}{{len .Parts}} parts{{else}}single tutorial{{end}} · {{.Created.Format "Jan 2, 2006"}}{{if .Sources}} · {{len .Sources}} source{{if ne (len .Sources) 1}}s{{end}}{{end}}</div>
-      {{with cardProgress .}}
-      {{if .IsSeries}}
-      <div class="tutorial-progress" aria-label="Saved at part {{.PartNumber}} of {{.TotalParts}}">
-        <div class="tutorial-progress-track tutorial-progress-segments">
-          {{range .Segments}}<span class="segment{{if .Current}} current{{end}}" aria-hidden="true"><span class="fill" style="width:{{.Percent}}%"></span></span>{{end}}
-        </div>
-        <span class="tutorial-progress-label">Part {{.PartNumber}} of {{.TotalParts}} ({{.Percent}}%)</span>
+<div class="library">
+  {{template "libraryNav" .}}
+  <div class="library-main" id="libraryMain" role="main" tabindex="-1">
+  {{if eq .View "home"}}
+    {{if .Total}}
+    <form class="home-search" method="GET" action="/" role="search">
+      <input type="hidden" name="view" value="all">
+      <input type="search" name="q" class="search-input" placeholder="Search all tutorials…" aria-label="Search all tutorials" autocomplete="off">
+    </form>
+    {{end}}
+    <section class="shelf" aria-labelledby="pickUpHeading">
+      <div class="shelf-head">
+        <h2 id="pickUpHeading">{{if .Total}}Pick up where you left off{{else}}Start your library{{end}}</h2>
+      </div>
+      <div class="shelf-row" id="pickUpRow"{{if .PickUpFull}} data-full{{end}}>
+        {{template "newCover"}}
+        {{range .PickUp}}{{template "cover" .}}{{end}}
+      </div>
+      {{if not .Total}}<p class="shelf-empty">Nothing here yet. Once your agent stores a tutorial it lands on the Unsorted shelf, and anything you start reading comes back to this row.</p>{{end}}
+    </section>
+    {{range .Rows}}
+    <section class="shelf" aria-labelledby="shelf-{{.Shelf.ID}}">
+      <div class="shelf-head">
+        <h2 id="shelf-{{.Shelf.ID}}">{{.Shelf.Name}} <span class="shelf-count">{{.Count}}</span></h2>
+        {{if .Count}}<a class="see-all" href="/?shelf={{.Shelf.ID}}">See all<span class="visually-hidden"> on {{.Shelf.Name}}</span> ›</a>{{end}}
+      </div>
+      {{if .Covers}}
+      <div class="shelf-row">
+        {{range .Covers}}{{template "cover" .}}{{end}}
+        {{if .More}}<a class="more-tile" href="/?shelf={{.Shelf.ID}}"><span class="more-count">+{{.More}}</span> more<span class="visually-hidden"> on {{.Shelf.Name}}</span></a>{{end}}
       </div>
       {{else}}
-      <div class="tutorial-progress" aria-label="Progress at {{.Percent}}%">
-        <div class="tutorial-progress-track"><span class="fill" style="width:{{.Percent}}%"></span></div>
-        <span class="tutorial-progress-label">Progress {{.Percent}}%</span>
+      <p class="shelf-empty">Nothing on this shelf yet.</p>
+      {{end}}
+    </section>
+    {{end}}
+  {{else if eq .View "trash"}}
+    {{template "trashView" .}}
+  {{else}}
+    <div class="view-head">
+      <div class="view-title">
+        <h2>{{.Heading}} <span class="shelf-count">{{.Count}}</span></h2>
+        {{with .Shelf}}{{if .Description}}<p class="shelf-desc">{{.Description}}</p>{{end}}{{end}}
       </div>
-      {{end}}
-      {{end}}
-      {{if or .Tools .Tags}}<div class="chips">{{if .Tools}}<div class="versions">{{range .Tools}}<span class="version">{{.Name}}{{if .Version}} {{.Version}}{{end}}</span>{{end}}</div>{{end}}{{if .Tags}}<div class="tags">{{range .Tags}}<span class="tag">{{.}}</span>{{end}}</div>{{end}}</div>{{end}}
+      {{if .Editable}}{{template "shelfMenu" .}}{{end}}
     </div>
-    <div class="tutorial-actions">
-      {{template "badge" .Status}}
-      <form method="POST" action="/-/delete/{{.Slug}}" class="delete-form" data-tutorial-title="{{.Title}}">
-        <button type="submit" class="delete-btn" aria-label="Delete {{.Title}}" title="Delete tutorial">×</button>
+    {{if .Cards}}
+    <div class="controls">
+      <form class="toolbar" method="GET" action="/" role="search">
+        {{if .ShelfID}}<input type="hidden" name="shelf" value="{{.ShelfID}}">{{else if .Tool}}<input type="hidden" name="tool" value="{{.Tool}}">{{else}}<input type="hidden" name="view" value="{{.View}}">{{end}}
+        <input type="hidden" name="sort" value="{{.Sort}}"><input type="hidden" name="group" value="{{.Group}}">
+        <input type="search" id="searchInput" class="search-input" placeholder="Search by title, topic, tag, repo, or version…" name="q" aria-label="Search tutorials" autocomplete="off" value="{{.Query}}">
+        <button type="button" id="filterToggle" class="filter-toggle" aria-expanded="false" aria-controls="filterPanel">Filters</button>
       </form>
+      <div class="grid-options">
+        <nav class="seg-links" id="sortSelect" aria-labelledby="sortLabel"><span class="seg-label" id="sortLabel">Sort</span><span class="seg">{{range .Sorts}}<a href="{{.Href}}"{{if .Current}} aria-current="true"{{end}}>{{.Label}}</a>{{end}}</span></nav>
+        <nav class="seg-links" id="groupSelect" aria-labelledby="groupLabel"><span class="seg-label" id="groupLabel">Group by</span><span class="seg">{{range .Groups}}<a href="{{.Href}}"{{if .Current}} aria-current="true"{{end}}>{{.Label}}</a>{{end}}</span></nav>
+      </div>
+      <div class="filter-panel" id="filterPanel">
+        <div class="filter-row" id="statusFilters">
+          <span class="filter-label">Status</span>
+          <button type="button" class="filter-pill" aria-pressed="false" data-status="verified">Verified</button>
+          <button type="button" class="filter-pill" aria-pressed="false" data-status="failed">Failed</button>
+          <button type="button" class="filter-pill" aria-pressed="false" data-status="skipped">Skipped</button>
+          <button type="button" class="filter-pill" aria-pressed="false" data-status="unverified">Unverified</button>
+        </div>
+        <div class="filter-row" id="typeFilters">
+          <span class="filter-label">Type</span>
+          <button type="button" class="filter-pill" aria-pressed="false" data-series="false">Single</button>
+          <button type="button" class="filter-pill" aria-pressed="false" data-series="true">Series</button>
+        </div>
+        <div class="filter-row" id="tagFilters" hidden>
+          <span class="filter-label">Tags</span>
+        </div>
+        <div class="filter-row" id="versionFilters" hidden>
+          <span class="filter-label">Versions</span>
+        </div>
+      </div>
     </div>
+    {{- $grouped := .Grouped}}
+    <div class="tutorial-groups{{if $grouped}} grouped{{end}}" id="tutorialList">
+    {{- range .CardGroups}}
+      {{- if $grouped}}
+      <section class="card-group{{if .Hidden}} hidden{{end}}" aria-labelledby="group-{{.Key}}">
+        <h3 class="card-group-head" id="group-{{.Key}}">{{.Label}} <span class="shelf-count">{{len .Cards}}</span></h3>
+      {{- end}}
+        <div class="tutorial-list">
+        {{range .Cards}}{{template "cover" .}}{{end}}
+        </div>
+      {{- if $grouped}}
+      </section>
+      {{- end}}
+    {{- end}}
+    </div>
+    <div class="no-results" id="noResults" aria-live="polite"{{if not .NoMatches}} hidden{{end}}>No tutorials match your search.</div>
+    {{else if .Total}}
+    <p class="shelf-empty">{{.Empty}}</p>
+    {{else}}
+    <div class="empty"><strong>No tutorials yet</strong>Run <code>/lathe</code> with a topic in your coding agent, for example <code>/lathe build a digital synth in Zig</code>. It appears here when it's stored.</div>
+    {{end}}
+  {{end}}
   </div>
-{{end}}
 </div>
-<div class="no-results" id="noResults" aria-live="polite" hidden>No tutorials match your search.</div>
-{{else}}
-<div class="empty"><strong>No tutorials yet</strong>Run <code>/lathe</code> with a topic in your coding agent, for example <code>/lathe build a digital synth in Zig</code>. It appears here when it's stored.</div>
+{{template "toast" .}}
 {{end}}
 <script>
   // Theme toggle — attaches to every [data-theme-toggle] (the shared partial),
@@ -101,32 +139,24 @@
         var current = document.documentElement.getAttribute('data-theme') || 'light';
         var next = current === 'dark' ? 'light' : 'dark';
         document.documentElement.setAttribute('data-theme', next);
-        try { localStorage.setItem('lathe-theme', next); } catch (e) {}
+        if (window.latheSaveAppearance) window.latheSaveAppearance(next); else try { localStorage.setItem('lathe-theme', next); } catch (e) {}
         refresh();
       });
     });
   })();
+  // Client-side search / filter. Metadata only — matches the data-*
+  // attributes the template renders, so there are no server round-trips.
+  // Sorting and grouping are server-side (?sort=, ?group=), so they work
+  // with scripts off; a group whose covers are all filtered out hides. With
+  // JS off, every card stays visible (.hidden is only ever set here, or by
+  // the server for a ?q= search).
   (function(){
-    document.querySelectorAll('.delete-form').forEach(function(form){
-      form.addEventListener('submit', function(e){
-        var title = form.dataset.tutorialTitle || 'this tutorial';
-        if (!confirm('Delete "' + title + '"? This cannot be undone.')) {
-          e.preventDefault();
-        }
-      });
-    });
-  })();
-  // Client-side search / filter / sort. Metadata only — matches the data-*
-  // attributes the template renders, so there are no server round-trips. Cards
-  // live in a single flat #tutorialList container; sorting reorders that
-  // container in place. With JS off, every card stays visible (.hidden is only
-  // ever set here).
-  (function(){
-    var cards = Array.prototype.slice.call(document.querySelectorAll('.tutorial'));
-    if (!cards.length) return;
     var list = document.getElementById('tutorialList');
+    if (!list) return; // Home has no grid; its search box submits to All tutorials.
+    var cards = Array.prototype.slice.call(list.querySelectorAll('.tutorial'));
+    if (!cards.length) return;
+    var groups = Array.prototype.slice.call(list.querySelectorAll('.card-group'));
     var search = document.getElementById('searchInput');
-    var sortSel = document.getElementById('sortSelect');
     var filterToggle = document.getElementById('filterToggle');
     var filterPanel = document.getElementById('filterPanel');
     var statusRow = document.getElementById('statusFilters');
@@ -184,9 +214,11 @@
       var versions = activeValues(versionRow, 'version');
       var visible = 0;
       cards.forEach(function(card){
+        if (card.hasAttribute('data-trashed')) return;
         var hay = (card.dataset.title + ' ' + card.dataset.slug + ' ' +
                    card.dataset.topic + ' ' + card.dataset.tags + ' ' +
-                   card.dataset.repo + ' ' + card.dataset.tools).toLowerCase();
+                   card.dataset.repo + ' ' + card.dataset.tools + ' ' +
+                   card.dataset.shelfName).toLowerCase();
         var ct = cardTags(card), cv = cardTools(card);
         var show = (!q || hay.indexOf(q) !== -1)
           && (!statuses.length || statuses.indexOf(card.dataset.status) !== -1)
@@ -196,6 +228,9 @@
         card.classList.toggle('hidden', !show);
         if (show) visible++;
       });
+      groups.forEach(function(g){
+        g.classList.toggle('hidden', !g.querySelector('.tutorial:not(.hidden)'));
+      });
       noResults.hidden = visible !== 0;
       // Surface how many pill filters are active so collapsing the panel never
       // hides that filtering is on.
@@ -204,24 +239,10 @@
       filterToggle.classList.toggle('has-active', active > 0);
     }
 
-    function sortCards(list){
-      var mode = sortSel.value;
-      return list.slice().sort(function(a, b){
-        if (mode === 'title'){
-          return a.dataset.title.toLowerCase().localeCompare(b.dataset.title.toLowerCase());
-        }
-        var da = a.dataset.created, db = b.dataset.created;
-        if (mode === 'oldest') return da < db ? -1 : da > db ? 1 : 0;
-        return da > db ? -1 : da < db ? 1 : 0; // newest first
-      });
-    }
-    function sort(){
-      // Reorder cards within the single flat container.
-      sortCards(cards).forEach(function(c){ list.appendChild(c); });
-    }
-
     search.addEventListener('input', apply);
-    sortSel.addEventListener('change', sort);
+    // The search box is a GET form so it works with scripts off; here it
+    // filters live instead.
+    if (search.form) search.form.addEventListener('submit', function(e){ e.preventDefault(); });
     [statusRow, typeRow, tagRow, versionRow].forEach(function(row){
       if (!row) return;
       row.addEventListener('click', function(e){
@@ -231,12 +252,554 @@
         apply();
       });
     });
-
-    sort();   // default ordering (newest) for the flat list
+    window.latheLibraryFilter = apply;
     apply();
   })();
-  
-  // Refresh progress cards in place if navigating back via browser back button (bfcache).
+
+  // Library sidebar: collapsed to its summary line on narrow screens (set
+  // before paint by the inline script in the partial), always open on wide
+  // ones, following the viewport as it resizes.
+  (function(){
+    var nav = document.getElementById('libraryNav');
+    if (!nav || !window.matchMedia) return;
+    var narrow = window.matchMedia('(max-width: 899px)');
+    var sync = function(){ nav.open = !narrow.matches; };
+    if (narrow.addEventListener) narrow.addEventListener('change', sync);
+    // Wide: the summary is hidden, but keep a stray toggle from closing it.
+    nav.addEventListener('toggle', function(){ if (!narrow.matches && !nav.open) nav.open = true; });
+  })();
+  // "+ New shelf": with scripts on, create the shelf in place and report a bad
+  // name inline; with scripts off the form posts and the server redirects.
+  (function(){
+    var form = document.querySelector('.new-shelf-form');
+    if (!form || !window.fetch) return;
+    var input = form.querySelector('input[name="name"]');
+    var error = form.querySelector('.new-shelf-error');
+    form.addEventListener('submit', function(e){
+      e.preventDefault();
+      error.hidden = true;
+      fetch(form.action, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({ name: input.value })
+      }).then(function(res){
+        if (res.ok) return res.json().then(function(shelf){ location.href = shelf.url; });
+        return res.text().then(function(msg){
+          msg = (msg || 'could not create the shelf.').trim();
+          error.textContent = msg.charAt(0).toUpperCase() + msg.slice(1);
+          error.hidden = false;
+          input.focus();
+        });
+      }).catch(function(){
+        error.textContent = 'Could not reach Lathe to create the shelf.';
+        error.hidden = false;
+      });
+    });
+  })();
+  // The New tutorial cover's Copy button (hidden until this runs).
+  (function(){
+    document.querySelectorAll('.new-cover-copy').forEach(function(btn){
+      if (!navigator.clipboard || !navigator.clipboard.writeText) return;
+      btn.hidden = false;
+      btn.addEventListener('click', function(){
+        navigator.clipboard.writeText(btn.getAttribute('data-copy')).then(function(){
+          btn.textContent = 'Copied';
+          setTimeout(function(){ btn.textContent = 'Copy'; }, 1600);
+        });
+      });
+    });
+  })();
+
+  // ---- The library's actions: the toast, the cover ⋯ menu, Move to Trash
+  // and Undo, drag a cover onto a shelf, the shelf ⋯ menu. Every one of them
+  // also works with scripts off (plain forms and links answered with a
+  // redirect and a server-rendered toast); this takes them over.
+  (function(){
+    if (!window.fetch) return;
+    var toastEl = document.getElementById('libraryToast');
+    if (!toastEl) return;
+    var root = document.documentElement;
+    root.classList.add('js-toast');
+    var mac = toastEl.hasAttribute('data-mac');
+    var toastMsg = toastEl.querySelector('.toast-msg');
+    var undoForm = toastEl.querySelector('.toast-undo-form');
+    var closeLink = toastEl.querySelector('.toast-close');
+    var toastTimer = null, undoFn = null;
+
+    function post(url, body){
+      var opts = {method: 'POST', headers: {'Accept': 'application/json'}};
+      if (body) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
+      return fetch(url, opts).then(function(r){
+        if (!r.ok) return r.text().then(function(t){ throw new Error((t || ('HTTP ' + r.status)).trim()); });
+        return r.status === 204 ? null : r.json();
+      });
+    }
+    // The page's URL without the toast parameters a redirect left, plus
+    // extra ones.
+    function pageURL(extra){
+      var u = new URL(location.href);
+      ['trashed', 'restored', 'moved', 'to', 'shelfdeleted'].forEach(function(k){ u.searchParams.delete(k); });
+      if (extra) Object.keys(extra).forEach(function(k){ u.searchParams.set(k, extra[k]); });
+      return u.pathname + (u.search || '');
+    }
+    function editable(el){
+      return !!el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName));
+    }
+
+    // ---- Toast --------------------------------------------------------
+    function hideToast(){
+      clearTimeout(toastTimer);
+      toastEl.classList.remove('show');
+      toastEl.hidden = true;
+      undoFn = null;
+    }
+    function armTimer(){
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(function(){
+        // Never pull it away from under the pointer or the keyboard.
+        if (toastEl.matches(':hover') || toastEl.contains(document.activeElement)) { armTimer(); return; }
+        hideToast();
+      }, 8000);
+    }
+    function showToast(message, undo){
+      toastMsg.textContent = message;
+      undoFn = undo || null;
+      undoForm.hidden = !undoFn;
+      toastEl.hidden = false;
+      requestAnimationFrame(function(){ toastEl.classList.add('show'); });
+      armTimer();
+    }
+    function runUndo(){
+      if (!undoFn) return;
+      var fn = undoFn;
+      undoFn = null;
+      fn();
+    }
+    // A toast the server rendered (after a form post, or a reload a script
+    // asked for): its Undo is the form's action.
+    if (!toastEl.hidden) {
+      var action = undoForm.getAttribute('action');
+      undoFn = action && !undoForm.hidden ? function(){ restoreVia(action); } : null;
+      toastEl.classList.add('show');
+      armTimer();
+      // Leave the page's URL as it was, so a reload doesn't re-toast.
+      try { history.replaceState(history.state, '', pageURL()); } catch (e) {}
+    }
+    undoForm.addEventListener('submit', function(ev){ ev.preventDefault(); runUndo(); });
+    closeLink.addEventListener('click', function(ev){ ev.preventDefault(); hideToast(); });
+    toastEl.addEventListener('keydown', function(ev){ if (ev.key === 'Escape') hideToast(); });
+    // ⌘Z / Ctrl+Z undoes while the toast offers Undo. It is not a registry
+    // command: ⌘Z is the toolkit's Edit › Undo (shortcuts.Reserved), so the
+    // page only takes the key while there is something of ours to undo and
+    // focus is not in a text field, where it must stay the field's undo.
+    document.addEventListener('keydown', function(ev){
+      if (!undoFn || toastEl.hidden || ev.defaultPrevented || ev.altKey || ev.shiftKey) return;
+      if (!(mac ? ev.metaKey && !ev.ctrlKey : ev.ctrlKey && !ev.metaKey)) return;
+      if ((ev.key || '').toLowerCase() !== 'z' || editable(document.activeElement)) return;
+      ev.preventDefault();
+      runUndo();
+    });
+
+    function restoreVia(action){
+      post(action).then(function(res){
+        location.href = pageURL({restored: res.slug});
+      }).catch(function(err){ showToast(err.message); });
+    }
+
+    // ---- Move to Trash ---------------------------------------------
+    function coversOf(slug){
+      return Array.prototype.slice.call(document.querySelectorAll('.tutorial[data-slug="' + CSS.escape(slug) + '"]'));
+    }
+    function trash(slug){
+      var covers = coversOf(slug);
+      var title = covers.length ? covers[0].getAttribute('data-title') : slug;
+      // Where focus goes once the cover is gone: the next cover's link.
+      var next = null;
+      if (covers.length) {
+        var all = Array.prototype.slice.call(document.querySelectorAll('.tutorial:not(.hidden):not([data-trashed]) .tutorial-link'));
+        var i = all.indexOf(covers[0].querySelector('.tutorial-link'));
+        next = all[i + 1] || all[i - 1] || null;
+      }
+      closeMenu(false);
+      return post('/-/delete/' + encodeURIComponent(slug)).then(function(res){
+        covers.forEach(function(c){
+          var g = c.closest('.card-group');
+          var gc = g && g.querySelector('.card-group-head .shelf-count');
+          if (gc && /^\d+$/.test(gc.textContent)) gc.textContent = Math.max(0, parseInt(gc.textContent, 10) - 1);
+          c.setAttribute('data-trashed', '');
+          c.classList.add('hidden');
+          c.hidden = true;
+        });
+        // Keep the counts honest without a reload: the view's, the
+        // sidebar's (All tutorials and the tutorial's shelf).
+        var shelf = covers.length ? covers[0].getAttribute('data-shelf') : '';
+        ['.view-head h2 .shelf-count', '.nav-link[href="/?view=all"] .nav-count',
+         '.nav-link[data-shelf-id="' + CSS.escape(shelf) + '"] .nav-count'].forEach(function(sel){
+          var n = document.querySelector(sel);
+          if (n && /^\d+$/.test(n.textContent)) n.textContent = Math.max(0, parseInt(n.textContent, 10) - 1);
+        });
+        if (next) { try { next.focus({preventScroll: false}); } catch (e) {} }
+        if (window.latheLibraryFilter) window.latheLibraryFilter();
+        showToast('Moved “' + (res.title || title) + '” to Trash', function(){ restoreVia(res.restore); });
+      }).catch(function(err){ showToast('Could not move “' + title + '” to Trash: ' + err.message); });
+    }
+
+    // ---- The cover ⋯ menu ------------------------------------------
+    // The server renders each cover's menu as a <details>. Here ⋯ (and a
+    // right-click on the cover) opens a copy of its items in one floating
+    // menu on <body>, outside the cover's overflow clip: role="menu",
+    // ArrowUp/Down/Home/End move, ArrowRight/Left open and close Move to
+    // shelf, Escape closes and gives focus back.
+    var pop = document.createElement('div');
+    pop.className = 'menu cover-popup';
+    pop.setAttribute('role', 'menu');
+    pop.hidden = true;
+    document.body.appendChild(pop);
+    var popCard = null, popReturn = null, popAt = null;
+
+    function items(){
+      return Array.prototype.slice.call(pop.querySelectorAll('[role^="menuitem"]')).filter(function(it){
+        return it.offsetParent !== null;
+      });
+    }
+    function focusItem(it){ if (it) { try { it.focus(); } catch (e) {} } }
+    function closeMenu(restoreFocus){
+      if (pop.hidden) return;
+      pop.hidden = true;
+      pop.innerHTML = '';
+      if (popReturn) {
+        popReturn.setAttribute('aria-expanded', 'false');
+        if (restoreFocus) { try { popReturn.focus(); } catch (e) {} }
+      }
+      popCard = null;
+      popReturn = null;
+      popAt = null;
+      if (window.latheShortcuts && window.latheShortcuts.refresh) window.latheShortcuts.refresh();
+    }
+    function openMenu(card, at, btn, focusFirst){
+      closeMenu(false);
+      var panel = card.querySelector('.cover-menu-panel');
+      if (!panel) return;
+      pop.innerHTML = panel.innerHTML;
+      pop.setAttribute('aria-label', 'Actions for ' + card.getAttribute('data-title'));
+      pop.querySelectorAll('a.menu-item, button.menu-item').forEach(function(it){
+        it.setAttribute('role', it.hasAttribute('aria-checked') ? 'menuitemradio' : 'menuitem');
+        it.tabIndex = -1;
+      });
+      var sub = pop.querySelector('.menu-sub');
+      if (sub) {
+        var toggle = sub.querySelector('summary');
+        toggle.setAttribute('role', 'menuitem');
+        toggle.setAttribute('aria-haspopup', 'menu');
+        toggle.setAttribute('aria-expanded', 'false');
+        toggle.tabIndex = -1;
+        var subPanel = sub.querySelector('.menu-sub-panel');
+        subPanel.setAttribute('role', 'menu');
+        sub.addEventListener('toggle', function(){
+          toggle.setAttribute('aria-expanded', sub.open ? 'true' : 'false');
+          place();
+        });
+      }
+      popCard = card;
+      popReturn = btn || card.querySelector('.cover-menu-btn');
+      if (popReturn) popReturn.setAttribute('aria-expanded', 'true');
+      pop.hidden = false;
+      popAt = at;
+      place();
+      if (focusFirst !== false) focusItem(items()[0]);
+      else { try { pop.focus(); } catch (e) {} }
+      if (window.latheShortcuts && window.latheShortcuts.refresh) window.latheShortcuts.refresh();
+    }
+    pop.tabIndex = -1;
+    // place puts the menu below the ⋯ button, right-aligned to it (or at
+    // the pointer for a right-click), flipped above when there is no room,
+    // and always on screen. It runs again when Move to shelf opens and as
+    // the page scrolls, so the menu stays with its button.
+    function place(){
+      if (pop.hidden || !popAt) return;
+      var at = popAt;
+      if (at.btn) {
+        var r = at.btn.getBoundingClientRect();
+        at = {x: r.right - pop.offsetWidth, y: r.bottom + 6, top: r.top};
+      }
+      var w = pop.offsetWidth, h = pop.offsetHeight;
+      var x = at.x, y = at.y;
+      if (x + w > window.innerWidth - 8) x = window.innerWidth - w - 8;
+      if (y + h > window.innerHeight - 8 && at.top - h - 6 >= 8) y = at.top - h - 6;
+      else if (y + h > window.innerHeight - 8) y = window.innerHeight - h - 8;
+      pop.style.left = Math.max(8, x) + 'px';
+      pop.style.top = Math.max(8, y) + 'px';
+    }
+    function openFromButton(btn, focusFirst){
+      openMenu(btn.closest('.tutorial'), {btn: btn}, btn, focusFirst);
+    }
+
+    document.querySelectorAll('.cover-menu').forEach(function(d){
+      var btn = d.querySelector('.cover-menu-btn');
+      btn.setAttribute('aria-haspopup', 'menu');
+      btn.setAttribute('aria-expanded', 'false');
+      btn.addEventListener('click', function(ev){
+        ev.preventDefault(); // the floating menu, not the in-cover <details>
+        if (!pop.hidden && popReturn === btn) { closeMenu(true); return; }
+        // A pointer click opens it without moving focus into it.
+        openFromButton(btn, ev.detail === 0);
+      });
+      btn.addEventListener('keydown', function(ev){
+        if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
+          ev.preventDefault();
+          openFromButton(btn, true);
+          if (ev.key === 'ArrowUp') { var its = items(); focusItem(its[its.length - 1]); }
+        }
+      });
+    });
+    // The same menu on right-click (and the context-menu key).
+    document.addEventListener('contextmenu', function(ev){
+      var card = ev.target.closest && ev.target.closest('.tutorial');
+      if (!card || !card.querySelector('.cover-menu-panel')) return;
+      ev.preventDefault();
+      if (ev.clientX === 0 && ev.clientY === 0) {
+        openFromButton(card.querySelector('.cover-menu-btn'), true);
+        return;
+      }
+      openMenu(card, {x: ev.clientX, y: ev.clientY, top: ev.clientY}, null, true);
+    });
+    pop.addEventListener('keydown', function(ev){
+      var its = items();
+      var i = its.indexOf(document.activeElement);
+      var sub = pop.querySelector('.menu-sub');
+      var inSub = sub && sub.querySelector('.menu-sub-panel').contains(document.activeElement);
+      switch (ev.key) {
+        case 'ArrowDown': ev.preventDefault(); focusItem(its[(i + 1) % its.length]); break;
+        case 'ArrowUp': ev.preventDefault(); focusItem(its[(i - 1 + its.length) % its.length]); break;
+        case 'Home': ev.preventDefault(); focusItem(its[0]); break;
+        case 'End': ev.preventDefault(); focusItem(its[its.length - 1]); break;
+        case 'ArrowRight':
+          if (sub && document.activeElement === sub.querySelector('summary')) {
+            ev.preventDefault();
+            sub.open = true;
+            focusItem(sub.querySelector('.menu-sub-panel [role^="menuitem"]:not([disabled])') || sub.querySelector('.menu-sub-panel [role^="menuitem"]'));
+          }
+          break;
+        case 'ArrowLeft':
+          if (inSub) { ev.preventDefault(); sub.open = false; focusItem(sub.querySelector('summary')); }
+          break;
+        case 'Escape':
+          ev.preventDefault();
+          if (inSub) { sub.open = false; focusItem(sub.querySelector('summary')); }
+          else closeMenu(true);
+          break;
+        case 'Tab': closeMenu(false); break;
+        case 'Enter': case ' ':
+          // Space on a link/summary acts like a click, as in a native menu.
+          if (ev.key === ' ' && document.activeElement && document.activeElement.tagName !== 'BUTTON') {
+            ev.preventDefault();
+            document.activeElement.click();
+          }
+          break;
+      }
+    });
+    pop.addEventListener('click', function(ev){
+      var it = ev.target.closest('[data-action], .menu-sub-panel button');
+      if (!it || !popCard) return;
+      var slug = popCard.getAttribute('data-slug');
+      if (it.getAttribute('data-action') === 'trash') { ev.preventDefault(); trash(slug); return; }
+      if (it.getAttribute('data-action') === 'reveal') {
+        ev.preventDefault();
+        closeMenu(true);
+        post('/-/native/reveal', {what: 'workspace', slug: slug}).catch(function(err){ showToast(err.message); });
+        return;
+      }
+      if (it.name === 'shelf') { ev.preventDefault(); moveTo(slug, it.value); }
+    });
+    document.addEventListener('pointerdown', function(ev){
+      if (!pop.hidden && !pop.contains(ev.target) && !(popReturn && popReturn.contains(ev.target))) closeMenu(false);
+    });
+    window.addEventListener('resize', place);
+    document.addEventListener('scroll', function(ev){
+      if (pop.hidden || pop.contains(ev.target)) return;
+      // A right-click menu has nothing to follow: close it.
+      if (popAt && popAt.btn) place(); else closeMenu(false);
+    }, true);
+
+    // ---- Move to a shelf (menu and drag) ---------------------------
+    function moveTo(slug, shelf){
+      closeMenu(false);
+      return post('/-/shelves/assign', {slug: slug, shelf: shelf}).then(function(res){
+        // Reload the view (covers move between rows and counts change);
+        // the server words the toast.
+        location.href = pageURL({moved: res.slug, to: res.shelf});
+      }).catch(function(err){ showToast('Could not move it: ' + err.message); });
+    }
+
+    // Drag a cover onto a shelf in the sidebar. The browser's drag image is
+    // fixed when the drag starts, so it is replaced by our own label that
+    // follows the pointer and names the shelf under it ("Move to Systems").
+    var dragSlug = null, dragFrom = null, dragTitle = '', ghost = null, overTarget = null;
+    var blank = new Image();
+    blank.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+    function setOver(t){
+      if (overTarget === t) return;
+      if (overTarget) overTarget.classList.remove('drop-target');
+      overTarget = t;
+      if (t) t.classList.add('drop-target');
+      if (!ghost) return;
+      var same = t && t.getAttribute('data-shelf-id') === dragFrom;
+      ghost.textContent = t ? (same ? 'Already on ' : 'Move to ') + t.querySelector('.nav-label').textContent : '“' + dragTitle + '”';
+      ghost.classList.toggle('over', !!t && !same);
+    }
+    function endDrag(){
+      setOver(null);
+      if (ghost) ghost.remove();
+      ghost = null;
+      dragSlug = null;
+      root.classList.remove('dragging-cover');
+      document.querySelectorAll('.tutorial.is-dragging').forEach(function(c){ c.classList.remove('is-dragging'); });
+    }
+    document.querySelectorAll('.tutorial').forEach(function(card){
+      card.setAttribute('draggable', 'true');
+      card.querySelectorAll('a').forEach(function(a){ a.setAttribute('draggable', 'false'); });
+      card.addEventListener('dragstart', function(ev){
+        dragSlug = card.getAttribute('data-slug');
+        dragFrom = card.getAttribute('data-shelf');
+        dragTitle = card.getAttribute('data-title');
+        ev.dataTransfer.effectAllowed = 'move';
+        try { ev.dataTransfer.setData('text/plain', dragTitle); } catch (e) {}
+        try { ev.dataTransfer.setDragImage(blank, 0, 0); } catch (e) {}
+        ghost = document.createElement('div');
+        ghost.className = 'drag-ghost';
+        ghost.setAttribute('aria-hidden', 'true');
+        ghost.textContent = '“' + dragTitle + '”';
+        ghost.style.left = ev.clientX + 'px';
+        ghost.style.top = ev.clientY + 'px';
+        document.body.appendChild(ghost);
+        card.classList.add('is-dragging');
+        root.classList.add('dragging-cover');
+        closeMenu(false);
+      });
+      card.addEventListener('dragend', endDrag);
+    });
+    document.addEventListener('dragover', function(ev){
+      if (!dragSlug) return;
+      if (ghost && (ev.clientX || ev.clientY)) {
+        ghost.style.left = ev.clientX + 'px';
+        ghost.style.top = ev.clientY + 'px';
+      }
+      var t = ev.target.closest && ev.target.closest('.nav-link[data-shelf-id]');
+      setOver(t || null);
+      if (t && t.getAttribute('data-shelf-id') !== dragFrom) {
+        ev.preventDefault();
+        ev.dataTransfer.dropEffect = 'move';
+      }
+    });
+    document.addEventListener('drop', function(ev){
+      if (!dragSlug) return;
+      var t = ev.target.closest && ev.target.closest('.nav-link[data-shelf-id]');
+      var slug = dragSlug;
+      endDrag();
+      if (!t || t.getAttribute('data-shelf-id') === dragFrom) return;
+      ev.preventDefault();
+      moveTo(slug, t.getAttribute('data-shelf-id'));
+    });
+
+    // ---- The shelf ⋯ menu --------------------------------------------
+    var shelfMenu = document.getElementById('shelfMenu');
+    if (shelfMenu) {
+      var shelfErr = shelfMenu.querySelector('.shelf-menu-error');
+      shelfMenu.addEventListener('toggle', function(){
+        if (shelfMenu.open) { var f = shelfMenu.querySelector('input'); if (f) { try { f.focus(); f.select(); } catch (e) {} } }
+      });
+      shelfMenu.addEventListener('keydown', function(ev){
+        if (ev.key === 'Escape') { shelfMenu.open = false; shelfMenu.querySelector('summary').focus(); }
+      });
+      document.addEventListener('pointerdown', function(ev){ if (shelfMenu.open && !shelfMenu.contains(ev.target)) shelfMenu.open = false; });
+      shelfMenu.querySelectorAll('form').forEach(function(form){
+        form.addEventListener('submit', function(ev){
+          ev.preventDefault();
+          shelfErr.hidden = true;
+          var body = {};
+          form.querySelectorAll('input[name]').forEach(function(i){ body[i.name] = i.value; });
+          post(form.getAttribute('action'), Object.keys(body).length ? body : null).then(function(res){
+            if (res && res.moved != null) location.href = res.url + '&shelfdeleted=' + res.moved;
+            else location.href = res.url;
+          }).catch(function(err){
+            var m = err.message;
+            shelfErr.textContent = m.charAt(0).toUpperCase() + m.slice(1);
+            shelfErr.hidden = false;
+          });
+        });
+      });
+    }
+
+    // ---- Move to Trash from the keyboard (shortcut registry) ----------
+    // The cover the reader is on: the one whose menu is open, else the one
+    // holding focus. Never while typing in a field.
+    function target(){
+      if (!pop.hidden && popCard) return popCard;
+      var a = document.activeElement;
+      if (!a || editable(a)) return null;
+      var c = a.closest && a.closest('.tutorial');
+      return c && !c.hasAttribute('data-trashed') ? c : null;
+    }
+    window.latheLibrary = {
+      target: function(){ return !!target(); },
+      trashTarget: function(){ var c = target(); if (c) trash(c.getAttribute('data-slug')); }
+    };
+    // The desktop menu's Move to Trash follows focus.
+    var refreshTimer;
+    function refreshMenu(){
+      clearTimeout(refreshTimer);
+      refreshTimer = setTimeout(function(){ if (window.latheShortcuts && window.latheShortcuts.refresh) window.latheShortcuts.refresh(); }, 50);
+    }
+    document.addEventListener('focusin', refreshMenu);
+    document.addEventListener('focusout', refreshMenu);
+  })();
+
+  // Refresh progress cards in place if navigating back via browser back button
+  // (bfcache). A cover can appear twice on Home (its shelf row and Pick up), so
+  // every copy is updated. If a tutorial changed shelves, or one was started
+  // that Home's Pick up row doesn't show yet, the rows themselves are stale:
+  // reload instead.
+  function refreshProgress(card, p) {
+    var body = card.querySelector('.tutorial-body');
+    if (!body) return;
+    var progEl = body.querySelector('.tutorial-progress');
+    if (!p) {
+      if (progEl) progEl.remove();
+      return;
+    }
+    var html = '';
+    if (p.IsSeries) {
+      var segmentsHtml = '';
+      if (p.Segments) {
+        p.Segments.forEach(function(seg) {
+          var currentClass = seg.Current ? ' current' : '';
+          segmentsHtml += '<span class="segment' + currentClass + '" aria-hidden="true">' +
+            '<span class="fill" style="width:' + seg.Percent + '%"></span></span>';
+        });
+      }
+      html = '<div class="tutorial-progress-track tutorial-progress-segments">' + segmentsHtml + '</div>' +
+        '<span class="tutorial-progress-label">Part ' + p.PartNumber + ' of ' + p.TotalParts + ' (' + p.Percent + '%)</span>';
+    } else {
+      html = '<div class="tutorial-progress-track"><span class="fill" style="width:' + p.Percent + '%"></span></div>' +
+        '<span class="tutorial-progress-label">Progress ' + p.Percent + '%</span>';
+    }
+    if (!progEl) {
+      progEl = document.createElement('div');
+      progEl.className = 'tutorial-progress';
+      var meta = body.querySelector('.meta');
+      if (meta && meta.nextSibling) {
+        body.insertBefore(progEl, meta.nextSibling);
+      } else {
+        body.appendChild(progEl);
+      }
+    }
+    if (p.IsSeries) {
+      progEl.setAttribute('aria-label', 'Saved at part ' + p.PartNumber + ' of ' + p.TotalParts);
+    } else {
+      progEl.setAttribute('aria-label', 'Progress at ' + p.Percent + '%');
+    }
+    progEl.innerHTML = html;
+  }
   window.addEventListener('pageshow', function(event) {
     if (event.persisted) {
       fetch('/', {
@@ -245,54 +808,25 @@
       .then(function(res) { return res.json(); })
       .then(function(data) {
         if (!Array.isArray(data)) return;
+        var pickUp = document.getElementById('pickUpRow');
+        var stale = data.some(function(item) {
+          var shown = document.querySelector('.tutorial[data-slug="' + item.slug + '"]');
+          if (shown && shown.dataset.shelf !== item.shelf) return true;
+          return !!(pickUp && item.inProgress && !pickUp.hasAttribute('data-full') &&
+            !pickUp.querySelector('.tutorial[data-slug="' + item.slug + '"]'));
+        });
+        // A cover trashed elsewhere (or here, then the reader went away and
+        // came back) is stale too.
+        var live = {};
+        data.forEach(function(item){ live[item.slug] = true; });
+        document.querySelectorAll('.tutorial[data-slug]').forEach(function(c){
+          if (!live[c.dataset.slug] && !c.hasAttribute('data-trashed')) stale = true;
+        });
+        if (stale) { location.reload(); return; }
         data.forEach(function(item) {
-          var card = document.querySelector('.tutorial[data-slug="' + item.slug + '"]');
-          if (!card) return;
-          var body = card.querySelector('.tutorial-body');
-          if (!body) return;
-          
-          var progEl = body.querySelector('.tutorial-progress');
-          var p = item.progress;
-          
-          if (!p) {
-            if (progEl) progEl.remove();
-            return;
-          }
-          
-          var html = '';
-          if (p.IsSeries) {
-            var segmentsHtml = '';
-            if (p.Segments) {
-              p.Segments.forEach(function(seg) {
-                var currentClass = seg.Current ? ' current' : '';
-                segmentsHtml += '<span class="segment' + currentClass + '" aria-hidden="true">' +
-                  '<span class="fill" style="width:' + seg.Percent + '%"></span></span>';
-              });
-            }
-            html = '<div class="tutorial-progress-track tutorial-progress-segments">' + segmentsHtml + '</div>' +
-              '<span class="tutorial-progress-label">Part ' + p.PartNumber + ' of ' + p.TotalParts + ' (' + p.Percent + '%)</span>';
-          } else {
-            html = '<div class="tutorial-progress-track"><span class="fill" style="width:' + p.Percent + '%"></span></div>' +
-              '<span class="tutorial-progress-label">Progress ' + p.Percent + '%</span>';
-          }
-          
-          if (!progEl) {
-            progEl = document.createElement('div');
-            progEl.className = 'tutorial-progress';
-            var meta = body.querySelector('.meta');
-            if (meta && meta.nextSibling) {
-              body.insertBefore(progEl, meta.nextSibling);
-            } else {
-              body.appendChild(progEl);
-            }
-          }
-          
-          if (p.IsSeries) {
-            progEl.setAttribute('aria-label', 'Saved at part ' + p.PartNumber + ' of ' + p.TotalParts);
-          } else {
-            progEl.setAttribute('aria-label', 'Progress at ' + p.Percent + '%');
-          }
-          progEl.innerHTML = html;
+          document.querySelectorAll('.tutorial[data-slug="' + item.slug + '"]').forEach(function(card) {
+            refreshProgress(card, item.progress);
+          });
         });
       })
       .catch(function(err) {
@@ -301,7 +835,218 @@
     }
   });
 </script>
+{{template "shortcuts" .}}
 {{if .Native}}{{template "nativeLinks" .}}{{end}}
 {{template "liveNudge" .}}
 </body>
 </html>
+
+{{/* cover — one tutorial as a book cover (. is a libCard). The colored top
+     carries its size and title; the paper foot carries progress, chips, the
+     status badge and the ⋯ menu. data-* feed the client search/filter;
+     data-shelf feeds the bfcache refresh and the drag-to-shelf. */}}
+{{define "cover"}}
+  <div class="tutorial{{if .Hidden}} hidden{{end}}" data-title="{{.Title}}" data-slug="{{.Slug}}" data-topic="{{.Topic}}" data-tags="{{range .Tags}}{{.}},{{end}}" data-repo="{{.RepoDisplay}}" data-tools="{{range .Tools}}{{.Name}}{{if .Version}} {{.Version}}{{end}},{{end}}" data-status="{{.Status}}" data-created="{{.Created.Format "2006-01-02T15:04:05Z07:00"}}" data-series="{{.IsSeries}}" data-shelf="{{.ShelfID}}" data-shelf-name="{{.ShelfName}}" data-cover="{{coverFor .Slug}}">
+    <div class="tutorial-body">
+      <a class="tutorial-link" href="/{{.Slug}}/">{{.Title}}</a>
+      <div class="meta">{{if .IsSeries}}{{len .Parts}} parts{{else if and (eq .Status "writing") (not .Parts)}}writing Part 1{{else}}single tutorial{{end}} · {{.Created.Format "Jan 2, 2006"}}{{if .Sources}} · {{len .Sources}} source{{if ne (len .Sources) 1}}s{{end}}{{end}}</div>
+      {{with cardProgress .Tutorial}}
+      {{if .IsSeries}}
+      <div class="tutorial-progress" aria-label="Saved at part {{.PartNumber}} of {{.TotalParts}}">
+        <div class="tutorial-progress-track tutorial-progress-segments">
+          {{range .Segments}}<span class="segment{{if .Current}} current{{end}}" aria-hidden="true"><span class="fill" style="width:{{.Percent}}%"></span></span>{{end}}
+        </div>
+        <span class="tutorial-progress-label">Part {{.PartNumber}} of {{.TotalParts}} ({{.Percent}}%)</span>
+      </div>
+      {{else}}
+      <div class="tutorial-progress" aria-label="Progress at {{.Percent}}%">
+        <div class="tutorial-progress-track"><span class="fill" style="width:{{.Percent}}%"></span></div>
+        <span class="tutorial-progress-label">Progress {{.Percent}}%</span>
+      </div>
+      {{end}}
+      {{end}}
+      {{if or .Tools .Tags}}<div class="chips">{{if .Tools}}<div class="versions">{{range .Tools}}<span class="version">{{.Name}}{{if .Version}} {{.Version}}{{end}}</span>{{end}}</div>{{end}}{{if .Tags}}<div class="tags">{{range .Tags}}<span class="tag">{{.}}</span>{{end}}</div>{{end}}</div>{{end}}
+    </div>
+    <div class="tutorial-actions">
+      {{template "badge" .Status}}
+      {{template "coverMenu" .}}
+    </div>
+  </div>
+{{end}}
+
+{{/* coverMenu — the cover's ⋯ menu (. is a libCard). A <details> of plain
+     links and forms, so every item works with scripts off (it opens in the
+     cover's foot); the page script opens the same items as a floating,
+     keyboard-driven menu instead, on ⋯ and on right-click. */}}
+{{define "coverMenu"}}
+      <details class="cover-menu">
+        <summary class="cover-menu-btn" aria-label="More for {{.Title}}" title="More"><span aria-hidden="true">⋯</span></summary>
+        <div class="menu cover-menu-panel" data-slug="{{.Slug}}" data-title="{{.Title}}">
+          <a class="menu-item" href="/{{.Slug}}/">Open</a>
+          {{- with .LastPart}}
+          <a class="menu-item" href="/{{$.Slug}}/{{.}}#extendRegion">Add a part</a>
+          {{- end}}
+          <a class="menu-item" href="/{{.Slug}}/#verify">{{if .Verified}}Verify again{{else}}Verify{{end}}</a>
+          <details class="menu-sub">
+            <summary class="menu-item menu-sub-toggle">Move to shelf <span class="menu-chevron" aria-hidden="true">›</span></summary>
+            <form class="menu-sub-panel" method="POST" action="/-/shelves/assign" aria-label="Move to shelf">
+              <input type="hidden" name="slug" value="{{.Slug}}">
+              {{- range .MoveTo}}
+              <button type="submit" class="menu-item" name="shelf" value="{{.ID}}"{{if eq .ID $.ShelfID}} aria-checked="true" disabled{{else}} aria-checked="false"{{end}}>{{.Name}}</button>
+              {{- end}}
+            </form>
+          </details>
+          {{- if .Reveal}}
+          <button type="button" class="menu-item" data-action="reveal">{{.RevealLabel}}</button>
+          {{- end}}
+          <div class="menu-sep" role="separator"></div>
+          <form method="POST" action="/-/delete/{{.Slug}}" class="trash-form">
+            <button type="submit" class="menu-item menu-danger" data-action="trash"><span class="menu-label">Move to Trash</span>{{with .TrashKey}}<kbd class="menu-key">{{.}}</kbd>{{end}}</button>
+          </form>
+        </div>
+      </details>
+{{end}}
+
+{{/* shelfMenu — a shelf page's ⋯ (. is the libraryPage): rename, describe,
+     delete. Plain forms in a <details>, so it works with scripts off. */}}
+{{define "shelfMenu"}}
+      <details class="shelf-menu" id="shelfMenu">
+        <summary class="cover-menu-btn shelf-menu-btn" aria-label="Edit the {{.Shelf.Name}} shelf" title="Edit shelf"><span aria-hidden="true">⋯</span></summary>
+        <div class="shelf-menu-panel">
+          <form class="shelf-edit" method="POST" action="/-/shelves/{{.Shelf.ID}}/rename">
+            <label for="shelfRename">Name</label>
+            <div class="shelf-edit-row"><input id="shelfRename" name="name" type="text" required maxlength="60" value="{{.Shelf.Name}}" autocomplete="off"><button type="submit" class="btn btn-ghost btn-sm">Rename</button></div>
+          </form>
+          <form class="shelf-edit" method="POST" action="/-/shelves/{{.Shelf.ID}}/describe">
+            <label for="shelfDescribe">Description</label>
+            <div class="shelf-edit-row"><input id="shelfDescribe" name="description" type="text" maxlength="200" value="{{.Shelf.Description}}" placeholder="One line about this shelf" autocomplete="off"><button type="submit" class="btn btn-ghost btn-sm">Save</button></div>
+          </form>
+          <details class="shelf-delete">
+            <summary class="shelf-delete-toggle">Delete shelf…</summary>
+            <form method="POST" action="/-/shelves/{{.Shelf.ID}}/delete" class="shelf-delete-form">
+              <p>{{if .Count}}Its {{.Count}} tutorial{{if ne .Count 1}}s{{end}} move{{if eq .Count 1}}s{{end}} to Unsorted. {{end}}No tutorial is deleted.</p>
+              <button type="submit" class="btn btn-danger btn-sm">Delete “{{.Shelf.Name}}”</button>
+            </form>
+          </details>
+          <p class="shelf-menu-error" role="alert" hidden></p>
+        </div>
+      </details>
+{{end}}
+
+{{/* trashView — the Trash (. is the libraryPage), from Settings › Library ›
+     Show Trash and the sidebar. */}}
+{{define "trashView"}}
+    <div class="view-head">
+      <div class="view-title">
+        <h2>Trash <span class="shelf-count">{{.Count}}</span></h2>
+        <p class="shelf-desc">{{if .TrashDays}}Tutorials here are deleted for good {{.TrashDays}} days after you move them to the Trash.{{else}}Tutorials stay here until you delete them.{{end}} <a href="/-/settings#library">Change this in Settings</a></p>
+      </div>
+      {{- if .Trash}}
+      <details class="shelf-menu trash-empty">
+        <summary class="btn btn-ghost btn-sm">Empty Trash…</summary>
+        <form method="POST" action="/-/trash/empty" class="shelf-menu-panel shelf-delete-form">
+          <p>Delete {{if eq .Count 1}}this tutorial{{else}}all {{.Count}} tutorials{{end}} for good? This can't be undone.</p>
+          <button type="submit" class="btn btn-danger btn-sm">Empty Trash</button>
+        </form>
+      </details>
+      {{- end}}
+    </div>
+    {{if .Trash}}
+    <ul class="trash-list">
+      {{- range .Trash}}
+      <li class="trash-item">
+        <div class="trash-info">
+          <strong class="trash-title">{{.Title}}</strong>
+          <span class="trash-meta">Moved to Trash {{(.TrashedAt.Local).Format "Jan 2, 2006 at 3:04 PM"}}{{if not .Expires.IsZero}} · deleted for good after {{(.Expires.Local).Format "Jan 2"}}{{end}}</span>
+          {{- if .Taken}}
+          <span class="trash-note">A tutorial named <code>{{.Slug}}</code> is in your library again, so this copy can't be restored over it.</span>
+          {{- end}}
+        </div>
+        <div class="trash-actions">
+          <form method="POST" action="/-/trash/{{.ID}}/restore"><button type="submit" class="btn btn-ghost btn-sm"{{if .Taken}} disabled{{end}}>Restore<span class="visually-hidden"> {{.Title}}</span></button></form>
+          <form method="POST" action="/-/trash/{{.ID}}/delete"><button type="submit" class="btn btn-danger btn-sm">Delete now<span class="visually-hidden"> {{.Title}}</span></button></form>
+        </div>
+      </li>
+      {{- end}}
+    </ul>
+    {{else}}
+    <p class="shelf-empty">The Trash is empty. Tutorials you move to the Trash wait here, so you can put them back.</p>
+    {{end}}
+{{end}}
+
+{{/* toast — the bottom notice (. is the libraryPage; .Toast set by a
+     redirect's ?trashed= etc., else an empty, hidden container the page
+     script fills). Undo is a form, so it works with scripts off; with
+     scripts, ⌘Z / Ctrl+Z also undoes while the toast shows. */}}
+{{define "toast"}}
+<div class="toast" id="libraryToast" role="status" aria-live="polite" data-undo-key="{{.UndoKey}}" data-trash-key="{{.TrashKey}}"{{if .Mac}} data-mac{{end}}{{if not .Toast}} hidden{{end}}>
+  <span class="toast-msg">{{with .Toast}}{{.Message}}{{end}}</span>
+  <form class="toast-undo-form" method="POST" action="{{with .Toast}}{{.UndoAction}}{{end}}"{{if not (and .Toast .Toast.UndoAction)}} hidden{{end}}>
+    <button type="submit" class="toast-undo">Undo <kbd class="toast-key">{{.UndoKey}}</kbd></button>
+  </form>
+  <a class="toast-close" href="{{with .Toast}}{{.Close}}{{else}}/{{end}}" aria-label="Dismiss">×</a>
+</div>
+{{end}}
+
+{{/* newCover — the blank "New tutorial" cover that opens Home's first row.
+     For now it hands over the /lathe command to run in the reader's agent
+     (the copy button needs scripts; the command stays selectable without). */}}
+{{define "newCover"}}
+  <article class="new-cover" aria-labelledby="newCoverTitle">
+    <span class="new-cover-plus" aria-hidden="true">+</span>
+    <h3 class="new-cover-title" id="newCoverTitle">New tutorial</h3>
+    <p class="new-cover-hint">Run this in your coding agent, with the topic you want to learn:</p>
+    <div class="new-cover-cmd">
+      <code>/lathe <var>topic</var></code>
+      <button type="button" class="new-cover-copy" data-copy="/lathe " hidden>Copy</button>
+    </div>
+  </article>
+{{end}}
+
+{{/* libraryNav — the library sidebar (. is a libraryPage). A <details> that
+     is open by default, so with scripts off every link shows; on a narrow
+     screen a tiny script collapses it to its summary line before paint.
+     Shelf links are drop targets for a dragged cover (data-shelf-id). */}}
+{{define "libraryNav"}}
+  <nav class="library-nav" aria-label="Library">
+    <details class="library-nav-panel" id="libraryNav" open>
+      <summary class="library-nav-summary">Library<span class="library-nav-current"> · {{.Nav.CurrentLabel}}</span></summary>
+      <script>
+        (function(){
+          var d = document.getElementById('libraryNav');
+          try { if (window.matchMedia('(max-width: 899px)').matches) d.open = false; } catch (e) {}
+        })();
+      </script>
+      <ul class="nav-list">
+        {{template "navItem" .Nav.Home}}
+        {{template "navItem" .Nav.All}}
+        {{template "navItem" .Nav.Writing}}
+      </ul>
+      <h2 class="nav-heading">Shelves</h2>
+      <ul class="nav-list nav-shelves">
+        {{range .Nav.Shelves}}{{template "navItem" .}}{{end}}
+      </ul>
+      <details class="new-shelf">
+        <summary class="new-shelf-toggle">+ New shelf</summary>
+        <form class="new-shelf-form" method="POST" action="/-/shelves">
+          <label class="visually-hidden" for="newShelfName">Shelf name</label>
+          <input type="text" id="newShelfName" name="name" required maxlength="60" placeholder="e.g. Audio &amp; DSP" autocomplete="off">
+          <button type="submit" class="new-shelf-submit">Create</button>
+          <p class="new-shelf-error" role="alert" hidden></p>
+        </form>
+      </details>
+      {{if .Nav.Languages}}
+      <h2 class="nav-heading">Languages</h2>
+      <ul class="nav-list">
+        {{range .Nav.Languages}}{{template "navItem" .}}{{end}}
+      </ul>
+      {{end}}
+      <ul class="nav-list nav-attention">
+        {{template "navItem" .Nav.Attention}}
+        {{if or .Nav.Trash.Count .Nav.Trash.Current}}{{template "navItem" .Nav.Trash}}{{end}}
+      </ul>
+    </details>
+  </nav>
+{{end}}
+
+{{define "navItem"}}<li><a class="nav-link"{{with .ShelfID}} data-shelf-id="{{.}}"{{end}} href="{{.Href}}"{{if .Current}} aria-current="page"{{end}}><span class="nav-label">{{.Label}}</span>{{if .Count}}<span class="nav-count">{{.Count}}</span>{{end}}</a></li>{{end}}

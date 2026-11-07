@@ -58,6 +58,23 @@ func hasDisplay(goos string, getenv func(string) string) (bool, string) {
 	return false, "no display found (DISPLAY and WAYLAND_DISPLAY are unset)"
 }
 
+// SettingsPath is the Settings window's page (lathe serve's /-/settings).
+// Lathe › Settings… (⌘,) opens it in its own window; a "#tab" deep-links to
+// one of its tabs.
+const SettingsPath = "/-/settings"
+
+// windowKey names the app window that shows path, so opening the same view
+// twice focuses the window already showing it. Every Settings tab shares one
+// window: /-/settings#agent and /-/settings#reading are the same window at
+// different tabs.
+func windowKey(path string) (key string, settings bool) {
+	base, _, _ := strings.Cut(path, "#")
+	if base == SettingsPath {
+		return "window:" + SettingsPath, true
+	}
+	return "window:" + path, false
+}
+
 // windowPath checks a path for OpenWindow: it must be a same-origin absolute
 // path. "//host/x" is a network-path reference that would leave the app's
 // origin, and a backslash is treated as a slash by some engines, so both are

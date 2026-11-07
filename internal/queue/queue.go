@@ -28,6 +28,10 @@ const (
 	// JobCheck is "Check my work": check the learner's code in Path against
 	// Part.
 	JobCheck JobType = "check"
+	// JobNew is "New tutorial": run the /lathe protocol on Command, the full
+	// `/lathe <topic> …` invocation with the reader's pre-answered inputs.
+	// Slug is empty: the worker's session picks and stores it.
+	JobNew JobType = "new"
 )
 
 // State tracks a job through its short life: queued (waiting for a worker),
@@ -45,7 +49,7 @@ const (
 // Job is a unit of work enqueued by the browser and claimed by a worker. The
 // fields populated depend on Type: verify needs only Slug; extend adds optional
 // Guidance; ask adds Part, Question, and (on completion) Answer; check adds
-// Part and Path (the learner's workspace).
+// Part and Path (the learner's workspace); new carries only Command.
 type Job struct {
 	ID        string    `json:"id"`
 	Type      JobType   `json:"type"`
@@ -54,6 +58,7 @@ type Job struct {
 	Question  string    `json:"question,omitempty"`
 	Guidance  string    `json:"guidance,omitempty"`
 	Path      string    `json:"path,omitempty"`
+	Command   string    `json:"command,omitempty"`
 	State     State     `json:"state"`
 	Answer    string    `json:"answer,omitempty"`
 	CreatedAt time.Time `json:"created_at"`

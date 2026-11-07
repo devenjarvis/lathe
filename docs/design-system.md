@@ -69,7 +69,9 @@ the literal `#1C2140`. Every text token clears WCAG AA (4.5:1) on `--bg`,
 ### Color — status badges and callouts
 
 Badges are a colored dot plus a label (`--badge-<status>-text` colors the dot;
-`-bg` tints the danger button and error toast). Five rendered states;
+`-bg` tints the danger button and error toast). Six rendered states (`writing`,
+a reservation the hosted agent is writing a new tutorial into, shares
+`extending`'s teal);
 `unverified` renders no badge — the About box says "Not verified" with a
 **Verify it** link instead.
 
@@ -117,17 +119,20 @@ Each component is a class in `styles.css`. Markup it expects:
 | Series TOC | `.series-toc`, `.current-row`, `.part-num` | layout.html |
 | Part nav | `.part-nav`, `.prev`/`.next`, `.label`, `.title` | layout.html |
 | Verify / extend | `.verify-section`, `.extend-section`, `#verifyForm`, `#extendForm` | layout.html |
-| About box | `.article-header`, `.article-title`, `dl.title-block` with one `div` per cell (`.tb-part`, `.tb-tools`, `.article-byline`, `.tb-voice`, `.tb-status`) and full-width `.tb-row`s; `.tb-big`, `.status-none`, `.status-jump` | layout.html + `statusHeader` (components.html) |
+| About box | `.article-header`, `.article-title`, `dl.title-block` with one `div` per cell (`.tb-part`, `.tb-tools`, `.article-byline`, `.tb-voice`, `.tb-status`) and full-width `.tb-row`s; `.tb-big`, `.status-none`, `.status-jump`; `#jobLine.tb-job[data-state]` (`.tb-job-dot`, `.tb-job-text`, `.tb-job-link`) | layout.html + `statusHeader` (components.html) |
 | Voice reveal | `.voice-reveal`, `.voice-reveal-body` | layout.html (in the Voice cell) |
 | Section index | `#tocRail`, `.label`, `.tick`, `a.active` | layout.html |
-| Agent panel | `#agentPanel.agent-panel` (docked ≥1100px via `html[data-agent-dock="open"\|"collapsed"]` and `--dock-w`; overlay dialog below, bottom sheet ≤700px; `html[data-agent-popout]` for the pop-out window), `.agent-panel-head`, `.agent-pick`, `.agent-state[data-state]` + `.agent-dot`, `.agent-model`, `.icon-btn`, `.agent-rail` (collapsed), `.agent-toggle` (masthead), `.agent-session`, `.agent-actions`, `.agent-workspace` (+`-form`), `.link-btn` (`[aria-busy="true"]` while a system dialog is open); desktop app only: a second `.link-btn` "Choose folder…" in `.agent-workspace-row` before "Change" | layout.html |
+| Agent panel | `#agentPanel.agent-panel` (docked ≥1100px via `html[data-agent-dock="open"\|"collapsed"]` and `--dock-w`; overlay dialog below, bottom sheet ≤700px; `html[data-agent-popout]` for the pop-out window), `.agent-panel-head` with one `.agent-chip` (+`.agent-dot`, `[data-state]`) and `.agent-state[data-state]` beside it, `.icon-btn`; `.agent-menu` (`role="menu"`; `.agent-chip-menu`, `.agent-action-menu`) of `.agent-menu-item`s (`.agent-menu-row`, `.agent-menu-label`, `.agent-menu-key`/`.agent-kbd` key hints, `.agent-menu-desc`, `.agent-menu-info` read-only rows, `[aria-disabled="true"]` with the reason as its description, `.agent-menu-sep`); `.agent-context` strip (`.agent-place`, `.agent-ws-btn`, `.agent-workspace-form`); `.agent-session`, `.agent-suggestion` (+`-text`/`-act`/`-close`), `.agent-composer` with `.agent-plus`; `.agent-rail` (collapsed), `.agent-toggle` (masthead, `.agent-toggle-key`), `.place-saved` (masthead, `[data-state="error"]`); desktop app only: a "Choose folder…" `btn btn-ghost btn-sm` in `.agent-workspace-actions` | layout.html |
 | Agent panel setup | `.agent-setup`, `.agent-choices`, `.agent-choice` (+`-text`/`-detail`), `.agent-others`, `.agent-field` (+ `.agent-field-row`, desktop app only: the field plus a "Choose folder…" `btn btn-ghost btn-sm`), `.agent-hint`, `.agent-error`, `.agent-fallback` (+`-cmd`) | layout.html |
-| Agent session log | `#askLog`, `.ask-bubble`, `.ask-question`, `.ask-answer`, `.ask-streaming` (caret), `.ask-note`/`.ask-note-error`, `.ask-permission` (+`-label`/`-title`/`-options`/`-result`, `.resolved`), `.agent-isolation` | layout.html |
+| Agent session log | `#askLog`, `.ask-bubble`, `.ask-question`, `.ask-answer`, `.ask-streaming` (caret), `.ask-note`/`.ask-note-error`, `.agent-isolation` | layout.html |
+| Agent job cards | `.job-card[data-job][data-state="running"\|"done"\|"failed"\|"hints"\|"stopped"\|"error"\|"queued"\|"handoff"]` (`[data-waiting]` while a permission prompt is open) in `#askLog`: `.job-card-head` (`.job-card-top` with `.job-card-kicker`, `.job-card-time`, `.job-card-dismiss`; `.job-card-title`), `.job-segs`/`.job-seg[data-status]`, `.job-plan`/`.job-plan-entry[data-status]`, `.job-tail` (`.job-tail-line`, `-out`, `-blocked`), `.job-card-summary`, `.job-card-error`, `.job-card-actions` (`.job-card-link`, `.job-card-next`, Stop), `.job-card-cmd`, `.job-card-details` (`.job-report`, `.job-step-list`/`.job-step`); `.job-flash` on the article target of a card's next step | layout.html |
+| Permission prompt | `.perm-card` (yellow and navy in both themes; `.resolved` dashed, `[data-choice]`): `.perm-kicker`, `.perm-ask`, `.perm-cmd`, `.perm-where`, `.perm-options` (Allow once `.perm-key` ↩, Allow for this job, Deny esc), `.perm-error` | layout.html |
 | Reading progress bar | `#progressBar` | layout.html |
 | Progress toast | `.progress-status`, `#progressStatus` (`aria-hidden`) | layout.html |
 | Announced status region | `#statusAnnouncer` (`role="status"`, shared by the progress and copy flows) | layout.html |
 | Visually hidden utility | `.visually-hidden` | styles.css |
-| Bookshelf covers | `body.list`, `.tutorial-list`, `.tutorial` (+ `::before` cover), `.tutorial-body` (`display: contents`), `.meta`, `.tutorial-link`, `.chips` (wraps `.versions` + `.tags`), `.tutorial-actions`, `.delete-btn`, `.empty` | list.html |
+| Bookshelf covers | `body.list`, `.tutorial-list`, `.tutorial` (+ `::before` cover), `.tutorial-body` (`display: contents`), `.meta`, `.tutorial-link`, `.chips` (wraps `.versions` + `.tags`), `.tutorial-actions`, `.cover-menu` / `.cover-menu-btn` (the ⋯ menu; `.menu`, `.menu-item`, `.menu-sub`, `.menu-sep`, `.menu-danger`, the floating `.cover-popup`), `.empty` | list.html (`cover` partial) |
+| Library | `.library` (sidebar + `.library-main`), `.library-nav` > `details.library-nav-panel` (`.library-nav-summary` narrow only), `.nav-list`, `.nav-link` (`[aria-current="page"]` = yellow), `.nav-count`, `.nav-heading`, `.nav-attention`, `.new-shelf` (+`-toggle`/`-form`/`-submit`/`-error`); Home: `.home-search`, `.shelf`, `.shelf-head`, `.shelf-count`, `.see-all`, `.shelf-row` (horizontal shelf), `.shelf-empty`, `.new-cover` (+`-plus`/`-title`/`-hint`/`-cmd`/`-copy`), `.more-tile` + `.more-count`; grid views: `.view-head` (`.view-title`, `.shelf-desc`), `.grid-options` > `.seg-links` (`.seg-label`, `.seg` links, `[aria-current="true"]` = selected), `.card-group` + `.card-group-head`; shelf page: `.shelf-menu` (+`-panel`/`-error`), `.shelf-edit`, `.shelf-delete`; drag: `.drop-target` (yellow), `.drag-ghost` (+`.over`), `.is-dragging`; Trash: `.trash-list`, `.trash-item` (+`-info`/`-title`/`-meta`/`-note`/`-actions`); `.toast` (+`-msg`/`-undo`/`-key`/`-close`) | list.html |
 | List card progress | `.tutorial-progress`, `.tutorial-progress-track`, `.tutorial-progress-segments`, `.tutorial-progress-label` | list.html |
 | Callouts | `.callout.callout-<type>`, `.callout-label` | emitted by `renderer.go` |
 | Tutorial blocks | `.tutorial-block`, `.tutorial-block-command`/`-output`/`-code`, `.tutorial-block-label`, `.copy-command` | emitted by `renderer.go` |
@@ -154,6 +159,9 @@ with its value. Cells, in order:
 - **Verification** (`#badgeRegion`, re-rendered live by `/-/status`) — the
   `statusHeader` partial: "Verified <date>" in the badge, or "Not verified" with
   a **Verify it** link to `#verifyRegion`, or "Failed" with **See what failed**.
+  Under it, `#jobLine` is the one-line status of the newest agent job ("Verifying
+  the tutorial · step 2 of 5 See progress"); it opens the agent panel to that
+  job's card, and the cell spans two columns while it shows.
 
 Full-width `.tb-row`s (dotted rule above) follow for the `[!UNVERIFIED]` count
 and the "Researched against N sources" disclosure.
@@ -193,7 +201,9 @@ source underneath.
 ### List page — the bookshelf
 
 Each tutorial is a **book cover**: a colored top (red, teal, yellow, navy,
-cycled by position) with its size and date and the title in big Casual type,
+fixed per tutorial from a hash of its slug, `data-cover` / `coverFor`, so a
+tutorial keeps its color on Home, a shelf page, All tutorials and the ⌘K
+palette) with its size and date and the title in big Casual type,
 and a paper strip below with version + tag chips, saved progress, the status
 badge and the delete button. It is built with CSS grid over the existing
 markup: `.tutorial-body` is `display: contents`, so `.meta`, `.tutorial-link`,
@@ -202,6 +212,15 @@ paints the cover behind the first two rows. With `subgrid`, covers in a row
 share row tracks, so their colored tops line up. The whole cover is one
 stretched link; the delete button sits above it and, on pointer devices, stays
 hidden until the cover is hovered or holds focus.
+
+The page is a **library**: a sidebar (`.library-nav`, a `<details>` open by
+default that collapses to a one-line "Library · <view>" disclosure below
+900px) beside the shelves. **Home** stacks shelves: each `.shelf-row` is a
+horizontal row of fixed 12rem covers that scrolls (snapping) when it is longer
+than the column, with the covers still on a shared subgrid. The first row opens
+with `.new-cover`, a dashed blank cover; a shelf with more than four covers ends
+in `.more-tile`, a striped stack of spines. Chips are hidden on Home rows (they
+are there for the All grid's filters).
 
 ### Block labels and captions
 
@@ -251,7 +270,7 @@ What it speaks:
 | Event | Announced |
 |---|---|
 | Background save start, and background save success | nothing |
-| Background save failure | `Progress not saved: <error>. Use Save progress to try again.` — first failure only, then quiet until saving works again |
+| Background save failure | `Progress not saved: <error>. Lathe tries again as you read.` — first failure only, then quiet until saving works again (the masthead note reads "Place not saved" and saves again when pressed) |
 | A save that succeeds after a failure | `Progress saved` |
 | Manual save success | `Progress saved` |
 | Manual save failure | `Progress save failed: <error>` |

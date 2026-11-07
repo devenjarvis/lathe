@@ -43,6 +43,12 @@ var serveCmd = &cobra.Command{
 			fmt.Printf("Agent path: searching %s before PATH (agent_path in ~/.lathe/config.json)\n", strings.Join(rep.PathAdded, string(os.PathListSeparator)))
 		}
 		srv := serve.NewServer(dir)
+		// Delete Trash entries past the retention setting (trash_days).
+		if n, perr := srv.PurgeTrash(); perr != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "warning: could not empty old Trash entries: %v\n", perr)
+		} else if n > 0 {
+			fmt.Printf("Trash: deleted %d tutorial(s) past the retention setting\n", n)
+		}
 		// --agent wins; otherwise host the agent picked in the web UI's
 		// "Bring your agent" panel (remembered in ~/.lathe/config.json).
 		agentCmd := serveAgent

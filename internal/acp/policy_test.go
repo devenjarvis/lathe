@@ -95,6 +95,36 @@ func TestJobPolicies(t *testing.T) {
 		t.Errorf("check exec in workspace = %v, want refused", err)
 	}
 
+	voiceFile := filepath.Join(root, "voices", "terse.md")
+	nw := NewPolicy(scratch, ws, voiceFile)
+	for _, ok := range []string{filepath.Join(scratch, "slug", "part-01.md"), filepath.Join(ws, "go.mod"), voiceFile} {
+		if _, err := nw.CheckRead(ok); err != nil {
+			t.Errorf("new read %s: %v", ok, err)
+		}
+	}
+	for _, no := range []string{filepath.Join(tut, "part-01.md"), filepath.Join(root, "voices", "other.md")} {
+		if _, err := nw.CheckRead(no); !errors.Is(err, ErrOutsidePolicy) {
+			t.Errorf("new read %s = %v, want refused", no, err)
+		}
+	}
+	if _, err := nw.CheckWrite(filepath.Join(scratch, "slug", "part-01.md")); err != nil {
+		t.Errorf("new write scratch: %v", err)
+	}
+	for _, no := range []string{filepath.Join(ws, "main.go"), filepath.Join(tut, "part-01.md"), voiceFile} {
+		if _, err := nw.CheckWrite(no); !errors.Is(err, ErrOutsidePolicy) {
+			t.Errorf("new write %s = %v, want refused", no, err)
+		}
+	}
+	if _, err := nw.CheckExec(ws); !errors.Is(err, ErrOutsidePolicy) {
+		t.Errorf("new exec in workspace = %v, want refused", err)
+	}
+	if _, err := nw.CheckExec(""); err != nil {
+		t.Errorf("new exec in scratch: %v", err)
+	}
+	if bare := NewPolicy(scratch, "", ""); len(bare.Read) != 1 {
+		t.Errorf("NewPolicy without workspace or voice reads %v, want only the scratch dir", bare.Read)
+	}
+
 	var none *Policy
 	if _, err := none.CheckRead(filepath.Join(tut, "x")); !errors.Is(err, ErrOutsidePolicy) {
 		t.Errorf("nil policy read = %v, want refused", err)

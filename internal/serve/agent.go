@@ -85,6 +85,7 @@ type agentHost struct {
 type jobTarget struct {
 	tutDir string
 	part   string // the checked part (check only)
+	parts  int    // how many parts the tutorial had when the job started (extend: did it add one?)
 }
 
 func newAgentHost(command string, start agentStarter) *agentHost {
@@ -475,6 +476,21 @@ func (h *agentHost) drive(c *acp.Client, key, sid, prompt string, run *agentRun)
 	rendered := make(chan struct{})
 	go run.renderLive(stopRender, rendered)
 	stop, err := c.Prompt(run.ctx, sid, prompt, run)
+	// A run that takes replies (a new tutorial) whose turn ended on a
+	// question waits for the reader's answer and goes on in the same session.
+	for err == nil && stop == "end_turn" && run.wantsReply() {
+		reply, ok := run.waitReply(c.Done())
+		if !ok {
+			switch {
+			case !alive(c):
+				err = errors.New("the agent exited while waiting for a reply")
+			case run.ctx.Err() != nil:
+				stop = "cancelled"
+			}
+			break
+		}
+		stop, err = c.Prompt(run.ctx, sid, reply, run)
+	}
 	close(stopRender)
 	<-rendered
 
@@ -560,7 +576,10 @@ type runEvent struct {
 	Title   string                 `json:"title,omitempty"`
 	Options []acp.PermissionOption `json:"options,omitempty"`
 	Choice  string                 `json:"choice,omitempty"`
-	HTML    string                 `json:"html,omitempty"`
+	// Input is the exact command (or path) a permission prompt is about,
+	// from the tool call's rawInput, when the agent sent one.
+	Input string `json:"input,omitempty"`
+	HTML  string `json:"html,omitempty"`
 	// tool / tool_update: the agent's tool call, keyed by ID
 	Status string `json:"status,omitempty"`
 	Kind   string `json:"kind,omitempty"`
@@ -592,6 +611,11 @@ type agentRun struct {
 	// or check job works on; zero for an ask.
 	target jobTarget
 	done   chan struct{} // closed when drive has returned
+	// replies, when set (a new-tutorial run), carries the reader's answers
+	// to a question the agent ended its turn with; awaiting says whether an
+	// ended turn still needs one (see agent_new.go). nil for every other job.
+	replies  chan string
+	awaiting func() bool
 
 	mu       sync.Mutex
 	events   []runEvent
@@ -608,6 +632,8 @@ type agentRun struct {
 	// emptied when a new one lands, so memory and replays stay small.
 	lastHTML int
 	textRev  int // bumped on every text append
+	// waiting is set while drive waits for a reply (POST /-/acp/{id}/reply).
+	waiting bool
 }
 
 func (r *agentRun) appendLocked(ev runEvent) {
@@ -765,6 +791,8 @@ func (r *agentRun) verb() string {
 		return "write the part"
 	case jobCheck:
 		return "check your work"
+	case jobNew:
+		return "write the tutorial"
 	}
 	return "answer"
 }
@@ -777,6 +805,8 @@ func (r *agentRun) doing() string {
 		return "writing the part"
 	case jobCheck:
 		return "checking your work"
+	case jobNew:
+		return "writing the tutorial"
 	}
 	return "answering"
 }
@@ -803,7 +833,7 @@ func (r *agentRun) RequestPermission(ctx context.Context, req acp.PermissionRequ
 	if title == "" {
 		title = "The agent wants to use a tool"
 	}
-	r.appendLocked(runEvent{Type: "permission", ID: id, Title: title, Options: req.Options})
+	r.appendLocked(runEvent{Type: "permission", ID: id, Title: title, Options: req.Options, Kind: req.ToolCall.Kind, Input: req.ToolCall.Input()})
 	r.mu.Unlock()
 
 	var choice string

@@ -57,6 +57,17 @@ func TestWindowPath(t *testing.T) {
 	}
 }
 
+func TestWindowKeySharesOneSettingsWindow(t *testing.T) {
+	a, sa := windowKey("/-/settings")
+	b, sb := windowKey("/-/settings#reading")
+	if a != b || !sa || !sb {
+		t.Errorf("windowKey settings = (%q,%v) and (%q,%v), want one settings window", a, sa, b, sb)
+	}
+	if k, s := windowKey("/x/part-01.md?agent=popout"); s || k != "window:/x/part-01.md?agent=popout" {
+		t.Errorf("windowKey(popout) = (%q,%v)", k, s)
+	}
+}
+
 // fakeBackend is a scripted notifyBackend.
 type fakeBackend struct {
 	mu        sync.Mutex

@@ -36,6 +36,9 @@ const (
 	mainMinWidth, mainMinHeight = 640, 480
 	popWidth, popHeight         = 480, 820
 	popMinWidth, popMinHeight   = 360, 420
+	// The Settings window: wide enough for the five tabs in one row.
+	settingsWidth, settingsHeight       = 760, 720
+	settingsMinWidth, settingsMinHeight = 520, 420
 )
 
 // paper is the design system's light --bg (#FFFBF0), shown before the first
@@ -120,6 +123,12 @@ func Run(ctx context.Context, opts Options) error {
 		return err
 	}
 	srv := serve.NewServer(dir)
+	// Delete Trash entries past the retention setting (trash_days).
+	if n, err := srv.PurgeTrash(); err != nil {
+		logf("could not empty old Trash entries: %v", err)
+	} else if n > 0 {
+		logf("Trash: deleted %d tutorial(s) past the retention setting", n)
+	}
 	agentCmd := opts.Agent
 	if agentCmd == "" {
 		if a, ok := agents.ByID(config.Agent()); ok {
@@ -130,6 +139,9 @@ func Run(ctx context.Context, opts Options) error {
 		srv.SetAgent(agentCmd)
 	}
 	sh.notes = newNotifier(notes, logf)
+	// The menu bar goes in before any window exists (windows take it when
+	// they are created on Windows and Linux).
+	sh.setMenu(newMenuBar(app, sh, srv))
 	srv.SetNative(sh)
 	assets.set(followRedirects(srv.Handler()))
 
@@ -160,6 +172,8 @@ func Run(ctx context.Context, opts Options) error {
 		BackgroundColour: paper,
 		InitialPosition:  application.WindowCentered,
 		Linux:            application.LinuxWindow{Icon: appIcon},
+		// The menu bar (menu.go) shows in this window on Windows and Linux.
+		UseApplicationMenu: true,
 	})
 	sh.setMain(mainWin)
 	// Closing the reader quits the app, pop-outs included: they are views of

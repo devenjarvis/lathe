@@ -107,8 +107,27 @@ func PartTitle(src []byte) string {
 // positive headingLevels pushes every heading down that many levels (see
 // RenderMarkdownShift); 0 renders headings as authored.
 func renderMarkdown(src []byte, headingLevels int) ([]byte, []TOCEntry, error) {
-	src = preprocessCallouts(src)
-	src = preprocessMermaid(src)
+	src = preprocessMarkdown(src)
+	md := newMarkdown(headingLevels)
+	doc := md.Parser().Parse(text.NewReader(src))
+	toc := collectH2TOC(doc, src)
+	var buf bytes.Buffer
+	if err := md.Renderer().Render(&buf, src, doc); err != nil {
+		return nil, nil, err
+	}
+	return buf.Bytes(), toc, nil
+}
+
+// preprocessMarkdown is the source rewriting every render does before
+// parsing (callouts, then mermaid blocks).
+func preprocessMarkdown(src []byte) []byte {
+	return preprocessMermaid(preprocessCallouts(src))
+}
+
+// newMarkdown is the goldmark pipeline the reading page renders with. The
+// Go to anything index (index.go) parses with it too, so its heading ids are
+// the ones the page carries.
+func newMarkdown(headingLevels int) goldmark.Markdown {
 	transformers := []util.PrioritizedValue{
 		// Tag exercise-section task-list checkboxes (exerciseChecklist) so the
 		// node renderer below can emit them as interactive inputs.
@@ -119,7 +138,7 @@ func renderMarkdown(src []byte, headingLevels int) ([]byte, []TOCEntry, error) {
 		// document's authored h1/h2 structure.
 		transformers = append(transformers, util.Prioritized(headingShift{levels: headingLevels}, 200))
 	}
-	md := goldmark.New(
+	return goldmark.New(
 		goldmark.WithExtensions(
 			// GFM tables — without this, pipe-delimited tables fall through as
 			// literal text. styles.css already styles <table>/<th>/<td>.
@@ -151,13 +170,6 @@ func renderMarkdown(src []byte, headingLevels int) ([]byte, []TOCEntry, error) {
 			),
 		),
 	)
-	doc := md.Parser().Parse(text.NewReader(src))
-	toc := collectH2TOC(doc, src)
-	var buf bytes.Buffer
-	if err := md.Renderer().Render(&buf, src, doc); err != nil {
-		return nil, nil, err
-	}
-	return buf.Bytes(), toc, nil
 }
 
 // exerciseCheckboxRenderer replaces goldmark's default task-list checkbox.

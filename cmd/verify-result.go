@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/devenjarvis/lathe/internal/config"
 	"github.com/devenjarvis/lathe/internal/store"
 	"github.com/spf13/cobra"
 )
@@ -50,6 +51,11 @@ var verifyResultCmd = &cobra.Command{
 
 		// Save the snapshot after the status is recorded, so a snapshot problem
 		// can never strand the badge at "verifying".
+		// "Keep verified code" (Settings › Library) off: drop the snapshot.
+		if verifyResultCode != "" && !config.KeepVerifiedCode() {
+			_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Not keeping the code snapshot: \"Keep verified code\" is off in Settings.")
+			return nil
+		}
 		if verifyResultCode != "" {
 			if err := store.SaveCode(tutDir, verifyResultCode); err != nil {
 				return fmt.Errorf("recorded %s, but could not save the code snapshot: %w", status, err)

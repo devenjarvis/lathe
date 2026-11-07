@@ -87,12 +87,17 @@ func tutorialCard(t *testing.T, body, slug string) string {
 	if start < 0 {
 		t.Fatalf("missing tutorial card wrapper for %q; body excerpt:\n%s", slug, body)
 	}
-	endMarker := "</form>\n    </div>\n  </div>"
-	end := strings.Index(body[slugIdx:], endMarker)
+	// The cover ends with its ⋯ menu, whose last item is Move to Trash.
+	trash := strings.Index(body[slugIdx:], `action="/-/delete/`+slug+`"`)
+	if trash < 0 {
+		t.Fatalf("tutorial card for %q has no Move to Trash; body excerpt:\n%s", slug, body[slugIdx:])
+	}
+	endMarker := "</details>"
+	end := strings.Index(body[slugIdx+trash:], endMarker)
 	if end < 0 {
 		t.Fatalf("tutorial card for %q not closed; body excerpt:\n%s", slug, body[slugIdx:])
 	}
-	return body[start : slugIdx+end+len(endMarker)]
+	return body[start : slugIdx+trash+end+len(endMarker)]
 }
 
 func TestDeleteRejectsForeignOrigin(t *testing.T) {
@@ -237,7 +242,7 @@ func TestListPageRendersTagsAndControls(t *testing.T) {
 	}
 
 	srv := serve.NewServer(dir)
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/?view=all", nil)
 	w := httptest.NewRecorder()
 	srv.Handler().ServeHTTP(w, req)
 
@@ -308,7 +313,7 @@ func TestListPageRendersCardsAndVersions(t *testing.T) {
 	mk("standalone", "", nil, now.Add(-2*time.Hour), nil)
 
 	srv := serve.NewServer(dir)
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/?view=all", nil)
 	w := httptest.NewRecorder()
 	srv.Handler().ServeHTTP(w, req)
 	body := w.Body.String()
@@ -432,8 +437,13 @@ func TestTutorialPage(t *testing.T) {
 		t.Error("GET /test-tutorial/ response does not contain page content")
 	}
 	body := w.Body.String()
-	if !strings.Contains(body, `id="saveProgressButton"`) {
-		t.Error("tutorial page missing floating desktop progress control")
+	// Progress saves itself: wide screens get a quiet "Place saved" note in
+	// the masthead (a button that saves again), not a floating button.
+	if strings.Contains(body, `id="saveProgressButton"`) {
+		t.Error("the floating Save progress button should be gone")
+	}
+	if !strings.Contains(body, `<button type="button" id="placeSaved" class="place-saved" data-progress-save hidden>Place saved</button>`) {
+		t.Error("tutorial page missing the masthead Place saved note")
 	}
 	dockButtonMarkup := `<button type="button" class="btn btn-ghost btn-sm progress-button" data-progress-save>Save progress</button>`
 	if strings.Count(body, dockButtonMarkup) != 1 {
@@ -1290,11 +1300,15 @@ func TestDeleteEndpointRemovesTutorial(t *testing.T) {
 	if w.Code != http.StatusSeeOther {
 		t.Errorf("POST /-/delete/doomed = %d, want %d", w.Code, http.StatusSeeOther)
 	}
-	if loc := w.Header().Get("Location"); loc != "/" {
-		t.Errorf("redirect Location = %q, want %q", loc, "/")
+	// Back to the library, with the "Moved to Trash · Undo" toast.
+	if loc := w.Header().Get("Location"); !strings.HasPrefix(loc, "/?trashed=doomed-") {
+		t.Errorf("redirect Location = %q, want /?trashed=doomed-…", loc)
 	}
 	if _, err := os.Stat(tutDir); !os.IsNotExist(err) {
 		t.Errorf("tutorial dir still exists after delete: stat err = %v", err)
+	}
+	if list, err := store.ListTrash(dir); err != nil || len(list) != 1 || list[0].Slug != "doomed" {
+		t.Errorf("delete should move the tutorial to the Trash: %+v, %v", list, err)
 	}
 }
 

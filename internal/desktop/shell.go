@@ -24,10 +24,31 @@ type shell struct {
 
 	mu      sync.Mutex
 	main    *application.WebviewWindow
+	menu    *menuBar
 	picking sync.Mutex // one folder dialog at a time
 }
 
-var _ serve.Native = (*shell)(nil)
+var (
+	_ serve.Native     = (*shell)(nil)
+	_ serve.NativeMenu = (*shell)(nil)
+)
+
+func (s *shell) setMenu(m *menuBar) {
+	s.mu.Lock()
+	s.menu = m
+	s.mu.Unlock()
+}
+
+// SetMenuState enables and disables the menu bar's page items for the
+// focused page (see menuBar). It never blocks.
+func (s *shell) SetMenuState(st serve.MenuState) {
+	s.mu.Lock()
+	m := s.menu
+	s.mu.Unlock()
+	if m != nil {
+		m.setState(st)
+	}
+}
 
 func (s *shell) setMain(w *application.WebviewWindow) {
 	s.mu.Lock()
@@ -113,23 +134,53 @@ func (s *shell) OpenWindow(path, title string) error {
 	if title == "" {
 		title = AppName
 	}
-	name := "window:" + path
+	name, settings := windowKey(path)
 	if w, ok := s.app.Window.GetByName(name); ok {
+		if settings {
+			// Already open: go to the asked-for tab.
+			if ww, ok := w.(*application.WebviewWindow); ok {
+				ww.SetURL(path)
+			}
+		}
 		w.Restore()
 		w.Show()
 		w.Focus()
 		return nil
 	}
+	width, height, minW, minH := popWidth, popHeight, popMinWidth, popMinHeight
+	if settings {
+		width, height, minW, minH = settingsWidth, settingsHeight, settingsMinWidth, settingsMinHeight
+	}
 	s.app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Name:             name,
 		Title:            title,
 		URL:              path,
-		Width:            popWidth,
-		Height:           popHeight,
-		MinWidth:         popMinWidth,
-		MinHeight:        popMinHeight,
+		Width:            width,
+		Height:           height,
+		MinWidth:         minW,
+		MinHeight:        minH,
 		BackgroundColour: paper,
 		Linux:            application.LinuxWindow{Icon: appIcon},
+		// The menu bar carries the shortcuts on Windows and Linux too, where
+		// it is per window (the page binds none of the menu's keys).
+		UseApplicationMenu: true,
 	})
 	return nil
 }
+
+// openSettings shows the Settings window at href ("/-/settings", or a tab
+// such as "/-/settings#agent"). OpenWindow reuses the one Settings window
+// and moves it to the asked-for tab. Lathe › Settings… (⌘,) and Agent ›
+// Agent settings… call it.
+func (s *shell) openSettings(href string) error {
+	return s.OpenWindow(href, "Settings")
+}
+
+// RevealFolder shows a folder in the system file manager (Finder on macOS).
+// It makes the shell a serve.FolderRevealer, for Settings › Library's "Show
+// in Finder".
+func (s *shell) RevealFolder(path string) error {
+	return s.app.Browser.OpenFile(path)
+}
+
+var _ serve.FolderRevealer = (*shell)(nil)
