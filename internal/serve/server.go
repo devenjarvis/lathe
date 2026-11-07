@@ -71,6 +71,9 @@ type Server struct {
 	// lookPath finds programs for the agent picker's PATH detection (nil:
 	// exec.LookPath).
 	lookPath agents.LookPath
+	// noPanelSuggestions turns off the agent panel's one suggestion (see
+	// panelSuggestions).
+	noPanelSuggestions bool
 	// native, when set, is the desktop app's shell (folder picker,
 	// notifications, windows); nil in a plain browser. See native.go.
 	native   Native
@@ -179,6 +182,7 @@ func (s *Server) Handler() http.Handler {
 	// per-tutorial workspace.
 	mux.HandleFunc("GET /-/agents", s.handleAgents)
 	mux.HandleFunc("POST /-/agent", s.handleAgentPick)
+	mux.HandleFunc("POST /-/agent/restart", s.handleAgentRestart)
 	mux.HandleFunc("POST /-/workspace/{slug}", s.handleWorkspace)
 	// Desktop shell (native_http.go): 404 unless SetNative installed one.
 	mux.HandleFunc("POST /-/native/pick-folder", s.handleNativePickFolder)
@@ -681,6 +685,9 @@ func (s *Server) renderPart(w http.ResponseWriter, tut *store.Tutorial, tutDir, 
 		// AgentRun is the hosted verify/extend run in flight, so a reloaded
 		// page reattaches to its progress stream.
 		"AgentRun": s.runningJob(filepath.Base(tutDir)),
+		// PanelSuggestions: whether the agent panel offers its one
+		// suggestion, drawn from where the reader is.
+		"PanelSuggestions": s.panelSuggestions(),
 	}); err != nil {
 		http.Error(w, "template error", http.StatusInternalServerError)
 		return

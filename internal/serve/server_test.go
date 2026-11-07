@@ -432,8 +432,13 @@ func TestTutorialPage(t *testing.T) {
 		t.Error("GET /test-tutorial/ response does not contain page content")
 	}
 	body := w.Body.String()
-	if !strings.Contains(body, `id="saveProgressButton"`) {
-		t.Error("tutorial page missing floating desktop progress control")
+	// Progress saves itself: wide screens get a quiet "Place saved" note in
+	// the masthead (a button that saves again), not a floating button.
+	if strings.Contains(body, `id="saveProgressButton"`) {
+		t.Error("the floating Save progress button should be gone")
+	}
+	if !strings.Contains(body, `<button type="button" id="placeSaved" class="place-saved" data-progress-save hidden>Place saved</button>`) {
+		t.Error("tutorial page missing the masthead Place saved note")
 	}
 	dockButtonMarkup := `<button type="button" class="btn btn-ghost btn-sm progress-button" data-progress-save>Save progress</button>`
 	if strings.Count(body, dockButtonMarkup) != 1 {

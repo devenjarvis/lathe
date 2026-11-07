@@ -53,7 +53,13 @@
         {{end}}
       </ul>
     </details>{{end}}</span>
-  <button type="button" id="agentToggle" class="agent-toggle" hidden aria-controls="agentPanel" aria-expanded="false" data-state="{{if .AgentName}}starting{{else}}none{{end}}"><span class="agent-dot" aria-hidden="true"></span><span class="agent-toggle-label">Agent<span class="agent-toggle-name"> · <span id="agentToggleName">{{if .AgentName}}{{.AgentName}}{{else}}not started{{end}}</span></span></span></button>
+  {{/* "Place saved": reading progress saves itself; this quiet note says
+       so, and pressing it saves again (it reads "Place not saved" after a
+       failed background save). Shown by the progress script after a save. */}}
+  <button type="button" id="placeSaved" class="place-saved" data-progress-save hidden>Place saved</button>
+  {{/* The masthead toggle: "<Agent name> ⌘J". The key hint is visual; the
+       global shortcut is the shortcut registry's (#132). */}}
+  <button type="button" id="agentToggle" class="agent-toggle" hidden aria-controls="agentPanel" aria-expanded="false" data-state="{{if .AgentName}}starting{{else}}none{{end}}"><span class="agent-dot" aria-hidden="true"></span><span class="agent-toggle-label" id="agentToggleName">{{if .AgentName}}{{.AgentName}}{{else}}Agent{{end}}</span><kbd class="agent-kbd agent-toggle-key" data-kbd aria-hidden="true">⌘J</kbd></button>
   {{template "themeToggle" .}}
 </header>
 <div class="layout">
@@ -156,8 +162,10 @@
   {{end}}
 </div>
 <div id="sidebarBackdrop"></div>
+{{/* Only between 900 and 1099px, where the panel opens over the page:
+     docked, the panel is already beside the article, and progress saves
+     itself ("Place saved" in the masthead). */}}
 <div id="floatingActions">
-  <button type="button" id="saveProgressButton" class="btn btn-ghost btn-pill progress-button" data-progress-save>Save progress</button>
   <button type="button" id="askButton" class="btn btn-primary btn-pill" data-ask-open aria-label="Ask a question about this tutorial">Ask</button>
 </div>
 <!-- The progress toast is visual only: it keeps every message and timing it had
@@ -199,17 +207,50 @@
      page as a dialog (a bottom sheet on phones), like the old Ask drawer. Its
      setup view ("Bring your agent") shows until an agent is picked. */}}
 <aside id="agentPanel" class="agent-panel" aria-labelledby="agentPanelTitle" data-slug="{{.Tutorial.Slug}}" data-part="{{.CurrentPart}}" data-last-part="{{.LastPart}}" data-agent-name="{{.AgentName}}" data-workspace="{{.WorkspacePath}}" aria-hidden="true" inert>
+  {{/* Header: one chip ("● Claude Code ▾") with the status beside it. The
+       chip's menu holds the model, file access, Workspace…, Switch agent ›,
+       the pop-out, Restart agent and Agent settings…. */}}
   <header class="agent-panel-head">
-    <h2 id="agentPanelTitle">Agent</h2>
-    <button type="button" id="agentPick" class="agent-pick" aria-controls="agentSetup" aria-expanded="{{if .AgentName}}false{{else}}true{{end}}"><span id="agentPickName">{{if .AgentName}}{{.AgentName}}{{else}}Pick an agent{{end}}</span><span aria-hidden="true"> ▾</span></button>
-    <span id="workerStatus" class="agent-state" data-state="{{if .AgentName}}starting{{else}}none{{end}}"><span class="agent-dot" aria-hidden="true"></span><span class="agent-state-text">{{if .AgentName}}Starting…{{else}}Not started{{end}}</span></span>
-    <span id="agentIsolation" class="agent-isolation" hidden></span>
+    <h2 id="agentPanelTitle" class="visually-hidden">Agent</h2>
+    <div class="agent-chip-wrap">
+      <button type="button" id="agentChip" class="agent-chip" aria-haspopup="menu" aria-expanded="false" aria-controls="agentChipMenu" data-state="{{if .AgentName}}starting{{else}}none{{end}}"><span class="agent-dot" aria-hidden="true"></span><span id="agentChipName">{{if .AgentName}}{{.AgentName}}{{else}}Pick an agent{{end}}</span><span class="caret" aria-hidden="true">▾</span></button>
+      <div id="agentChipMenu" class="agent-menu agent-chip-menu" role="menu" aria-labelledby="agentChip" hidden>
+        <div id="agentMenuModel" class="agent-menu-item agent-menu-info" role="menuitem" aria-disabled="true" tabindex="-1" hidden><span class="agent-menu-row"><span class="agent-menu-label">Model</span><span id="agentModel" class="agent-menu-value"></span></span></div>
+        <div id="agentMenuAccess" class="agent-menu-item agent-menu-info" role="menuitem" aria-disabled="true" tabindex="-1" aria-describedby="agentIsolationDetail" hidden><span class="agent-menu-row"><span class="agent-menu-label">File access</span><span id="agentIsolation" class="agent-isolation"></span></span><span id="agentIsolationDetail" class="agent-menu-desc"></span></div>
+        <div class="agent-menu-sep" role="separator" data-sep-info hidden></div>
+        <button type="button" class="agent-menu-item" role="menuitem" tabindex="-1" data-menu="workspace">Workspace…</button>
+        <button type="button" id="agentPick" class="agent-menu-item" role="menuitem" tabindex="-1" data-menu="switch"><span class="agent-menu-row"><span class="agent-menu-label" id="agentPickLabel">{{if .AgentName}}Switch agent{{else}}Pick an agent{{end}}</span><span class="agent-menu-key" aria-hidden="true">›</span></span></button>
+        <button type="button" id="agentPopout" class="agent-menu-item" role="menuitem" tabindex="-1" data-menu="popout"><span class="agent-menu-row"><span class="agent-menu-label">Open in new window</span><kbd class="agent-kbd agent-menu-key" data-kbd aria-hidden="true">⌥⌘J</kbd></span></button>
+        <button type="button" id="agentRestart" class="agent-menu-item" role="menuitem" tabindex="-1" data-menu="restart"{{if not .AgentName}} hidden{{end}}>Restart agent</button>
+        <div class="agent-menu-sep" role="separator"></div>
+        <a href="/-/settings#agent" class="agent-menu-item" role="menuitem" tabindex="-1" data-menu="settings"><span class="agent-menu-row"><span class="agent-menu-label">Agent settings…</span><kbd class="agent-kbd agent-menu-key" data-kbd aria-hidden="true">⌘,</kbd></span></a>
+      </div>
+    </div>
+    <span id="workerStatus" class="agent-state" data-state="{{if .AgentName}}starting{{else}}none{{end}}"><span class="agent-state-text">{{if .AgentName}}Starting…{{else}}Not started{{end}}</span></span>
     <span class="agent-panel-tools">
-      <button type="button" id="agentPopout" class="icon-btn" aria-label="Open the agent panel in a separate window" title="Open in a separate window"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg></button>
       <button type="button" id="askClose" class="icon-btn" aria-label="Collapse the agent panel" title="Collapse"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
     </span>
-    <p id="agentModel" class="agent-model" hidden></p>
   </header>
+  {{/* Context strip: where the reader is ("Part 3 · Checkpoint") and the
+       workspace the agent checks ("~/code/zig-synth ▾", which opens the
+       workspace form under it). */}}
+  <div id="agentWorkspace" class="agent-context"{{if not .AgentName}} hidden{{end}}>
+    <div class="agent-context-row">
+      <span id="agentPlace" class="agent-place" data-part-label="{{if and .Tutorial.IsSeries .CurrentPartNumber}}Part {{.CurrentPartNumber}}{{else}}This tutorial{{end}}">{{if and .Tutorial.IsSeries .CurrentPartNumber}}Part {{.CurrentPartNumber}}{{else}}This tutorial{{end}}</span>
+      <span class="agent-context-sep" aria-hidden="true">/</span>
+      <button type="button" id="workspaceChange" class="agent-ws-btn" aria-controls="workspaceForm" aria-expanded="false" title="{{.WorkspacePath}}"><span class="visually-hidden">Workspace: </span><code id="workspaceShort"{{if not .WorkspaceShort}} data-empty{{end}}>{{if .WorkspaceShort}}{{.WorkspaceShort}}{{else}}Set a workspace{{end}}</code><span class="caret" aria-hidden="true">▾</span></button>
+    </div>
+    <form id="workspaceForm" class="agent-workspace-form" hidden>
+      <label for="workspaceInput" class="agent-workspace-label">Where are you typing the code?</label>
+      <input id="workspaceInput" type="text" autocomplete="off" spellcheck="false" value="{{.WorkspaceShort}}" placeholder="~/code/{{.Tutorial.Slug}}">
+      <div class="agent-workspace-actions">
+        {{if .Native}}<button type="button" id="workspacePick" class="btn btn-ghost btn-sm" data-native-pick="footer">Choose folder…</button>
+        {{end}}<button type="submit" class="btn btn-primary btn-sm">Save</button>
+        <button type="button" id="workspaceCancel" class="btn btn-ghost btn-sm">Cancel</button>
+      </div>
+      <p class="agent-error" id="workspaceError" role="alert"></p>
+    </form>
+  </div>
   <section id="agentSetup" class="agent-setup" aria-labelledby="agentSetupTitle"{{if .AgentName}} hidden{{end}}>
     <h3 id="agentSetupTitle">Bring your agent</h3>
     <p>Lathe runs your coding agent here, in a normal interactive session. Lathe never calls a model itself, so your agent's own sign-in and plan apply.</p>
@@ -241,35 +282,35 @@
   </section>
   <div id="agentSession" class="agent-session"{{if not .AgentName}} hidden{{end}}>
     <div id="askLog" role="log" aria-live="polite" aria-label="Agent session"></div>
-    <div class="agent-actions" role="group" aria-label="Agent actions">
-      <button type="button" class="btn btn-ghost btn-sm" data-agent-action="ask">Ask about this part</button>
-      <button type="button" class="btn btn-ghost btn-sm" data-agent-action="check" hidden>Check my work</button>
-      <button type="button" class="btn btn-ghost btn-sm" data-agent-action="verify">Verify tutorial</button>
-      <button type="button" class="btn btn-ghost btn-sm" data-agent-action="extend">Add a part</button>
+    {{- if .PanelSuggestions}}
+    {{/* At most one suggestion at a time, from where the reader is (at a
+         Checkpoint: "Want feedback on your code? Check my work"). Filled by
+         the panel script; a dismissed kind stays dismissed (localStorage). */}}
+    <div id="agentSuggestion" class="agent-suggestion" role="group" aria-label="Suggestion" hidden>
+      <p class="agent-suggestion-text"></p>
+      <button type="button" class="btn btn-sm agent-suggestion-act"></button>
+      <button type="button" class="agent-suggestion-close" aria-label="Dismiss this suggestion" title="Dismiss"><span aria-hidden="true">×</span></button>
     </div>
+    {{- end}}
+    {{/* Composer: the question box, plus a + button (or "/" in an empty
+         box) that opens the action menu. */}}
     <form id="askForm">
       <label for="askInput" class="visually-hidden">Ask a question about "{{.Tutorial.Title}}"</label>
-      <textarea id="askInput" placeholder="Ask a question…" rows="2" required></textarea>
-      <div class="ask-controls">
-        <button type="submit" id="askSubmit" class="btn btn-primary btn-sm">Send</button>
+      <div class="agent-composer">
+        <button type="button" id="agentActionsButton" class="agent-plus" aria-haspopup="menu" aria-expanded="false" aria-controls="agentActionMenu" aria-label="Actions" title="Actions (or type /)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+        <textarea id="askInput" placeholder="{{if and .Tutorial.IsSeries .CurrentPartNumber}}Ask about Part {{.CurrentPartNumber}}…{{else}}Ask about this tutorial…{{end}}" rows="2" required aria-describedby="askHint"></textarea>
+        <div class="ask-controls">
+          <button type="submit" id="askSubmit" class="btn btn-primary btn-sm">Send</button>
+        </div>
+      </div>
+      <p id="askHint" class="visually-hidden">Type / in an empty box for actions.</p>
+      <div id="agentActionMenu" class="agent-menu agent-action-menu" role="menu" aria-label="Agent actions" hidden>
+        <button type="button" class="agent-menu-item" role="menuitem" tabindex="-1" data-agent-action="check" aria-labelledby="actCheckLabel" aria-describedby="actCheckDesc"><span class="agent-menu-row"><span class="agent-menu-label" id="actCheckLabel">Check my work</span><kbd class="agent-kbd agent-menu-key" data-kbd aria-hidden="true">⇧⌘K</kbd></span><span class="agent-menu-desc" id="actCheckDesc" data-desc="Your agent runs this part's checkpoint on a copy of your code.">Your agent runs this part's checkpoint on a copy of your code.</span></button>
+        <button type="button" class="agent-menu-item" role="menuitem" tabindex="-1" data-agent-action="verify" aria-labelledby="actVerifyLabel" aria-describedby="actVerifyDesc"><span class="agent-menu-row"><span class="agent-menu-label" id="actVerifyLabel">Verify tutorial</span><kbd class="agent-kbd agent-menu-key" data-kbd aria-hidden="true">⇧⌘V</kbd></span><span class="agent-menu-desc" id="actVerifyDesc" data-desc="Follows every part in a scratch folder and records whether it works.">Follows every part in a scratch folder and records whether it works.</span></button>
+        <button type="button" class="agent-menu-item" role="menuitem" tabindex="-1" data-agent-action="extend" aria-labelledby="actExtendLabel" aria-describedby="actExtendDesc"><span class="agent-menu-row"><span class="agent-menu-label" id="actExtendLabel">Write Part {{.NextPartNumber}}</span><kbd class="agent-kbd agent-menu-key" data-kbd aria-hidden="true">⇧⌘N</kbd></span><span class="agent-menu-desc" id="actExtendDesc" data-desc="Your agent writes the next part of this tutorial.">Your agent writes the next part of this tutorial.</span></button>
       </div>
     </form>
   </div>
-  <footer class="agent-workspace" id="agentWorkspace"{{if not .AgentName}} hidden{{end}}>
-    <div class="agent-workspace-row">
-      <span class="agent-workspace-label">Workspace</span>
-      <code id="workspaceShort" title="{{.WorkspacePath}}">{{if .WorkspaceShort}}{{.WorkspaceShort}}{{else}}not set{{end}}</code>
-      {{if .Native}}<button type="button" id="workspacePick" class="link-btn" data-native-pick="footer">Choose folder…</button>
-      {{end}}<button type="button" id="workspaceChange" class="link-btn" aria-controls="workspaceForm" aria-expanded="false">{{if .WorkspacePath}}Change{{else}}Set{{end}}</button>
-    </div>
-    <form id="workspaceForm" class="agent-workspace-form" hidden>
-      <label for="workspaceInput" class="visually-hidden">Workspace folder</label>
-      <input id="workspaceInput" type="text" autocomplete="off" spellcheck="false" value="{{.WorkspaceShort}}" placeholder="~/code/{{.Tutorial.Slug}}">
-      <button type="submit" class="btn btn-primary btn-sm">Save</button>
-      <button type="button" id="workspaceCancel" class="btn btn-ghost btn-sm">Cancel</button>
-      <p class="agent-error" id="workspaceError" role="alert"></p>
-    </form>
-  </footer>
 </aside>
 <button type="button" id="agentRail" class="agent-rail" hidden aria-controls="agentPanel" aria-expanded="false" aria-label="Expand the agent panel"><span class="agent-dot" aria-hidden="true"></span><span class="agent-rail-label" aria-hidden="true">Agent</span></button>
 <div id="askBackdrop" hidden></div>
@@ -292,10 +333,8 @@
     if (rail) rail.hidden = false;
     var backdrop = document.getElementById('askBackdrop');
     var closeBtn = document.getElementById('askClose');
-    var popoutBtn = document.getElementById('agentPopout');
     var setup = document.getElementById('agentSetup');
     var session = document.getElementById('agentSession');
-    var pick = document.getElementById('agentPick');
     var topBar = document.getElementById('topBar');
     var slug = panel.getAttribute('data-slug') || '';
     var popout = root.hasAttribute('data-agent-popout');
@@ -343,7 +382,6 @@
       setup.hidden = !show;
       session.hidden = show;
       document.getElementById('agentWorkspace').hidden = show;
-      pick.setAttribute('aria-expanded', show ? 'true' : 'false');
       if (show) loadAgents();
     }
 
@@ -356,6 +394,7 @@
       if (opts.session) showSetup(false);
       sync();
       setTimeout(function(){
+        if (opts.focus === 'workspace') { editWorkspace(); return; }
         var target = null;
         if (opts.focus === 'ask' && !session.hidden) target = document.getElementById('askInput');
         if (!target && !setup.hidden) target = setup.querySelector('input:not([disabled]), button:not([disabled])');
@@ -376,7 +415,6 @@
     if (rail) rail.addEventListener('click', function(){ open(); });
     closeBtn.addEventListener('click', close);
     backdrop.addEventListener('click', close);
-    pick.addEventListener('click', function(){ showSetup(setup.hidden); });
     document.getElementById('agentSetupCancel').addEventListener('click', function(){ showSetup(false); });
 
     document.addEventListener('keydown', function(ev){
@@ -402,7 +440,7 @@
 
     // Pop-out: the same page with ?agent=popout shows only the panel; this
     // window collapses its own copy.
-    popoutBtn.addEventListener('click', function(){
+    function popOut(){
       var url = location.pathname + '?agent=popout';
       {{- if .Native}}
       // In the desktop app window.open has nothing to open, so the shell
@@ -414,42 +452,247 @@
       var w = window.open(url, 'lathe-agent-' + slug, 'popup,width=480,height=820');
       if (w) { try { w.focus(); } catch (e) {} close(); }
       {{- end}}
-    });
+    }
 
-    // Panel actions. Ask focuses the question box; Verify submits the page's
-    // own verify form (its progress shows in the article, as from the button
-    // there); Add a part goes to the extend form on the last part.
-    panel.querySelectorAll('[data-agent-action]').forEach(function(b){
-      // "Check my work" exists only on a part with a Checkpoint section.
-      if (b.getAttribute('data-agent-action') === 'check') b.hidden = !document.getElementById('checkWork');
-      b.addEventListener('click', function(){
-        var action = b.getAttribute('data-agent-action');
-        if (action === 'ask') {
-          try { document.getElementById('askInput').focus(); } catch (e) {}
-          return;
-        }
-        if (!docked()) close();
-        if (action === 'check') {
-          if (window.latheCheckWork) window.latheCheckWork();
-        } else if (action === 'verify') {
-          var vf = document.getElementById('verifyForm');
-          var region = document.getElementById('verifyRegion');
-          if (vf && typeof vf.requestSubmit === 'function') vf.requestSubmit();
-          (document.getElementById('verifyLive') || region).scrollIntoView({block: 'center'});
-          if (!vf && region) region.scrollIntoView({block: 'center'});
-        } else if (action === 'extend') {
-          var ef = document.getElementById('extendForm');
-          if (ef) {
-            ef.scrollIntoView({block: 'center'});
-            var ta = ef.querySelector('textarea');
-            if (ta) { try { ta.focus({preventScroll: true}); } catch (e) {} }
-          } else {
-            var last = panel.getAttribute('data-last-part');
-            if (last) location.href = '/' + encodeURIComponent(slug) + '/' + encodeURIComponent(last) + '#extendRegion';
-          }
+    // Key hints are written for macOS (⌘ ⌥ ⇧); elsewhere they read Ctrl,
+    // Alt and Shift. They are labels only: the global key handlers belong to
+    // the shortcut registry.
+    if (!/Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent || '')) {
+      document.querySelectorAll('[data-kbd]').forEach(function(k){
+        var t = k.textContent, mods = [];
+        if (t.indexOf('⌥') >= 0) mods.push('Alt');
+        if (t.indexOf('⌘') >= 0) mods.push('Ctrl');
+        if (t.indexOf('⇧') >= 0) mods.push('Shift');
+        k.textContent = mods.concat([t.replace(/[⌥⌘⇧]/g, '')]).join('+');
+      });
+    }
+
+    // latheMenu wires a button to its role="menu" list: a click or ↓/↑ on
+    // the button opens it, ↑/↓/Home/End move between items (disabled ones
+    // stay reachable, so their reason is read out), Enter/Space picks,
+    // Escape closes it and gives focus back, Tab or a click outside closes.
+    var menus = [];
+    function latheMenu(btn, list, opts){
+      var back = btn;
+      function items(){
+        return Array.prototype.filter.call(list.querySelectorAll('[role="menuitem"]'), function(n){ return !n.hidden && n.offsetParent !== null; });
+      }
+      function isMenuOpen(){ return !list.hidden; }
+      function focusAt(i){
+        var it = items();
+        if (!it.length) return;
+        it[(i + it.length) % it.length].focus();
+      }
+      function openMenu(where, returnTo){
+        menus.forEach(function(m){ if (m.list !== list) m.close(false); });
+        if (opts.beforeOpen) opts.beforeOpen();
+        back = returnTo || btn;
+        list.hidden = false;
+        btn.setAttribute('aria-expanded', 'true');
+        var it = items(), first = 0;
+        if (where === 'last') first = it.length - 1;
+        else for (var i = 0; i < it.length; i++) { if (it[i].getAttribute('aria-disabled') !== 'true') { first = i; break; } }
+        focusAt(first);
+      }
+      function closeMenu(refocus){
+        if (list.hidden) return;
+        list.hidden = true;
+        btn.setAttribute('aria-expanded', 'false');
+        if (refocus) { try { back.focus(); } catch (e) {} }
+      }
+      function activate(it){
+        if (it.getAttribute('aria-disabled') === 'true') return;
+        closeMenu(true);
+        opts.onSelect(it);
+      }
+      btn.addEventListener('click', function(){ isMenuOpen() ? closeMenu(true) : openMenu(); });
+      btn.addEventListener('keydown', function(ev){
+        if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
+          ev.preventDefault();
+          openMenu(ev.key === 'ArrowUp' ? 'last' : 'first');
         }
       });
+      list.addEventListener('keydown', function(ev){
+        var it = items(), i = it.indexOf(document.activeElement);
+        if (ev.key === 'ArrowDown') { ev.preventDefault(); focusAt(i + 1); }
+        else if (ev.key === 'ArrowUp') { ev.preventDefault(); focusAt(i < 0 ? -1 : i - 1); }
+        else if (ev.key === 'Home') { ev.preventDefault(); focusAt(0); }
+        else if (ev.key === 'End') { ev.preventDefault(); focusAt(it.length - 1); }
+        else if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); closeMenu(true); }
+        else if (ev.key === 'Tab') { closeMenu(false); }
+        else if ((ev.key === 'Enter' || ev.key === ' ') && i >= 0) { ev.preventDefault(); activate(it[i]); }
+      });
+      list.addEventListener('click', function(ev){
+        var it = ev.target.closest ? ev.target.closest('[role="menuitem"]') : null;
+        if (!it || !list.contains(it)) return;
+        ev.preventDefault();
+        activate(it);
+      });
+      document.addEventListener('pointerdown', function(ev){
+        if (isMenuOpen() && !list.contains(ev.target) && !btn.contains(ev.target)) closeMenu(false);
+      });
+      var m = {list: list, open: openMenu, close: closeMenu, isOpen: isMenuOpen};
+      menus.push(m);
+      return m;
+    }
+
+    // The header chip's menu.
+    latheMenu(document.getElementById('agentChip'), document.getElementById('agentChipMenu'), {
+      onSelect: function(it){
+        var what = it.getAttribute('data-menu');
+        if (what === 'workspace') editWorkspace();
+        else if (what === 'switch') showSetup(true);
+        else if (what === 'popout') popOut();
+        else if (what === 'restart') restartAgent();
+        else if (what === 'settings') location.href = it.getAttribute('href');
+      }
     });
+    function restartAgent(){
+      if (window.latheAnnounce) window.latheAnnounce('Restarting the agent');
+      postJSON('/-/agent/restart', {})
+        .then(function(){ if (window.latheRefreshWorker) window.latheRefreshWorker(); })
+        .catch(function(err){ if (window.latheAnnounce) window.latheAnnounce('Could not restart: ' + err.message); });
+    }
+
+    // ---- Actions: the composer's + menu (or "/" in an empty box) -----------
+    // Check my work runs the part's checkpoint section; Verify submits the
+    // page's own verify form (its progress shows in the article, as from the
+    // button there); Write Part N goes to the extend form on the last part.
+    // An item that can't run now says why in place of its description.
+    var askInput = document.getElementById('askInput');
+    var statusPoll = document.getElementById('statusPoll');
+    function pageStatus(){ return (statusPoll && statusPoll.getAttribute('data-status')) || ''; }
+    // actionBlock returns why an action can't run now, or ''.
+    function actionBlock(action){
+      var st = pageStatus();
+      if (action === 'check') {
+        var cw = document.getElementById('checkWork');
+        if (!cw) return 'This part has no checkpoint.';
+        if (!panel.getAttribute('data-workspace') && cw.getAttribute('data-has-workspace') !== '1') return 'Needs a workspace. Set one above.';
+        if (cw.getAttribute('data-busy') === '1') return 'Checking your work now.';
+        return '';
+      }
+      if (st === 'extending' || root.getAttribute('data-agent-job') === 'extend') return 'Wait for the part being written.';
+      if (st === 'verifying' || root.hasAttribute('data-agent-job')) return 'Wait for the verification running now.';
+      if (action === 'verify' && st === 'verified') return 'Already verified.';
+      return '';
+    }
+    function syncActions(){
+      panel.querySelectorAll('#agentActionMenu [data-agent-action]').forEach(function(it){
+        var why = actionBlock(it.getAttribute('data-agent-action'));
+        var desc = it.querySelector('.agent-menu-desc');
+        if (why) it.setAttribute('aria-disabled', 'true'); else it.removeAttribute('aria-disabled');
+        if (desc) desc.textContent = why || desc.getAttribute('data-desc');
+      });
+    }
+    function runAction(action){
+      if (!docked() && !popout) close();
+      if (action === 'check') {
+        if (window.latheCheckWork) window.latheCheckWork();
+      } else if (action === 'verify') {
+        var vf = document.getElementById('verifyForm');
+        var region = document.getElementById('verifyRegion');
+        if (vf && typeof vf.requestSubmit === 'function') vf.requestSubmit();
+        (document.getElementById('verifyLive') || region).scrollIntoView({block: 'center'});
+        if (!vf && region) region.scrollIntoView({block: 'center'});
+      } else if (action === 'extend') {
+        var ef = document.getElementById('extendForm');
+        if (ef) {
+          ef.scrollIntoView({block: 'center'});
+          var ta = ef.querySelector('textarea');
+          if (ta) { try { ta.focus({preventScroll: true}); } catch (e) {} }
+        } else {
+          var last = panel.getAttribute('data-last-part');
+          if (last) location.href = '/' + encodeURIComponent(slug) + '/' + encodeURIComponent(last) + '#extendRegion';
+        }
+      }
+    }
+    var actionMenu = latheMenu(document.getElementById('agentActionsButton'), document.getElementById('agentActionMenu'), {
+      beforeOpen: syncActions,
+      onSelect: function(it){ runAction(it.getAttribute('data-agent-action')); }
+    });
+    askInput.addEventListener('keydown', function(ev){
+      if (ev.key === '/' && !askInput.value && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {
+        ev.preventDefault();
+        actionMenu.open('first', askInput);
+      }
+    });
+
+    // ---- Context: where the reader is, and one suggestion from it ----------
+    var place = document.getElementById('agentPlace');
+    var placeBase = place ? place.getAttribute('data-part-label') : '';
+    var heads = Array.prototype.slice.call(document.querySelectorAll('main h2[id]'));
+    var suggestion = document.getElementById('agentSuggestion');
+    var DISMISS_KEY = 'lathe-panel-suggestions-dismissed';
+    var dismissed = {};
+    try { (JSON.parse(localStorage.getItem(DISMISS_KEY) || '[]') || []).forEach(function(k){ dismissed[k] = true; }); } catch (e) {}
+    var usedNow = {};
+    var shownKind = '';
+    function currentSection(){
+      var line = window.innerHeight * 0.3, cur = null;
+      heads.forEach(function(h){ if (h.getBoundingClientRect().top <= line) cur = h; });
+      return cur;
+    }
+    function readRatio(){
+      var r = window.latheReadingProgress;
+      return r && r.currentRatio ? r.currentRatio() : 0;
+    }
+    // pickSuggestion returns the one suggestion that fits where the reader
+    // is, or null: feedback at a Checkpoint, then the next part at the end
+    // of the last part, then verification at the end of an untested one.
+    function pickSuggestion(sec){
+      var id = sec ? sec.id : '';
+      var atEnd = readRatio() > 0.9;
+      var cands = [];
+      if (/^checkpoint/.test(id) && document.getElementById('checkWork')) {
+        cands.push(panel.getAttribute('data-workspace')
+          ? {kind: 'check', text: 'Want feedback on your code?', act: 'Check my work', run: function(){ runAction('check'); }}
+          : {kind: 'check', text: 'Want feedback on your code? Tell Lathe where you type it.', act: 'Set a workspace', run: function(){ showWsForm(true); }});
+      }
+      if (atEnd && document.getElementById('extendForm') && !actionBlock('extend')) {
+        cands.push({kind: 'extend', text: 'Ready for more?', act: document.getElementById('actExtendLabel').textContent, run: function(){ runAction('extend'); }});
+      }
+      if (atEnd && pageStatus() === 'unverified' && !actionBlock('verify')) {
+        cands.push({kind: 'verify', text: 'Nobody has run this tutorial yet.', act: 'Verify tutorial', run: function(){ runAction('verify'); }});
+      }
+      for (var i = 0; i < cands.length; i++) {
+        if (!dismissed[cands[i].kind] && !usedNow[cands[i].kind]) return cands[i];
+      }
+      return null;
+    }
+    function showSuggestion(s){
+      if (!suggestion) return;
+      var key = s ? s.kind + '|' + s.act : '';
+      if (key === shownKind) return;
+      shownKind = key;
+      suggestion.hidden = !s;
+      if (!s) { suggestion.removeAttribute('data-kind'); return; }
+      suggestion.setAttribute('data-kind', s.kind);
+      suggestion.querySelector('.agent-suggestion-text').textContent = s.text;
+      var act = suggestion.querySelector('.agent-suggestion-act');
+      act.textContent = s.act;
+      act.onclick = function(){ usedNow[s.kind] = true; showSuggestion(null); s.run(); };
+    }
+    if (suggestion) suggestion.querySelector('.agent-suggestion-close').addEventListener('click', function(){
+      var kind = suggestion.getAttribute('data-kind');
+      if (!kind) return;
+      dismissed[kind] = true;
+      try { localStorage.setItem(DISMISS_KEY, JSON.stringify(Object.keys(dismissed))); } catch (e) {}
+      showSuggestion(null);
+      try { askInput.focus(); } catch (e) {}
+    });
+    var ctxPending = false;
+    function updateContext(){
+      ctxPending = false;
+      var sec = currentSection();
+      if (place) place.textContent = sec ? placeBase + ' · ' + sec.textContent.trim() : placeBase;
+      if (!popout) showSuggestion(pickSuggestion(sec));
+    }
+    window.addEventListener('scroll', function(){
+      if (!ctxPending) { ctxPending = true; requestAnimationFrame(updateContext); }
+    }, {passive: true});
+    document.addEventListener('lathe-workspace', updateContext);
+    document.addEventListener('lathe-job-finished', updateContext);
 
     // Copy buttons ([data-copy]).
     panel.querySelectorAll('[data-copy]').forEach(function(b){
@@ -557,8 +800,8 @@
     function saveWorkspace(path){
       return postJSON('/-/workspace/' + encodeURIComponent(slug), {path: path}).then(function(ws){
         wsShort.textContent = ws.display;
-        wsShort.title = ws.path;
-        wsChange.textContent = 'Change';
+        wsShort.removeAttribute('data-empty');
+        wsChange.title = ws.path;
         wsInput.value = ws.display;
         wsSetupInput.value = ws.display;
         panel.setAttribute('data-workspace', ws.path);
@@ -573,6 +816,12 @@
       wsChange.setAttribute('aria-expanded', show ? 'true' : 'false');
       wsError.textContent = '';
       if (show) { try { wsInput.focus(); wsInput.select(); } catch (e) {} }
+    }
+    // editWorkspace opens whichever workspace field is showing: the context
+    // strip's form, or the setup view's field before an agent is picked.
+    function editWorkspace(){
+      if (!setup.hidden) { try { wsSetupInput.focus(); wsSetupInput.select(); } catch (e) {} return; }
+      showWsForm(true);
     }
     wsChange.addEventListener('click', function(){ showWsForm(wsForm.hidden); });
     document.getElementById('workspaceCancel').addEventListener('click', function(){ showWsForm(false); wsChange.focus(); });
@@ -611,7 +860,7 @@
     var wsPick = document.getElementById('workspacePick');
     if (wsPick) wsPick.addEventListener('click', function(){
       pickFolder(wsPick, function(res){
-        return saveWorkspace(res.path).then(function(){ if (!wsForm.hidden) showWsForm(false); });
+        return saveWorkspace(res.path).then(function(){ if (!wsForm.hidden) { showWsForm(false); wsChange.focus(); } });
       }, function(err){ showWsForm(true); wsError.textContent = err.message; });
     });
     var wsSetupPick = document.getElementById('workspaceSetupPick');
@@ -637,7 +886,9 @@
         .then(function(data){
           var name = (data.agent && data.agent.name) || agentsByID[sel.value].name;
           panel.setAttribute('data-agent-name', name);
-          document.getElementById('agentPickName').textContent = name;
+          document.getElementById('agentChipName').textContent = name;
+          document.getElementById('agentPickLabel').textContent = 'Switch agent';
+          document.getElementById('agentRestart').hidden = false;
           var tn = document.getElementById('agentToggleName');
           if (tn) tn.textContent = name;
           showSetup(false);
@@ -650,7 +901,7 @@
     });
 
     window.latheAgentPanel = {open: open, close: close, showSetup: showSetup,
-      editWorkspace: function(){ open(); showWsForm(true); }};
+      editWorkspace: function(){ open({focus: 'workspace'}); }};
 
     // Arriving from "Add a part" on an earlier part: focus the guidance box.
     if (location.hash === '#extendRegion') {
@@ -660,6 +911,7 @@
 
     if (!setup.hidden) loadAgents();
     sync();
+    updateContext();
   })();
 </script>
 <script>
@@ -882,12 +1134,22 @@
   // Save progress — persists the reading progress ratio + nearest heading.
   // Performs automatic background saves when the user dwells on a section
   // for at least 3 seconds, ensuring progress is saved monotonically (only forward).
-  // Clicking the manual "Save progress" button triggers an immediate save.
+  // Clicking a manual save control ("Save progress" in the narrow dock, or the
+  // masthead's "Place saved") triggers an immediate save. Background saves
+  // show only as the quiet masthead note.
   (function(){
     var progress = document.getElementById('progressBar');
     var buttons = document.querySelectorAll('[data-progress-save]');
     var status = document.getElementById('progressStatus');
+    var placeSaved = document.getElementById('placeSaved');
     if (!progress || !buttons.length) return;
+    function showPlace(ok){
+      if (!placeSaved) return;
+      placeSaved.hidden = false;
+      placeSaved.textContent = ok ? 'Place saved' : 'Place not saved';
+      placeSaved.setAttribute('data-state', ok ? 'ok' : 'error');
+      placeSaved.title = ok ? 'Lathe saves your place as you read. Select to save it now.' : 'Your place was not saved. Select to try again.';
+    }
 
     var lastSavedRatio = null;
     function initSavedRatio() {
@@ -966,8 +1228,6 @@
       if (!isAuto) {
         setBusy(true);
         setStatus('', false);
-      } else {
-        setStatus('Auto-saving...', false);
       }
 
       var body = {ratio: ratio, heading_id: headingID, auto: isAuto};
@@ -1007,7 +1267,8 @@
         if (reader && reader.setSavedProgress) {
           reader.setSavedProgress(saved, savedHeading);
         }
-        setStatus(isAuto ? 'Progress auto-saved' : 'Progress saved', false);
+        if (!isAuto && pressedButton !== placeSaved) setStatus('Progress saved', false);
+        showPlace(true);
         // A manual save is the reader's own action and always confirms. A
         // background save speaks only when it is answering a failure we already
         // announced, so the pair stays closed without becoming a running
@@ -1022,6 +1283,7 @@
         // which would otherwise land mid-sentence in the spoken and visible
         // message: "Progress not saved: forbidden .".
         var detail = err && err.message ? err.message.trim() : 'request failed';
+        showPlace(false);
         if (!isAuto) {
           setStatus('Progress save failed: ' + detail, true);
           window.latheAnnounce('Progress save failed: ' + detail);
@@ -1032,7 +1294,7 @@
           // reader again on every section change.
           if (!saveFailed) {
             saveFailed = true;
-            window.latheAnnounce('Progress not saved: ' + detail + '. Use Save progress to try again.');
+            window.latheAnnounce('Progress not saved: ' + detail + '. Lathe tries again as you read.');
           }
         }
       }).then(function(){
@@ -1741,25 +2003,40 @@
     var statusText = status.querySelector('.agent-state-text');
     var toggle = document.getElementById('agentToggle');
     var rail = document.getElementById('agentRail');
+    var chip = document.getElementById('agentChip');
+    var chipName = document.getElementById('agentChipName');
     var model = document.getElementById('agentModel');
+    var modelItem = document.getElementById('agentMenuModel');
     var iso = document.getElementById('agentIsolation');
+    var isoItem = document.getElementById('agentMenuAccess');
+    var isoDetail = document.getElementById('agentIsolationDetail');
+    var infoSep = document.querySelector('#agentChipMenu [data-sep-info]');
+    var restart = document.getElementById('agentRestart');
     var timer = null;
-    // Whether the hosted agent's file access goes through Lathe's per-job
-    // policy ("enforced") or its own tools ("soft").
+    // The chip menu's file access line: whether the hosted agent's file
+    // access goes through Lathe's per-job policy ("Enforced") or its own
+    // tools ("Soft"), in a sentence.
+    var ISOLATION = {
+      enforced: ['Enforced', 'Lathe answers every file read, write and command for this agent, inside each job’s folders.'],
+      soft: ['Soft', 'This agent uses its own tools, so its own permission prompts are the boundary, not Lathe’s.'],
+      unknown: ['Not tested yet', 'Lathe can tell once the agent has read or written a file.']
+    };
     function showIsolation(i){
       if (!iso) return;
-      if (!i) { iso.hidden = true; return; }
-      iso.hidden = false;
+      isoItem.hidden = !i;
+      if (!i) return;
+      var words = ISOLATION[i.state] || ISOLATION.unknown;
       iso.setAttribute('data-isolation', i.state);
-      iso.textContent = i.state === 'enforced' ? 'policy enforced'
-        : i.state === 'soft' ? 'soft isolation' : 'isolation untested';
-      iso.title = i.detail || '';
+      iso.textContent = words[0];
+      isoDetail.textContent = words[1];
+      isoItem.title = i.detail || '';
     }
     var WORKING = {ask: 'Answering a question', verify: 'Verifying the tutorial', extend: 'Writing a part', check: 'Checking your work'};
     function setState(state, text, title){
       status.setAttribute('data-state', state);
       statusText.textContent = text;
       status.title = title || '';
+      if (chip) chip.setAttribute('data-state', state);
       if (toggle) toggle.setAttribute('data-state', state);
       if (rail) {
         rail.setAttribute('data-state', state);
@@ -1772,9 +2049,12 @@
       var a = data.agent;
       showIsolation(a && a.isolation);
       if (model) {
-        model.hidden = !(a && a.model);
-        model.textContent = a && a.model ? 'Model: ' + a.model : '';
+        modelItem.hidden = !(a && a.model);
+        model.textContent = a && a.model ? a.model : '';
       }
+      if (infoSep) infoSep.hidden = modelItem.hidden && isoItem.hidden;
+      if (restart) restart.hidden = !a;
+      if (chipName && a && a.name) chipName.textContent = a.name;
       var next = 30000;
       if (a) {
         if (a.state === 'ready' && a.working) {
@@ -2411,6 +2691,8 @@
             // the badge / verify / extend regions (and re-wire any form swapped in).
             if (data.status !== rendered){
               rendered = data.status;
+              // The agent panel's action menu reads the live status.
+              el.setAttribute('data-status', data.status);
               applyRegions(data);
             }
           })
