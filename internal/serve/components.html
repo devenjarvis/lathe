@@ -18,18 +18,115 @@
        mark the block, so hide it here and let the renderer's own <noscript> note
        stand in for it, next to the prose that carries the same content. -->
   <noscript><style>.mermaid{display:none}</style></noscript>
+  {{- $p := prefs}}
   <script>
+    // The theme comes from the Settings window's appearance (config.json, so
+    // every window agrees). Before the reader ever picks one it falls back to
+    // the old per-browser toggle in localStorage, then the system setting.
     (function(){
-      try {
-        var saved = localStorage.getItem('lathe-theme');
-        var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-        var theme = saved || (prefersDark ? 'dark' : 'light');
-        document.documentElement.setAttribute('data-theme', theme);
-      } catch (e) {}
+      var root = document.documentElement;
+      var P = {{$p.JS}};
+      function dark(){ return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches); }
+      function themeFor(a){
+        if (a === 'light' || a === 'dark') return a;
+        var saved = null;
+        if (a !== 'system') { try { saved = localStorage.getItem('lathe-theme'); } catch (e) {} }
+        return saved || (dark() ? 'dark' : 'light');
+      }
+      function apply(p){
+        for (var k in p) if (Object.prototype.hasOwnProperty.call(p, k)) P[k] = p[k];
+        var t = themeFor(P.appearance);
+        if (root.getAttribute('data-theme') !== t) {
+          root.setAttribute('data-theme', t);
+          document.querySelectorAll('[data-theme-toggle] .label').forEach(function(l){ l.textContent = t === 'dark' ? 'Light mode' : 'Dark mode'; });
+          document.dispatchEvent(new CustomEvent('lathe:themechange', {detail: {theme: t}}));
+        }
+        if (p.text_size) root.style.fontSize = P.scale[P.text_size] || '';
+        if (p.line_width) root.style.setProperty('--measure', P.measure[P.line_width] || '');
+      }
+      try { root.setAttribute('data-theme', themeFor(P.appearance)); } catch (e) {}
+      var chan = null;
+      try { chan = new BroadcastChannel('lathe-settings'); } catch (e) {}
+      // Another window saved a setting: apply it here too.
+      if (chan) chan.onmessage = function(ev){ if (ev.data) apply(ev.data); };
+      if (window.matchMedia) {
+        var mq = window.matchMedia('(prefers-color-scheme: dark)');
+        var follow = function(){ apply({}); };
+        if (mq.addEventListener) mq.addEventListener('change', follow); else if (mq.addListener) mq.addListener(follow);
+      }
+      // save stores settings keys in config.json and applies them in every
+      // open window. It resolves to the saved settings.
+      function save(patch){
+        return fetch('/-/settings', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
+          body: JSON.stringify(patch)
+        }).then(function(r){
+          if (!r.ok) return r.text().then(function(t){ throw new Error((t || ('HTTP ' + r.status)).trim()); });
+          return r.json();
+        }).then(function(st){
+          var live = {appearance: st.appearance, text_size: st.text_size, line_width: st.line_width};
+          apply(live);
+          if (chan) { try { chan.postMessage(live); } catch (e) {} }
+          return st;
+        });
+      }
+      function step(dir){
+        var i = P.sizes.indexOf(P.text_size);
+        if (i < 0) i = P.sizes.indexOf('default');
+        var next = dir === 0 ? 'default' : P.sizes[Math.max(0, Math.min(P.sizes.length - 1, i + dir))];
+        if (next !== P.text_size) save({text_size: next}).catch(function(){});
+      }
+      function openSettings(tab){
+        var path = '/-/settings' + (tab ? '#' + tab : '');
+        {{- if .Native}}
+        fetch('/-/native/window', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({path: path})})
+          .catch(function(){ location.href = path; });
+        return;
+        {{- end}}
+        if (location.pathname === '/-/settings') {
+          if (tab) location.hash = tab;
+        } else {
+          location.href = path;
+        }
+      }
+      window.lathePrefs = {save: save, apply: apply, step: step, openSettings: openSettings, current: function(){ return P; }};
+      // Keep the old toggle's key in step, for the fallback above.
+      window.latheSaveAppearance = function(theme){
+        try { localStorage.setItem('lathe-theme', theme); } catch (e) {}
+        save({appearance: theme}).catch(function(){});
+      };
+      // ⌘, opens Settings; in the desktop app ⌘+ / ⌘− / ⌘0 size the text
+      // (a browser keeps its own zoom on those keys).
+      // TODO(#132): move these into the shortcut registry once it lands.
+      document.addEventListener('keydown', function(ev){
+        if (!(ev.metaKey || ev.ctrlKey) || ev.altKey || ev.defaultPrevented) return;
+        if (ev.key === ',') { ev.preventDefault(); openSettings(); return; }
+        if (!root.hasAttribute('data-native')) return;
+        if (ev.key === '=' || ev.key === '+') { ev.preventDefault(); step(1); }
+        else if (ev.key === '-' || ev.key === '_') { ev.preventDefault(); step(-1); }
+        else if (ev.key === '0') { ev.preventDefault(); step(0); }
+      });
+      // Settings links ([data-settings-link]) open the Settings window in the
+      // desktop app instead of navigating this one.
+      document.addEventListener('click', function(ev){
+        if (ev.defaultPrevented || ev.button !== 0 || !root.hasAttribute('data-native')) return;
+        var a = ev.target.closest && ev.target.closest('a[data-settings-link]');
+        if (!a) return;
+        ev.preventDefault();
+        openSettings((a.getAttribute('href') || '').split('#')[1] || '');
+      });
     })();
   </script>
   <style>{{.CSS}}{{.HighlightCSS}}</style>
+  {{/* The reading size and measure apply without scripts too. */}}
+  <style id="lathePrefs">html{font-size:{{$p.FontSize}}}:root{--measure:{{$p.Measure}}}</style>
 {{end}}
+
+{{/* settingsLink — a link to the Settings window (or one of its tabs, with
+     "#agent" etc. as the argument). The desktop app opens it in its own
+     window (see the head script). */}}
+{{define "settingsLink"}}<a class="settings-link" href="/-/settings{{if .}}#{{.}}{{end}}" data-settings-link>{{if eq . "agent"}}Agent settings…{{else}}Settings{{end}}</a>{{end}}
 
 {{/* badge — renders a quiet status marker: a colored dot + a muted serif label
      (no emoji). Dot (.) is a store.Status. Unverified (and any unknown value)

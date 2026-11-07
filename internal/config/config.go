@@ -61,6 +61,44 @@ type Config struct {
 	// inherit the login shell's PATH. Entries may start with "~/". Set it by
 	// editing config.json; internal/loginenv applies it.
 	AgentPath []string `json:"agent_path,omitempty"`
+
+	// The Settings window's keys (see settings.go for the defaults each one
+	// resolves to). Booleans that default to on are pointers, so a missing
+	// key and an explicit false stay distinct.
+
+	// CodeRoot is the folder new tutorials' workspaces go under
+	// (<code_root>/<slug>). Empty means DefaultCodeRoot.
+	CodeRoot string `json:"code_root,omitempty"`
+	// KeepVerifiedCode keeps the per-part git snapshot a verify run passes
+	// to `lathe verify-result --code`. Default on.
+	KeepVerifiedCode *bool `json:"keep_verified_code,omitempty"`
+	// Appearance is the theme every window uses: system, light or dark.
+	// Empty means not chosen yet (pages fall back to the browser's saved
+	// toggle, then the system setting).
+	Appearance string `json:"appearance,omitempty"`
+	// TextSize scales the reading text (one of TextSizes). Empty: default.
+	TextSize string `json:"text_size,omitempty"`
+	// LineWidth sets the reading measure (one of LineWidths). Empty: default.
+	LineWidth string `json:"line_width,omitempty"`
+	// RememberPlace reopens a tutorial at the part the reader saved. Default
+	// on.
+	RememberPlace *bool `json:"remember_place,omitempty"`
+	// PanelSuggestions shows suggested questions in the agent panel. Default
+	// on.
+	PanelSuggestions *bool `json:"panel_suggestions,omitempty"`
+	// PanelWindow opens the agent panel in its own window instead of docking
+	// it beside the article. Default off.
+	PanelWindow bool `json:"panel_window,omitempty"`
+	// Notify picks which finished runs post a system notification (desktop
+	// app only). Nil means all of them.
+	Notify *NotifyConfig `json:"notify,omitempty"`
+}
+
+// NotifyConfig is the per-event notification switches. Nil means on.
+type NotifyConfig struct {
+	Verify *bool `json:"verify,omitempty"`
+	Extend *bool `json:"extend,omitempty"`
+	Check  *bool `json:"check,omitempty"`
 }
 
 func configPath() (string, error) {

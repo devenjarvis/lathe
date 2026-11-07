@@ -21,13 +21,14 @@ import (
 	"time"
 
 	"github.com/devenjarvis/lathe/internal/agents"
+	"github.com/devenjarvis/lathe/internal/config"
 	"github.com/devenjarvis/lathe/internal/jig"
 	"github.com/devenjarvis/lathe/internal/queue"
 	"github.com/devenjarvis/lathe/internal/store"
 	"github.com/devenjarvis/lathe/internal/voice"
 )
 
-//go:embed layout.html list.html components.html check.html
+//go:embed layout.html list.html components.html check.html settings.html
 var templateFS embed.FS
 
 // styles.css is the entire design system (tokens + components). It's loaded
@@ -75,6 +76,11 @@ type Server struct {
 	// notifications, windows); nil in a plain browser. See native.go.
 	native   Native
 	nativeMu sync.RWMutex
+	// settingsTmpl renders the Settings window (/-/settings, settings.go).
+	settingsTmpl *template.Template
+	// shortcuts is the Settings window's Shortcuts tab (SetShortcuts).
+	shortcuts   []Shortcut
+	shortcutsMu sync.RWMutex
 }
 
 // staticVersion fingerprints the embedded static assets so every page can ask
@@ -120,11 +126,15 @@ func NewServer(tutorialsDir string) *Server {
 		"add":          func(a, b int) int { return a + b },
 		"cardProgress": cardProgress,
 		"asset":        assetURL,
+		// prefs is the reader's appearance and reading settings, read per
+		// page so every window agrees (the head partial applies them).
+		"prefs": pagePrefsNow,
 	}
 	// components.html is parsed into both template sets so its shared partials
 	// ({{define "head"}}, "badge", "themeToggle") are available to each page.
 	layoutTmpl := template.Must(template.New("layout.html").Funcs(funcMap).ParseFS(templateFS, "components.html", "check.html", "layout.html"))
 	listTmpl := template.Must(template.New("list.html").Funcs(funcMap).ParseFS(templateFS, "components.html", "list.html"))
+	settingsTmpl := template.Must(template.New("settings.html").Funcs(funcMap).ParseFS(templateFS, "components.html", "settings.html"))
 	css, err := HighlightCSS()
 	if err != nil {
 		panic(fmt.Sprintf("lathe: failed to build syntax-highlight CSS: %v", err))
@@ -133,6 +143,7 @@ func NewServer(tutorialsDir string) *Server {
 		tutorialsDir: tutorialsDir,
 		layoutTmpl:   layoutTmpl,
 		listTmpl:     listTmpl,
+		settingsTmpl: settingsTmpl,
 		highlightCSS: css,
 		designCSS:    template.CSS(stylesCSS),
 		jigScript:    template.JS(jig.Script()),
@@ -178,10 +189,16 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /-/agents", s.handleAgents)
 	mux.HandleFunc("POST /-/agent", s.handleAgentPick)
 	mux.HandleFunc("POST /-/workspace/{slug}", s.handleWorkspace)
+	// The Settings window (settings.go).
+	mux.HandleFunc("GET /-/settings", s.handleSettings)
+	mux.HandleFunc("POST /-/settings", s.handleSettingsSave)
+	mux.HandleFunc("POST /-/settings/agent-path", s.handleAgentPath)
+	mux.HandleFunc("POST /-/agent/restart", s.handleAgentRestart)
 	// Desktop shell (native_http.go): 404 unless SetNative installed one.
 	mux.HandleFunc("POST /-/native/pick-folder", s.handleNativePickFolder)
 	mux.HandleFunc("POST /-/native/window", s.handleNativeWindow)
 	mux.HandleFunc("POST /-/native/open-url", s.handleNativeOpenURL)
+	mux.HandleFunc("POST /-/native/reveal", s.handleNativeReveal)
 	return mux
 }
 
@@ -327,7 +344,7 @@ func (s *Server) handleTutorial(w http.ResponseWriter, r *http.Request) {
 	// legacy tutorials that were never split into parts.
 	if len(tut.Parts) > 0 {
 		part := tut.Parts[0]
-		if tut.Progress != nil && isKnownPart(tut, tut.Progress.Part) {
+		if tut.Progress != nil && isKnownPart(tut, tut.Progress.Part) && config.LoadSettings().RememberPlace {
 			part = tut.Progress.Part
 		}
 		http.Redirect(w, r, fmt.Sprintf("/%s/%s", slug, part), http.StatusFound)
@@ -660,9 +677,12 @@ func (s *Server) renderPart(w http.ResponseWriter, tut *store.Tutorial, tutDir, 
 		"Title": tut.Title,
 		// The agent panel: the hosted agent's name ("" before one is picked,
 		// which opens the picker) and this tutorial's workspace.
-		"AgentName":         agentName,
-		"WorkspacePath":     workspacePath,
-		"WorkspaceShort":    workspaceShort,
+		"AgentName":      agentName,
+		"WorkspacePath":  workspacePath,
+		"WorkspaceShort": workspaceShort,
+		// WorkspaceSuggest is <code_root>/<slug>, the Settings window's code
+		// folder root applied to this tutorial (the field's placeholder).
+		"WorkspaceSuggest":  config.CodeRootFor(config.LoadSettings().CodeRoot, tut.Slug),
 		"LastPart":          lastPart(tut),
 		"Tutorial":          tut,
 		"VerifyResult":      verifyResult,

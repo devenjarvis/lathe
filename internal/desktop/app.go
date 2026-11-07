@@ -36,6 +36,9 @@ const (
 	mainMinWidth, mainMinHeight = 640, 480
 	popWidth, popHeight         = 480, 820
 	popMinWidth, popMinHeight   = 360, 420
+	// The Settings window: wide enough for the five tabs in one row.
+	settingsWidth, settingsHeight       = 760, 720
+	settingsMinWidth, settingsMinHeight = 520, 420
 )
 
 // paper is the design system's light --bg (#FFFBF0), shown before the first
