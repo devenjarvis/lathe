@@ -11,10 +11,19 @@
 // custom voices are user-authored files under ~/.lathe/voices/<name>.md. The CLI
 // is the sole owner of these files — skills call `lathe voice add`/`show`, never
 // touching ~/.lathe directly.
+//
+// A spec may end with an optional "## Sample" section: one short paragraph (a
+// ring buffer explanation, the same topic for every voice) written in the
+// voice, so Settings › Voices can show voices side by side. The sample is for
+// people comparing voices only. Body and Wrapped leave it out, so it never
+// reaches generation (`lathe voice show`) or the reading page's voice reveal:
+// a topic-specific paragraph in the prompt could pull a tutorial toward ring
+// buffers, which is substance, not tone. Sample returns it.
 package voice
 
 import (
 	"embed"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -71,9 +80,66 @@ type Voice struct {
 	Raw         []byte
 }
 
-// Body returns the spec markdown with its frontmatter stripped.
+// SampleHeading is the heading of a spec's optional sample section.
+const SampleHeading = "## Sample"
+
+// Body returns the spec markdown with its frontmatter and its "## Sample"
+// section stripped: the part of the spec that steers generation.
 func (v Voice) Body() string {
-	return frontmatter.Strip(string(v.Raw))
+	body, _ := splitSample(frontmatter.Strip(string(v.Raw)))
+	return body
+}
+
+// Sample returns the text of the spec's "## Sample" section (trimmed), or ""
+// when the spec has none. It is display-only; see the package doc.
+func (v Voice) Sample() string {
+	_, sample := splitSample(frontmatter.Strip(string(v.Raw)))
+	return sample
+}
+
+// splitSample cuts a "## Sample" section out of body: from its heading line
+// to the next level-1 or level-2 heading (or the end). It returns the body
+// without the section and the section's trimmed text. Headings inside fenced
+// code blocks don't count.
+func splitSample(body string) (rest, sample string) {
+	lines := strings.SplitAfter(body, "\n")
+	start, end := -1, len(lines)
+	fence := false
+	for i, line := range lines {
+		t := strings.TrimRight(line, "\r\n")
+		if strings.HasPrefix(strings.TrimSpace(t), "```") {
+			fence = !fence
+			continue
+		}
+		if fence {
+			continue
+		}
+		if start < 0 {
+			if strings.EqualFold(strings.TrimSpace(t), SampleHeading) {
+				start = i
+			}
+			continue
+		}
+		if strings.HasPrefix(t, "# ") || strings.HasPrefix(t, "## ") {
+			end = i
+			break
+		}
+	}
+	if start < 0 {
+		return body, ""
+	}
+	sample = strings.TrimSpace(strings.Join(lines[start+1:end], ""))
+	before := strings.TrimRight(strings.Join(lines[:start], ""), "\r\n")
+	after := strings.Join(lines[end:], "")
+	switch {
+	case after == "":
+		rest = before + "\n"
+	case before == "":
+		rest = after
+	default:
+		rest = before + "\n\n" + after
+	}
+	return rest, sample
 }
 
 // Wrapped returns the guardrail Preamble followed by the spec body — the text
@@ -238,6 +304,80 @@ func Add(name string, content []byte) error {
 		return err
 	}
 	return os.WriteFile(filepath.Join(dir, key+".md"), content, 0644)
+}
+
+// Path returns the file a custom voice is stored in
+// (~/.lathe/voices/<name>.md). It does not check that the file exists.
+func Path(name string) (string, error) {
+	key := normalizeName(name)
+	if err := validName(key); err != nil {
+		return "", err
+	}
+	dir, err := config.VoicesDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, key+".md"), nil
+}
+
+// ErrExists is returned by Duplicate when the new name is already taken.
+var ErrExists = errors.New("a voice with that name already exists")
+
+// Duplicate copies voice from (a built-in or a custom voice) to a new custom
+// voice named to, with the frontmatter name rewritten so the copy keys under
+// its own name. to must be a slug (lowercase letters, digits and hyphens) and
+// must not name an existing voice. It returns the new voice.
+func Duplicate(from, to string) (Voice, error) {
+	src, err := Resolve(from)
+	if err != nil {
+		return Voice{}, err
+	}
+	key := normalizeName(to)
+	if !IsSlug(key) {
+		return Voice{}, fmt.Errorf("use lowercase letters, digits and hyphens for a voice name, like %q", "field-notes")
+	}
+	if _, err := Resolve(key); err == nil {
+		return Voice{}, fmt.Errorf("%w: %q", ErrExists, key)
+	}
+	raw := renameFrontmatter(string(src.Raw), key)
+	if err := Add(key, []byte(raw)); err != nil {
+		return Voice{}, err
+	}
+	return Resolve(key)
+}
+
+// IsSlug reports whether name is a simple voice slug: lowercase letters,
+// digits and single hyphens (not at either end), at most 40 characters.
+func IsSlug(name string) bool {
+	if name == "" || len(name) > 40 || name[0] == '-' || name[len(name)-1] == '-' || strings.Contains(name, "--") {
+		return false
+	}
+	for _, r := range name {
+		if (r < 'a' || r > 'z') && (r < '0' || r > '9') && r != '-' {
+			return false
+		}
+	}
+	return true
+}
+
+// renameFrontmatter sets the frontmatter name: of a spec to name, adding a
+// frontmatter block when the spec has none (or an unclosed one).
+func renameFrontmatter(raw, name string) string {
+	lines := strings.Split(raw, "\n")
+	if strings.TrimRight(lines[0], "\r") == "---" {
+		for i := 1; i < len(lines); i++ {
+			if strings.TrimSpace(lines[i]) == "---" {
+				// A closed block with no name: key; add one.
+				out := append([]string{"---", "name: " + name}, lines[1:]...)
+				return strings.Join(out, "\n")
+			}
+			if strings.HasPrefix(lines[i], "name:") {
+				lines[i] = "name: " + name
+				return strings.Join(lines, "\n")
+			}
+		}
+	}
+	return "---\nname: " + name + "\n---\n\n" + raw
 }
 
 // Remove deletes a custom voice. It refuses to remove a built-in and errors if

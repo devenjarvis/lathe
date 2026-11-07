@@ -15,7 +15,6 @@ import (
 	"github.com/devenjarvis/lathe/internal/agents"
 	"github.com/devenjarvis/lathe/internal/config"
 	"github.com/devenjarvis/lathe/internal/loginenv"
-	"github.com/devenjarvis/lathe/internal/voice"
 )
 
 // The Settings window (issue #131): one page at /-/settings with Agent,
@@ -29,6 +28,8 @@ import (
 //	POST /-/settings  {key: value}   save some keys → the resolved settings
 //	POST /-/settings/agent-path      {"add": dir} | {"remove": dir} → {"agentPath": [...]}
 //	POST /-/agent/restart            restart the hosted agent → {"agent": status}
+//	GET  /-/settings?voice=<name>#voices  the Voices tab opened on one voice
+//	POST /-/voices/…                 Voices tab mutations (voices.go)
 //
 // The agent pick reuses POST /-/agent (agent_panel.go). Every POST is
 // sameOrigin-checked.
@@ -153,11 +154,6 @@ type settingsPathDir struct {
 	Missing bool   // not a directory on this machine
 }
 
-type settingsVoice struct {
-	Name, Description string
-	Builtin, Default  bool
-}
-
 func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 	if strings.Contains(r.Header.Get("Accept"), "application/json") {
 		writeJSON(w, config.LoadSettings())
@@ -198,13 +194,13 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	var voices []settingsVoice
-	def := config.DefaultVoice()
-	if list, err := voice.List(); err == nil {
-		for _, v := range list {
-			voices = append(voices, settingsVoice{Name: v.Name, Description: v.Description, Builtin: v.Builtin, Default: v.Name == def})
-		}
+	// ?voice= opens the Voices tab on a voice, or on the New voice or
+	// Compare samples pane.
+	voicePane := r.URL.Query().Get("voice")
+	if voicePane != "new" && voicePane != "compare" {
+		voicePane = ""
 	}
+	builtinVoices, yourVoices := s.settingsVoices(r.URL.Query().Get("voice"), voicePane == "")
 
 	st := config.LoadSettings()
 	data := map[string]any{
@@ -218,8 +214,12 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 		"CustomCommand":   custom,
 		"WorkerConnected": s.queue.WorkerConnected(),
 		"AgentPath":       dirs,
-		"Voices":          voices,
-		"DefaultVoice":    def,
+		"BuiltinVoices":   builtinVoices,
+		"YourVoices":      yourVoices,
+		"AllVoices":       append(append([]settingsVoice{}, builtinVoices...), yourVoices...),
+		"VoicesDir":       voicesDirDisplay(),
+		"VoicePane":       voicePane,
+		"DefaultVoice":    config.DefaultVoice(),
 		"TutorialsDir":    s.tutorialsDir,
 		"TutorialsShort":  displayPath(s.tutorialsDir),
 		"Settings":        st,
@@ -254,6 +254,7 @@ type settingsPatch struct {
 	PanelWindow      *bool   `json:"panel_window"`
 	CodeRoot         *string `json:"code_root"`
 	KeepVerifiedCode *bool   `json:"keep_verified_code"`
+	AutoVerify       *bool   `json:"auto_verify"`
 	NotifyVerify     *bool   `json:"notify_verify"`
 	NotifyExtend     *bool   `json:"notify_extend"`
 	NotifyCheck      *bool   `json:"notify_check"`
@@ -309,6 +310,9 @@ func (p *settingsPatch) apply(c *config.Config) error {
 	setOn(&c.KeepVerifiedCode, p.KeepVerifiedCode)
 	if p.PanelWindow != nil {
 		c.PanelWindow = *p.PanelWindow
+	}
+	if p.AutoVerify != nil {
+		c.AutoVerify = *p.AutoVerify
 	}
 	if p.NotifyVerify != nil || p.NotifyExtend != nil || p.NotifyCheck != nil {
 		if c.Notify == nil {

@@ -84,6 +84,9 @@ type Server struct {
 	// cmds tracks the pages that take desktop menu commands, and which one
 	// is focused (native_menu.go).
 	cmds commandHub
+	// voiceTrash keeps voices deleted in Settings › Voices for Undo
+	// (voices.go).
+	voiceTrash voiceTrash
 }
 
 // staticVersion fingerprints the embedded static assets so every page can ask
@@ -202,6 +205,10 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /-/settings", s.handleSettings)
 	mux.HandleFunc("POST /-/settings", s.handleSettingsSave)
 	mux.HandleFunc("POST /-/settings/agent-path", s.handleAgentPath)
+	mux.HandleFunc("POST /-/voices/default", s.handleVoiceDefault)
+	mux.HandleFunc("POST /-/voices/duplicate", s.handleVoiceDuplicate)
+	mux.HandleFunc("POST /-/voices/delete", s.handleVoiceDelete)
+	mux.HandleFunc("POST /-/voices/restore", s.handleVoiceRestore)
 	// Desktop shell (native_http.go): 404 unless SetNative installed one.
 	mux.HandleFunc("POST /-/native/pick-folder", s.handleNativePickFolder)
 	mux.HandleFunc("POST /-/native/window", s.handleNativeWindow)

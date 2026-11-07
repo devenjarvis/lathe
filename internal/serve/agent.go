@@ -85,6 +85,7 @@ type agentHost struct {
 type jobTarget struct {
 	tutDir string
 	part   string // the checked part (check only)
+	parts  int    // how many parts the tutorial had when the job started (extend: did it add one?)
 }
 
 func newAgentHost(command string, start agentStarter) *agentHost {

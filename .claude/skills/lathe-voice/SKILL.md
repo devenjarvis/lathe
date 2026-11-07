@@ -27,13 +27,23 @@ lathe voice list                 # everything currently available
 ```
 
 A voice spec is a small markdown file with `name:`/`description:` frontmatter and
-three working sections:
+three working sections, plus a sample:
 
 - **Stance and register** — persona, point of view, sentence rhythm, how the
   reader is addressed, the first-person policy, humor.
 - **Avoid** — the tonal anti-patterns this voice rejects.
 - **Calibration — before / after** — two or three ❌/✅ pairs showing the voice's
   tone (not pedagogy; the pedagogy before/afters live in the `lathe` skill).
+- **Sample** (`## Sample`, last) — one paragraph of about 100 words that
+  explains a **ring buffer** in this voice. Every voice explains the same thing,
+  so the reader can compare voices side by side in Settings › Voices ("Sounds
+  like"). Write plain prose: no headings, lists, code or markdown emphasis.
+
+The sample is for comparing voices only. `lathe voice show` leaves the
+`## Sample` section out of the spec it prints, so it never reaches generation —
+which is also why you won't see one when you run `lathe voice show` on a
+built-in. It must still follow the voice and the guardrail below: tone only, no
+invented credentials or experience presented as fact.
 
 ## Refuse to author these (deception guardrail)
 
@@ -75,11 +85,21 @@ them is dead on arrival. Steer the user to an honest version of what they want.
 
 3. **Draft the spec.** Write it in the built-in structure: frontmatter (`name`,
    a one-line `description`), `# <Title>`, `## Stance and register`, `## Avoid`,
-   and `## Calibration — before / after` with two or three ❌/✅ tone pairs.
-   Keep it tonal — don't restate accuracy/structure rules; those are invariants.
+   `## Calibration — before / after` with two or three ❌/✅ tone pairs, and
+   last `## Sample`: the ring buffer paragraph, in this voice. Keep it tonal —
+   don't restate accuracy/structure rules; those are invariants.
 
 4. **Show it and confirm.** Print the full draft to the user. Iterate until they
    approve. Don't persist anything unapproved.
+
+   **Refining an existing voice.** When the name is already a custom voice (the
+   reader ran `/lathe-voice <name>` from Settings › Voices' "Edit with agent",
+   or on a built-in they duplicated), start from `lathe voice show <name>`
+   (drop the guardrail preamble above its `---` line, which Lathe adds back;
+   its description is in `lathe voice list`, and the frontmatter goes back on) and
+   ask what to change instead of interviewing from scratch. Write a fresh
+   `## Sample` for the revised voice, since `show` doesn't print the old one.
+   Saving under the same name replaces the voice.
 
 5. **Persist via the CLI.** On approval, pipe the spec to:
    ```bash

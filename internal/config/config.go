@@ -89,6 +89,9 @@ type Config struct {
 	// PanelWindow opens the agent panel in its own window instead of docking
 	// it beside the article. Default off.
 	PanelWindow bool `json:"panel_window,omitempty"`
+	// AutoVerify starts a Verify run on the hosted agent after a hosted
+	// Extend run commits a new part. Default off: verification stays opt-in.
+	AutoVerify bool `json:"auto_verify,omitempty"`
 	// Notify picks which finished runs post a system notification (desktop
 	// app only). Nil means all of them.
 	Notify *NotifyConfig `json:"notify,omitempty"`

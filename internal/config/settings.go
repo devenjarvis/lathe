@@ -47,6 +47,7 @@ type Settings struct {
 	PanelWindow      bool   `json:"panel_window"`
 	CodeRoot         string `json:"code_root"`
 	KeepVerifiedCode bool   `json:"keep_verified_code"`
+	AutoVerify       bool   `json:"auto_verify"`
 	NotifyVerify     bool   `json:"notify_verify"`
 	NotifyExtend     bool   `json:"notify_extend"`
 	NotifyCheck      bool   `json:"notify_check"`
@@ -64,6 +65,7 @@ func (c *Config) Resolve() Settings {
 		PanelWindow:      c.PanelWindow,
 		CodeRoot:         DefaultCodeRoot,
 		KeepVerifiedCode: on(c.KeepVerifiedCode),
+		AutoVerify:       c.AutoVerify,
 		NotifyVerify:     true,
 		NotifyExtend:     true,
 		NotifyCheck:      true,

@@ -22,7 +22,7 @@ import (
 //	POST /-/native/pick-folder  {"slug"}  → {"path", "display"} ("" when cancelled)
 //	POST /-/native/window       {"path"}  → 204
 //	POST /-/native/open-url     {"url"}   → 204 (links to other sites; nativeLinks in components.html)
-//	POST /-/native/reveal       {"what"}  → 204 (Settings: show the tutorials folder in Finder; needs a FolderRevealer)
+//	POST /-/native/reveal       {"what"}  → 204 (Settings: show the tutorials or voices folder in Finder; needs a FolderRevealer)
 //
 // Notifications need no endpoint: the server posts one when a Verify, Extend
 // or Check my work run ends (notifyJob).
@@ -387,6 +387,7 @@ func (s *Server) runFinished(run *agentRun, final runEvent, cancelled bool) {
 	if cancelled || run.target.tutDir == "" {
 		return
 	}
+	s.maybeAutoVerify(run, final)
 	switch run.job {
 	case jobVerify, jobExtend, jobCheck:
 	default:
@@ -461,8 +462,9 @@ func (s *Server) revealer() FolderRevealer {
 }
 
 // handleNativeReveal shows one of Lathe's own folders in the file manager.
-// The page names the folder ("tutorials"), never a path, so it can't make
-// the shell open anything else.
+// The page names the folder ("tutorials", or "voices" for Settings ›
+// Voices' Show file), never a path, so it can't make the shell open anything
+// else.
 func (s *Server) handleNativeReveal(w http.ResponseWriter, r *http.Request) {
 	fr := s.revealer()
 	if fr == nil {
@@ -479,11 +481,22 @@ func (s *Server) handleNativeReveal(w http.ResponseWriter, r *http.Request) {
 	if !readJSONBody(w, r, maxNativeBody, &payload) {
 		return
 	}
-	if payload.What != "tutorials" {
+	var dir string
+	switch payload.What {
+	case "tutorials":
+		dir = s.tutorialsDir
+	case "voices":
+		d, err := voicesDirForReveal()
+		if err != nil {
+			http.Error(w, "could not find the voices folder: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		dir = d
+	default:
 		http.Error(w, "unknown folder", http.StatusBadRequest)
 		return
 	}
-	if err := fr.RevealFolder(s.tutorialsDir); err != nil {
+	if err := fr.RevealFolder(dir); err != nil {
 		http.Error(w, "could not show the folder: "+err.Error(), http.StatusInternalServerError)
 		return
 	}

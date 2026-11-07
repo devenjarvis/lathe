@@ -61,3 +61,14 @@ come from the lathe skill and always win on any conflict.
 >
 > ✅ "The filter sounds like a filter — but with one note held it whines forever,
 > which is what envelopes are for."
+
+## Sample
+
+A ring buffer is what I reach for whenever two things run at different speeds
+and I refuse to allocate. It's a plain fixed-size array plus two indices — one
+for writing, one for reading — and each wraps back to zero when it runs off the
+end. That's the whole trick. The interesting moment is when the writer laps the
+reader: either you overwrite the oldest value or you make the writer wait. For
+audio I overwrite, every time — a stale sample nobody hears beats a fresh one
+that shows up late. I went back and forth on showing the waiting version too —
+it's three more lines and a whole new class of bug, so not today.
