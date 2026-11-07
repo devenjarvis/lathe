@@ -1122,11 +1122,63 @@ html:not(.settings-js) .settings-panel + .settings-panel{margin-top:3rem;padding
 .settings-paths code{background:none;padding:0;overflow-wrap:anywhere;min-width:0}
 .settings-missing{font-size:.8125rem;font-weight:750;color:var(--badge-failed-text)}
 .settings-inline + .agent-error{margin-top:.4rem}
-/* Voices */
-.settings-voices{list-style:none;margin:0 0 1rem;padding:0;display:flex;flex-direction:column;gap:.5rem}
-.settings-voices li{display:flex;flex-wrap:wrap;align-items:center;gap:.35rem .5rem;margin:0;padding:.7rem .85rem;background:var(--surface);border:2px solid var(--border-strong);border-radius:var(--radius-md)}
-.settings-voice-name{font-weight:850;font-variation-settings:var(--casual)}
-.settings-voice-desc{flex-basis:100%;font-size:.9rem;color:var(--text-subtle)}
+/* Voices: a list column and one detail pane per voice. The tab gets a wider
+   page so Compare samples can sit side by side. */
+.settings-js .settings-main:has(> #voices:not([hidden])){max-width:62rem}
+.voices{display:grid;grid-template-columns:minmax(10rem,13rem) minmax(0,1fr);gap:1.25rem;align-items:start}
+.voices-list{display:flex;flex-direction:column;gap:.15rem;position:sticky;top:7.5rem}
+.voices-list ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.15rem}
+.voices-list li{margin:0}
+.voices-group{margin:.9rem 0 .25rem .6rem;font-size:.75rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--teal)}
+.voices-group:first-child{margin-top:0}
+.voices-none{margin:0 0 0 .6rem;font-size:.875rem;color:var(--text-faint)}
+.voices-item{display:flex;align-items:center;justify-content:space-between;gap:.5rem;padding:.45rem .6rem;border:2px solid transparent;border-radius:var(--radius-md);color:var(--text);text-decoration:none;font-weight:750;min-height:2.4rem}
+.voices-item:hover{background:var(--accent-soft);color:var(--text)}
+.voices-item[aria-current="true"]{background:var(--surface);border-color:var(--rule);font-variation-settings:var(--casual);font-weight:900}
+.voices-item-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.voices-item-default{flex-shrink:0;font-size:.6875rem;font-weight:800;padding:.05rem .45rem;border-radius:var(--radius-pill);background:var(--badge-verified-bg);color:var(--badge-verified-text)}
+.voices-item-default[hidden]{display:none}
+.voice-compare-card h4 .voices-item-default{font-family:var(--font-body);font-variation-settings:normal}
+.voices-new{margin-top:.6rem;color:var(--link);border:2px dashed var(--border-strong)}
+.voices-compare-link{color:var(--link)}
+.voice-detail{background:var(--surface);border:var(--line) solid var(--rule);border-radius:var(--radius-md);padding:1.1rem 1.25rem 1.25rem;min-width:0}
+.voice-head{display:flex;align-items:center;flex-wrap:wrap;gap:.5rem .65rem;margin-bottom:.35rem}
+.settings-panel .voice-head h3{margin:0;font-size:1.4rem;font-weight:950;letter-spacing:-.015em}
+.voice-head h3:focus{outline:none}
+.voice-desc{margin:0 0 .35rem;color:var(--text-muted);font-size:.95rem}
+.voice-used{margin:0 0 .85rem;font-size:.875rem;color:var(--text-subtle)}
+.voice-default-row{display:flex;align-items:center;min-height:2.3rem;margin-bottom:1rem}
+.voice-is-default{margin:0;display:inline-flex;align-items:center;gap:.4rem;padding:.3rem .75rem;border-radius:var(--radius-pill);background:var(--badge-verified-bg);color:var(--badge-verified-text);font-size:.875rem;font-weight:800}
+.voice-is-default:focus{outline:none}
+.voice-is-default[hidden],.voice-default-row .btn[hidden]{display:none}
+.voice-sounds{margin:0 0 .4rem;font-size:.75rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--teal)}
+.voice-sample{margin:0 0 1.1rem;padding:.75rem 1rem;border-left:4px solid var(--yellow);background:var(--surface-sunken);border-radius:0 var(--radius-md) var(--radius-md) 0;font-size:.95rem;line-height:1.6;color:var(--text)}
+.voice-sample p{margin:0 0 .6rem}
+.voice-sample p:last-child{margin-bottom:0}
+.voice-sample.is-empty{border-left-color:var(--border-strong);background:none;color:var(--text-faint);font-style:italic;padding-block:.4rem}
+.voice-actions{display:flex;flex-wrap:wrap;gap:.5rem}
+.voice-delete-btn{color:var(--badge-failed-text)}
+.voice-drawer{margin-top:.9rem;padding:.85rem 1rem;border:2px dashed var(--border-strong);border-radius:var(--radius-md)}
+.voice-drawer > p,.voice-drawer > label{margin:0 0 .5rem;font-size:.95rem}
+.voice-drawer > label{display:block;font-weight:800}
+.voice-drawer .agent-hint{margin:.5rem 0 0}
+.voice-drawer .settings-inline + .agent-error{margin-top:.4rem}
+.voice-confirm{border-style:solid;border-color:var(--badge-failed-text)}
+.voice-confirm .settings-actions{margin-top:.5rem}
+.voice-path{overflow-wrap:anywhere}
+.voice-compare-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(15rem,1fr));gap:.85rem;margin-top:.75rem}
+.voice-compare-card{min-width:0}
+.voice-compare-card h4{display:flex;align-items:center;gap:.4rem;margin:0 0 .4rem;font-size:1rem}
+.voice-compare-card h4 a{color:var(--text)}
+.voice-compare-card .voice-sample{margin:0;font-size:.9rem}
+.voice-compare-card [hidden]{display:none}
+.voice-toast{position:fixed;left:50%;bottom:1.25rem;transform:translateX(-50%);z-index:60;display:flex;align-items:center;gap:.85rem;max-width:calc(100vw - 2rem);padding:.6rem .7rem .6rem 1rem;background:var(--rule);color:var(--bg);border-radius:var(--radius-md);box-shadow:var(--shadow-md);font-weight:750;font-size:.95rem}
+.voice-toast[hidden]{display:none}
+.voice-toast .btn{background:var(--yellow);color:var(--on-yellow);border-color:var(--yellow)}
+@media (max-width:699px){
+  .voices{grid-template-columns:minmax(0,1fr)}
+  .voices-list{position:static}
+}
 .settings-chip{font-size:.75rem;font-weight:800;padding:.05rem .55rem;border-radius:var(--radius-pill);background:var(--yellow);color:var(--on-yellow)}
 .settings-chip.is-quiet{background:transparent;color:var(--text-subtle);border:2px solid var(--border-strong)}
 /* Reading: segmented radios and checkboxes */

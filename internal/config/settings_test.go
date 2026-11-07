@@ -15,7 +15,7 @@ func TestLoadSettingsDefaults(t *testing.T) {
 	want := config.Settings{
 		Appearance: "", TextSize: "default", LineWidth: "default",
 		RememberPlace: true, PanelSuggestions: true, PanelWindow: false,
-		CodeRoot: config.DefaultCodeRoot, KeepVerifiedCode: true,
+		CodeRoot: config.DefaultCodeRoot, KeepVerifiedCode: true, AutoVerify: false,
 		NotifyVerify: true, NotifyExtend: true, NotifyCheck: true,
 	}
 	if got != want {
@@ -45,6 +45,7 @@ func TestSettingsRoundTripAndKeys(t *testing.T) {
 		c.PanelSuggestions = config.Bool(false)
 		c.KeepVerifiedCode = config.Bool(false)
 		c.PanelWindow = true
+		c.AutoVerify = true
 		c.Notify = &config.NotifyConfig{Extend: config.Bool(false)}
 		return nil
 	})
@@ -53,7 +54,7 @@ func TestSettingsRoundTripAndKeys(t *testing.T) {
 	}
 	got := config.LoadSettings()
 	if got.Appearance != "dark" || got.TextSize != "larger" || got.LineWidth != "wide" || got.CodeRoot != "~/src" ||
-		got.RememberPlace || got.PanelSuggestions || got.KeepVerifiedCode || !got.PanelWindow ||
+		got.RememberPlace || got.PanelSuggestions || got.KeepVerifiedCode || !got.PanelWindow || !got.AutoVerify ||
 		!got.NotifyVerify || got.NotifyExtend || !got.NotifyCheck {
 		t.Errorf("LoadSettings() = %+v", got)
 	}
@@ -62,7 +63,7 @@ func TestSettingsRoundTripAndKeys(t *testing.T) {
 	}
 	dir, _ := config.ConfigDir()
 	raw, _ := os.ReadFile(filepath.Join(dir, "config.json"))
-	for _, key := range []string{`"appearance"`, `"text_size"`, `"line_width"`, `"code_root"`, `"remember_place"`, `"panel_suggestions"`, `"keep_verified_code"`, `"panel_window"`, `"notify"`, `"extend"`} {
+	for _, key := range []string{`"appearance"`, `"text_size"`, `"line_width"`, `"code_root"`, `"remember_place"`, `"panel_suggestions"`, `"keep_verified_code"`, `"panel_window"`, `"auto_verify"`, `"notify"`, `"extend"`} {
 		if !strings.Contains(string(raw), key) {
 			t.Errorf("config.json lacks %s:\n%s", key, raw)
 		}

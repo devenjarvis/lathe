@@ -103,15 +103,119 @@
 
 <section id="voices" class="settings-panel" role="tabpanel" aria-labelledby="tab-voices">
   <h2>Voices</h2>
-  <p class="settings-lead">A voice sets the tone a tutorial is written in. New tutorials use <strong>{{.DefaultVoice}}</strong> unless you name another.</p>
-  <ul class="settings-voices">
-    {{- range .Voices}}
-    <li><span class="settings-voice-name">{{.Name}}</span>{{if .Default}}<span class="settings-chip">Default</span>{{end}}<span class="settings-chip is-quiet">{{if .Builtin}}Built in{{else}}Yours{{end}}</span>{{if .Description}}<span class="settings-voice-desc">{{.Description}}</span>{{end}}</li>
-    {{- else}}
-    <li>No voices found.</li>
-    {{- end}}
-  </ul>
-  <p class="agent-hint">Make your own with <code>/lathe-voice</code> in your agent. Change the default with <code>lathe voice set-default &lt;name&gt;</code>.</p>
+  <p class="settings-lead">A voice sets the tone a tutorial is written in, never what it says. New tutorials use <strong data-voice-default-name>{{.DefaultVoice}}</strong> unless you name another.</p>
+  {{- /* Two columns: the list (Built in, Yours, + New voice, Compare) and one
+       detail pane per voice. Links carry ?voice=, so with scripts off each
+       is a page load; the script below switches panes in place. */}}
+  <div class="voices" id="voicesPane">
+    <nav class="voices-list" aria-label="Voices">
+      <p class="voices-group" id="voicesBuiltinLabel">Built in</p>
+      <ul aria-labelledby="voicesBuiltinLabel">
+        {{- range .BuiltinVoices}}
+        <li><a class="voices-item" href="?voice={{.Name}}#voices" data-voice-pick="{{.Name}}"{{if .Selected}} aria-current="true"{{end}}><span class="voices-item-name">{{.Name}}</span><span class="voices-item-default"{{if not .Default}} hidden{{end}}>Default</span></a></li>
+        {{- end}}
+      </ul>
+      <p class="voices-group" id="voicesYoursLabel">Yours</p>
+      <ul aria-labelledby="voicesYoursLabel" id="voicesYours">
+        {{- range .YourVoices}}
+        <li data-voice-row="{{.Name}}"><a class="voices-item" href="?voice={{.Name}}#voices" data-voice-pick="{{.Name}}"{{if .Selected}} aria-current="true"{{end}}><span class="voices-item-name">{{.Name}}</span><span class="voices-item-default"{{if not .Default}} hidden{{end}}>Default</span></a></li>
+        {{- end}}
+      </ul>
+      <p class="voices-none" id="voicesYoursEmpty"{{if .YourVoices}} hidden{{end}}>None yet.</p>
+      <a class="voices-item voices-new" href="?voice=new#voices" data-voice-pick="new"{{if eq .VoicePane "new"}} aria-current="true"{{end}}>+ New voice</a>
+      <a class="voices-item voices-compare-link" href="?voice=compare#voices" data-voice-pick="compare"{{if eq .VoicePane "compare"}} aria-current="true"{{end}}>Compare samples</a>
+    </nav>
+
+    <div class="voices-detail">
+      {{- range .AllVoices}}
+      <article class="voice-detail" data-voice="{{.Name}}" aria-labelledby="voice-title-{{.Name}}"{{if not .Selected}} hidden{{end}}>
+        <header class="voice-head">
+          <h3 id="voice-title-{{.Name}}">{{.Name}}</h3>
+          <span class="settings-chip is-quiet">{{if .Builtin}}Built in{{else}}Yours{{end}}</span>
+        </header>
+        {{- if .Description}}<p class="voice-desc">{{.Description}}</p>{{end}}
+        <p class="voice-used">{{if eq .UsedBy 0}}Not used by any tutorials yet{{else if eq .UsedBy 1}}Used by 1 tutorial{{else}}Used by {{.UsedBy}} tutorials{{end}}</p>
+        <div class="voice-default-row">
+          <p class="voice-is-default" data-voice-is-default{{if not .Default}} hidden{{end}}><span aria-hidden="true">✓</span> Default for new tutorials</p>
+          <button type="button" class="btn btn-ghost btn-sm" data-voice-make-default="{{.Name}}"{{if .Default}} hidden{{end}}>Make default</button>
+        </div>
+
+        <h4 class="voice-sounds">Sounds like</h4>
+        {{- if .Sample}}
+        <blockquote class="voice-sample">{{range .Sample}}<p>{{.}}</p>{{end}}</blockquote>
+        {{- else}}
+        <p class="voice-sample is-empty">No sample yet.</p>
+        {{- end}}
+
+        <div class="voice-actions">
+          {{- if .Builtin}}
+          <button type="button" class="btn btn-ghost btn-sm" data-voice-open="dup-{{.Name}}" aria-expanded="false" aria-controls="dup-{{.Name}}">Duplicate and edit</button>
+          {{- else}}
+          <button type="button" class="btn btn-ghost btn-sm" data-voice-open="edit-{{.Name}}" aria-expanded="false" aria-controls="edit-{{.Name}}">Edit with agent</button>
+          {{- if $.CanReveal}}
+          <button type="button" class="btn btn-ghost btn-sm" data-voice-reveal>Show file</button>
+          {{- else}}
+          <button type="button" class="btn btn-ghost btn-sm" data-copy="{{.Path}}" aria-label="Copy the path to {{.Name}}'s file">Copy file path</button>
+          {{- end}}
+          <button type="button" class="btn btn-ghost btn-sm voice-delete-btn" data-voice-open="del-{{.Name}}" aria-expanded="false" aria-controls="del-{{.Name}}">Delete voice…</button>
+          {{- end}}
+        </div>
+
+        {{- if .Builtin}}
+        <form class="voice-drawer" id="dup-{{.Name}}" data-voice-dup="{{.Name}}" hidden novalidate>
+          <label for="dup-input-{{.Name}}">Name for your copy</label>
+          <p class="agent-hint">Lowercase letters, digits and hyphens. Built-in voices stay as they are; you edit the copy.</p>
+          <div class="settings-inline">
+            <input id="dup-input-{{.Name}}" type="text" autocomplete="off" spellcheck="false" placeholder="my-{{.Name}}">
+            <button type="submit" class="btn btn-primary btn-sm">Duplicate</button>
+          </div>
+          <p class="agent-error" role="alert"></p>
+        </form>
+        {{- else}}
+        <div class="voice-drawer" id="edit-{{.Name}}" hidden>
+          <p>Run this in your agent to change the voice with its help. It saves the new version over this file.</p>
+          <div class="agent-fallback-cmd"><code>/lathe-voice {{.Name}}</code><button type="button" class="btn btn-sm" data-copy="/lathe-voice {{.Name}}" aria-label="Copy /lathe-voice {{.Name}}">Copy</button></div>
+          <p class="agent-hint">Or edit the file yourself: <code class="voice-path" title="{{.Path}}">{{.PathShort}}</code></p>
+        </div>
+        <div class="voice-drawer voice-confirm" id="del-{{.Name}}" hidden>
+          <p><strong>Delete {{.Name}}?</strong> {{if .UsedBy}}Tutorials written in it keep its name in their byline; the spec is no longer shown.{{else}}No tutorials use it.{{end}}<span data-voice-default-note{{if not .Default}} hidden{{end}}> New tutorials go back to plainspoken.</span></p>
+          <div class="settings-actions">
+            <button type="button" class="btn btn-primary btn-sm" data-voice-delete="{{.Name}}">Delete voice</button>
+            <button type="button" class="btn btn-ghost btn-sm" data-voice-close="del-{{.Name}}">Cancel</button>
+          </div>
+          <p class="agent-error" role="alert"></p>
+        </div>
+        {{- end}}
+      </article>
+      {{- end}}
+
+      <article class="voice-detail" data-voice="new" aria-labelledby="voice-title-new"{{if ne .VoicePane "new"}} hidden{{end}}>
+        <header class="voice-head"><h3 id="voice-title-new">New voice</h3></header>
+        <p>Your agent drafts a voice with you: it asks how the prose should sound, writes the spec and a sample paragraph, and saves it once you approve.</p>
+        <div class="agent-fallback-cmd"><code>/lathe-voice &lt;name&gt;</code><button type="button" class="btn btn-sm" data-copy="/lathe-voice " aria-label="Copy /lathe-voice">Copy</button></div>
+        <p class="agent-hint">Or start from a built-in: pick one and choose <strong>Duplicate and edit</strong>. Custom voices live in <code>{{.VoicesDir}}</code>.</p>
+      </article>
+
+      <article class="voice-detail voice-compare" data-voice="compare" aria-labelledby="voice-title-compare"{{if ne .VoicePane "compare"}} hidden{{end}}>
+        <header class="voice-head"><h3 id="voice-title-compare">Compare samples</h3></header>
+        <p class="agent-hint">The same paragraph, about a ring buffer, in each voice.</p>
+        <div class="voice-compare-grid">
+          {{- range .AllVoices}}
+          <section class="voice-compare-card" data-voice-card="{{.Name}}" aria-label="{{.Name}}">
+            <h4><a href="?voice={{.Name}}#voices" data-voice-pick="{{.Name}}">{{.Name}}</a> <span class="voices-item-default" data-voice-default-chip{{if not .Default}} hidden{{end}}>Default</span></h4>
+            {{- if .Sample}}
+            <div class="voice-sample">{{range .Sample}}<p>{{.}}</p>{{end}}</div>
+            {{- else}}
+            <p class="voice-sample is-empty">No sample yet.</p>
+            {{- end}}
+          </section>
+          {{- end}}
+        </div>
+      </article>
+    </div>
+  </div>
+  <p class="agent-error" id="voiceError" role="alert"></p>
+  <div class="voice-toast" id="voiceToast" role="status" aria-live="polite" hidden><span id="voiceToastText"></span><button type="button" class="btn btn-sm" id="voiceUndo">Undo</button></div>
 </section>
 
 <section id="library" class="settings-panel" role="tabpanel" aria-labelledby="tab-library">
@@ -134,6 +238,10 @@
   <div class="settings-group">
     <label class="settings-check"><input type="checkbox" data-setting="keep_verified_code"{{if .Settings.KeepVerifiedCode}} checked{{end}}><span><strong>Keep verified code</strong><span class="agent-hint">After a verify run, keep its code with the tutorial, one git tag per part, so you can compare yours against it.</span></span></label>
   </div>
+  <fieldset class="settings-group settings-checks" id="autoVerifyGroup">
+    <legend>After writing</legend>
+    <label class="settings-check"><input type="checkbox" data-setting="auto_verify"{{if .Settings.AutoVerify}} checked{{end}}><span><strong>Verify after writing a part</strong><span class="agent-hint">Your agent follows the new part in a scratch folder. Off by default.</span></span></label>
+  </fieldset>
 </section>
 
 <section id="reading" class="settings-panel" role="tabpanel" aria-labelledby="tab-reading">
@@ -418,6 +526,180 @@
       .catch(function(err){ pathError.textContent = err.message; })
       .then(function(){ pick.disabled = false; });
   });
+
+  // ---- Voices: pick, make default, duplicate, delete with Undo ----------
+  var vPane = document.getElementById('voicesPane');
+  var vError = document.getElementById('voiceError');
+  var each = function(sel, fn){ Array.prototype.forEach.call(vPane.querySelectorAll(sel), fn); };
+  function voiceURL(name){ return '?voice=' + encodeURIComponent(name) + '#voices'; }
+  // goVoice reloads the page open on a voice (after a change on disk).
+  function goVoice(name){
+    var u = voiceURL(name);
+    if (location.search === u.split('#')[0]) location.reload();
+    else location.href = u;
+  }
+  function pickVoice(name, focus){
+    var shown = null;
+    each('.voice-detail', function(d){
+      var on = d.getAttribute('data-voice') === name;
+      d.hidden = !on;
+      if (on) shown = d;
+    });
+    if (!shown) return false;
+    each('.voices-list [data-voice-pick]', function(a){
+      if (a.getAttribute('data-voice-pick') === name) a.setAttribute('aria-current', 'true');
+      else a.removeAttribute('aria-current');
+    });
+    vError.textContent = '';
+    history.replaceState(null, '', voiceURL(name));
+    if (focus) {
+      var h = shown.querySelector('h3');
+      h.tabIndex = -1;
+      h.focus({preventScroll: true});
+      // Stacked (narrow) layout: the pane is under the list.
+      if (window.matchMedia('(max-width: 699px)').matches) shown.scrollIntoView({block: 'start', behavior: 'smooth'});
+    }
+    return true;
+  }
+  vPane.addEventListener('click', function(ev){
+    var t = ev.target.closest ? ev.target : null;
+    if (!t) return;
+    var a = t.closest('[data-voice-pick]');
+    if (a && !ev.metaKey && !ev.ctrlKey && !ev.shiftKey) {
+      if (pickVoice(a.getAttribute('data-voice-pick'), true)) ev.preventDefault();
+      return;
+    }
+    var open = t.closest('[data-voice-open]');
+    if (open) {
+      var dr = document.getElementById(open.getAttribute('data-voice-open'));
+      var show = dr.hidden;
+      // One drawer at a time in a pane.
+      Array.prototype.forEach.call(open.closest('.voice-detail').querySelectorAll('.voice-drawer'), function(d){ d.hidden = true; });
+      Array.prototype.forEach.call(open.closest('.voice-detail').querySelectorAll('[data-voice-open]'), function(b){ b.setAttribute('aria-expanded', 'false'); });
+      dr.hidden = !show;
+      open.setAttribute('aria-expanded', show ? 'true' : 'false');
+      if (show) { var f = dr.querySelector('input, button'); if (f) f.focus(); }
+      return;
+    }
+    var close = t.closest('[data-voice-close]');
+    if (close) {
+      document.getElementById(close.getAttribute('data-voice-close')).hidden = true;
+      var opener = vPane.querySelector('[aria-controls="' + close.getAttribute('data-voice-close') + '"]');
+      if (opener) { opener.setAttribute('aria-expanded', 'false'); opener.focus(); }
+      return;
+    }
+    var mk = t.closest('[data-voice-make-default]');
+    if (mk) { makeDefault(mk); return; }
+    var del = t.closest('[data-voice-delete]');
+    if (del) { deleteVoice(del); return; }
+    if (t.closest('[data-voice-reveal]')) {
+      vError.textContent = '';
+      postJSON('/-/native/reveal', {what: 'voices'}).catch(function(err){ vError.textContent = err.message; });
+    }
+  });
+
+  // markDefault moves every "Default" marker to name.
+  function markDefault(name){
+    each('.voice-detail[data-voice]', function(d){
+      var on = d.getAttribute('data-voice') === name;
+      var badge = d.querySelector('[data-voice-is-default]');
+      var btn = d.querySelector('[data-voice-make-default]');
+      if (badge) badge.hidden = !on;
+      if (btn) btn.hidden = on;
+      var note = d.querySelector('[data-voice-default-note]');
+      if (note) note.hidden = !on;
+    });
+    each('.voices-list [data-voice-pick]', function(a){
+      var chip = a.querySelector('.voices-item-default');
+      if (chip) chip.hidden = a.getAttribute('data-voice-pick') !== name;
+    });
+    each('[data-voice-card]', function(c){
+      c.querySelector('[data-voice-default-chip]').hidden = c.getAttribute('data-voice-card') !== name;
+    });
+    document.querySelector('[data-voice-default-name]').textContent = name;
+  }
+  function makeDefault(btn){
+    var name = btn.getAttribute('data-voice-make-default');
+    btn.disabled = true;
+    vError.textContent = '';
+    postJSON('/-/voices/default', {name: name}).then(function(res){
+      markDefault(res['default']);
+      flash('New tutorials use ' + res['default']);
+      var badge = btn.parentNode.querySelector('[data-voice-is-default]');
+      if (badge) { badge.tabIndex = -1; badge.focus(); }
+    }).catch(function(err){ vError.textContent = err.message; })
+      .then(function(){ btn.disabled = false; });
+  }
+
+  // Duplicate and edit: copy a built-in, then open the copy with its
+  // /lathe-voice command showing.
+  each('[data-voice-dup]', function(form){
+    form.addEventListener('submit', function(ev){
+      ev.preventDefault();
+      var input = form.querySelector('input');
+      var err = form.querySelector('.agent-error');
+      var name = input.value.trim().toLowerCase();
+      err.textContent = '';
+      if (!name) { err.textContent = 'Enter a name for your copy.'; input.focus(); return; }
+      postJSON('/-/voices/duplicate', {from: form.getAttribute('data-voice-dup'), name: name}).then(function(res){
+        try { sessionStorage.setItem('lathe-voice-created', res.name); } catch (e) {}
+        goVoice(res.name);
+      }).catch(function(e){ err.textContent = e.message; input.focus(); });
+    });
+  });
+  var created = null;
+  try { created = sessionStorage.getItem('lathe-voice-created'); sessionStorage.removeItem('lathe-voice-created'); } catch (e) {}
+  if (created) {
+    var drawer = document.getElementById('edit-' + created);
+    if (drawer) {
+      drawer.hidden = false;
+      var ob = vPane.querySelector('[aria-controls="edit-' + created + '"]');
+      if (ob) ob.setAttribute('aria-expanded', 'true');
+      flash('Created ' + created + '. Refine it with your agent.');
+    }
+  }
+
+  // Delete with Undo: the row goes at once and a toast offers Undo; the
+  // server keeps the text for a while and rewrites the file on Undo.
+  var toast = document.getElementById('voiceToast');
+  var toastText = document.getElementById('voiceToastText');
+  var undoBtn = document.getElementById('voiceUndo');
+  var toastTimer, undoName = null;
+  function hideToast(){ clearTimeout(toastTimer); toast.hidden = true; undoName = null; }
+  function deleteVoice(btn){
+    var name = btn.getAttribute('data-voice-delete');
+    var detail = btn.closest('.voice-detail');
+    var err = btn.closest('.voice-drawer').querySelector('.agent-error');
+    btn.disabled = true;
+    err.textContent = '';
+    postJSON('/-/voices/delete', {name: name}).then(function(res){
+      each('[data-voice-row]', function(li){ if (li.getAttribute('data-voice-row') === name) li.hidden = true; });
+      each('[data-voice-card]', function(c){ if (c.getAttribute('data-voice-card') === name) c.hidden = true; });
+      detail.removeAttribute('data-voice');
+      detail.hidden = true;
+      var left = 0;
+      each('[data-voice-row]', function(li){ if (!li.hidden) left++; });
+      document.getElementById('voicesYoursEmpty').hidden = left > 0;
+      if (res.wasDefault) markDefault(res['default']);
+      pickVoice(res['default'], false);
+      toastText.textContent = 'Deleted ' + name + '.' + (res.wasDefault ? ' New tutorials use ' + res['default'] + '.' : '');
+      undoName = name;
+      toast.hidden = false;
+      undoBtn.focus();
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(hideToast, 10000);
+    }).catch(function(e){ err.textContent = e.message; btn.disabled = false; });
+  }
+  undoBtn.addEventListener('click', function(){
+    if (!undoName) return;
+    var name = undoName;
+    undoBtn.disabled = true;
+    postJSON('/-/voices/restore', {name: name}).then(function(){
+      goVoice(name);
+    }).catch(function(e){ hideToast(); vError.textContent = e.message; })
+      .then(function(){ undoBtn.disabled = false; });
+  });
+  toast.addEventListener('keydown', function(ev){ if (ev.key === 'Escape') hideToast(); });
 })();
 </script>
 {{template "shortcuts" .}}

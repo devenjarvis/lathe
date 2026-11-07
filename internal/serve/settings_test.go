@@ -57,9 +57,9 @@ func TestSettingsPageRendersEveryTab(t *testing.T) {
 			t.Errorf("settings page lacks %q", want)
 		}
 	}
-	// No "Auto-verify after writing" toggle: that is pending a decision.
-	if strings.Contains(strings.ToLower(page), "auto-verify") {
-		t.Error("settings page has an auto-verify toggle")
+	// Library has the auto-verify toggle, off by default.
+	if !strings.Contains(page, "Verify after writing a part") || !strings.Contains(page, `data-setting="auto_verify">`) {
+		t.Error("settings page lacks the auto-verify toggle, unchecked")
 	}
 	// A browser has no shell: no native-only controls.
 	if strings.Contains(page, "Show in Finder") || strings.Contains(page, `id="agentPathPick"`) {
@@ -113,7 +113,7 @@ func TestSettingsSaveRejects(t *testing.T) {
 		`{"text_size":"huge"}`,
 		`{"line_width":"endless"}`,
 		`{"code_root":"relative/dir"}`,
-		`{"auto_verify":true}`, // unknown keys are refused
+		`{"auto_verfy":true}`, // unknown keys are refused
 		`not json`,
 	} {
 		if code, _ := postSettings(t, ts, "/-/settings", body); code != http.StatusBadRequest {

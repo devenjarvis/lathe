@@ -168,7 +168,7 @@ func (h *agentHost) startJob(job, tutDir, slug, command string) (*agentRun, erro
 	}
 	c.SetPolicy(sid, policy)
 
-	run, err := h.launch(c, key, job, jobTarget{tutDir: tutDir}, sid, jobPrompt(job, abs, scratch, slug, command), command, jobRunTimeout, func() string {
+	run, err := h.launch(c, key, job, jobTarget{tutDir: tutDir, parts: partCount(tutDir)}, sid, jobPrompt(job, abs, scratch, slug, command), command, jobRunTimeout, func() string {
 		c.SetPolicy(sid, nil)
 		note := settleJob(job, tutDir)
 		_ = os.RemoveAll(scratch)

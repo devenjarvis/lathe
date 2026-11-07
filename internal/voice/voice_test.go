@@ -1,6 +1,7 @@
 package voice_test
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -167,5 +168,94 @@ func TestIsBuiltin(t *testing.T) {
 	}
 	if voice.IsBuiltin("nope") {
 		t.Errorf("IsBuiltin should be false for unknown names")
+	}
+}
+
+func TestBuiltinsShipASampleKeptOutOfGeneration(t *testing.T) {
+	withTempHome(t)
+	for _, name := range []string{"plainspoken", "companion"} {
+		v, err := voice.Resolve(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		s := v.Sample()
+		if !strings.Contains(strings.ToLower(s), "ring buffer") {
+			t.Errorf("%s: sample = %q, want the ring buffer paragraph", name, s)
+		}
+		// The sample is display-only: neither the generation read path
+		// (Wrapped, what `lathe voice show` prints) nor Body carries it.
+		for label, text := range map[string]string{"Body": v.Body(), "Wrapped": v.Wrapped()} {
+			if strings.Contains(text, voice.SampleHeading) || strings.Contains(text, s) {
+				t.Errorf("%s: %s still contains the sample", name, label)
+			}
+		}
+		if !strings.Contains(v.Body(), "## Calibration") {
+			t.Errorf("%s: Body lost the calibration section", name)
+		}
+	}
+}
+
+func TestSampleSectionInTheMiddle(t *testing.T) {
+	withTempHome(t)
+	spec := "---\nname: mid\n---\n\n# Mid\n\n## Sample\n\nShort and dry.\n\n```md\n## not a heading\n```\n\n## Avoid\n\n- fluff\n"
+	if err := voice.Add("mid", []byte(spec)); err != nil {
+		t.Fatal(err)
+	}
+	v, err := voice.Resolve("mid")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := v.Sample(); !strings.HasPrefix(got, "Short and dry.") || !strings.Contains(got, "## not a heading") {
+		t.Errorf("Sample = %q, want the text up to the next real heading", got)
+	}
+	if body := v.Body(); !strings.Contains(body, "# Mid") || !strings.Contains(body, "## Avoid") || strings.Contains(body, "Short and dry") {
+		t.Errorf("Body = %q, want the spec without the sample", body)
+	}
+
+	// No sample section: Sample is empty, Body is the whole spec.
+	if err := voice.Add("bare", []byte("---\nname: bare\n---\n\n# Bare\n\nPlain.\n")); err != nil {
+		t.Fatal(err)
+	}
+	b, _ := voice.Resolve("bare")
+	if b.Sample() != "" || !strings.Contains(b.Body(), "Plain.") {
+		t.Errorf("bare: sample %q body %q", b.Sample(), b.Body())
+	}
+}
+
+func TestDuplicateBuiltin(t *testing.T) {
+	home := withTempHome(t)
+	v, err := voice.Duplicate("companion", "Warm-Notes")
+	if err != nil {
+		t.Fatalf("Duplicate: %v", err)
+	}
+	if v.Name != "warm-notes" || v.Builtin {
+		t.Errorf("copy = %+v, want custom warm-notes", v)
+	}
+	raw, err := os.ReadFile(filepath.Join(home, ".lathe", "voices", "warm-notes.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(string(raw), "---\nname: warm-notes\n") {
+		t.Errorf("copy frontmatter = %.60q, want the new name", raw)
+	}
+	if v.Sample() == "" {
+		t.Error("the copy should keep the sample")
+	}
+	if p, _ := voice.Path("warm-notes"); p != filepath.Join(home, ".lathe", "voices", "warm-notes.md") {
+		t.Errorf("Path = %q", p)
+	}
+	if _, err := voice.Duplicate("companion", "warm-notes"); !errors.Is(err, voice.ErrExists) {
+		t.Errorf("duplicate onto an existing name: err = %v, want ErrExists", err)
+	}
+	if _, err := voice.Duplicate("companion", "plainspoken"); !errors.Is(err, voice.ErrExists) {
+		t.Errorf("duplicate onto a built-in: err = %v, want ErrExists", err)
+	}
+	for _, bad := range []string{"", "two words", "-x", "x-", "a--b", "a/b", "ünï"} {
+		if _, err := voice.Duplicate("companion", bad); err == nil {
+			t.Errorf("Duplicate to %q should be refused", bad)
+		}
+	}
+	if _, err := voice.Duplicate("nope", "fine"); err == nil {
+		t.Error("Duplicate of an unknown voice should fail")
 	}
 }
