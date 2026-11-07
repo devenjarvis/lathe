@@ -1,9 +1,11 @@
 package store
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -163,6 +165,65 @@ func ExtendCommit(tutDir, partFile string, sources []Source, model string) error
 		return fmt.Errorf("write metadata: %w", err)
 	}
 	return nil
+}
+
+// ErrNotInFlight is wrapped by CancelVerify and CancelExtend when the
+// tutorial is not in the state they undo.
+var ErrNotInFlight = errors.New("nothing to cancel")
+
+// statusBeforeRun is the status to restore when an in-flight verify or extend
+// is abandoned: the last completed verification's, else unverified.
+// Cancellation is not a result, so verify-result.json is never written.
+func statusBeforeRun(tutDir string) Status {
+	if prior, err := ReadVerifyResult(tutDir); err == nil && prior.Status != "" {
+		return prior.Status
+	}
+	return StatusUnverified
+}
+
+// CancelVerify recovers a tutorial whose verification stopped before it
+// recorded a result (the session died, or the run was cancelled): it restores
+// the status of the last completed run and returns it.
+func CancelVerify(tutDir string) (Status, error) {
+	slug := filepath.Base(tutDir)
+	tut, err := ReadMetadata(tutDir)
+	if err != nil {
+		return "", fmt.Errorf("no stored tutorial %q: %w", slug, err)
+	}
+	if tut.Status != StatusVerifying {
+		return tut.Status, fmt.Errorf("%w: %q is not verifying (status: %s)", ErrNotInFlight, slug, tut.Status)
+	}
+	tut.Status = statusBeforeRun(tutDir)
+	if err := WriteMetadata(tutDir, tut); err != nil {
+		return "", fmt.Errorf("write metadata: %w", err)
+	}
+	return tut.Status, nil
+}
+
+// CancelExtend recovers a tutorial whose extend stopped before
+// ExtendCommit: it deletes the half-written reserved part (it was never
+// registered, so nothing links to it), clears the reservation and restores
+// the status of the last completed verification.
+func CancelExtend(tutDir string) (Status, error) {
+	slug := filepath.Base(tutDir)
+	tut, err := ReadMetadata(tutDir)
+	if err != nil {
+		return "", fmt.Errorf("no stored tutorial %q: %w", slug, err)
+	}
+	if tut.Status != StatusExtending {
+		return tut.Status, fmt.Errorf("%w: %q is not extending (status: %s)", ErrNotInFlight, slug, tut.Status)
+	}
+	if p := tut.PendingPart; p != "" && ValidateSlug(p) == nil && !slices.Contains(tut.Parts, p) {
+		if err := os.Remove(filepath.Join(tutDir, p)); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return "", fmt.Errorf("remove unfinished part %s: %w", p, err)
+		}
+	}
+	tut.PendingPart = ""
+	tut.Status = statusBeforeRun(tutDir)
+	if err := WriteMetadata(tutDir, tut); err != nil {
+		return "", fmt.Errorf("write metadata: %w", err)
+	}
+	return tut.Status, nil
 }
 
 // SplitTags flattens tag values, also splitting comma-separated ones so

@@ -7,12 +7,13 @@ import (
 	"github.com/devenjarvis/lathe/internal/store"
 )
 
-// handleVerify never spawns a verifier — the binary never drives a model itself.
-// When a /lathe-work worker is connected it enqueues a verify job for that
-// interactive session to claim; otherwise it falls back to handing the user the
-// exact skill command to paste. Either way verification runs in the interactive
-// session, which sets status=verifying and reports the result via
-// `lathe verify-result`.
+// handleVerify never runs a verifier itself — the binary never drives a model.
+// With a hosted agent (lathe serve --agent) it starts the /lathe-verify skill
+// there over ACP; else, when a /lathe-work worker is connected, it enqueues a
+// verify job for that interactive session to claim; otherwise it hands the
+// user the exact skill command to paste. Either way the skill sets
+// status=verifying and reports the result via `lathe verify-result` (or its
+// MCP tool).
 func (s *Server) handleVerify(w http.ResponseWriter, r *http.Request) {
 	if !sameOrigin(r) {
 		http.Error(w, "forbidden", http.StatusForbidden)
@@ -36,10 +37,21 @@ func (s *Server) handleVerify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Order of preference: the agent lathe serve hosts (progress streams into
+	// the page), then a connected /lathe-work worker, then the handoff.
+	command := "/lathe-verify " + slug
+	handled, notice := s.jobViaAgent(w, jobVerify, tutDir, slug, command)
+	if handled {
+		return
+	}
 	if s.queue.WorkerConnected() {
 		id := s.queue.Enqueue(queue.Job{Type: queue.JobVerify, Slug: slug})
 		writeQueued(w, id)
 		return
 	}
-	writeHandoff(w, "/lathe-verify "+slug)
+	if notice != "" {
+		writeHandoffNotice(w, command, notice)
+		return
+	}
+	writeHandoff(w, command)
 }

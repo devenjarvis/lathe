@@ -426,7 +426,7 @@ func TestAgentStreamsRenderedHTML(t *testing.T) {
 }
 
 func TestAskRunSplitsOnMessageID(t *testing.T) {
-	r := &askRun{notify: make(chan struct{}), perms: map[string]chan string{}}
+	r := &agentRun{notify: make(chan struct{}), perms: map[string]chan string{}}
 	chunk := func(id, text string) {
 		raw, _ := json.Marshal(map[string]string{"type": "text", "text": text})
 		r.Update(acp.SessionUpdate{Kind: "agent_message_chunk", MessageID: id, Content: raw})
@@ -441,7 +441,7 @@ func TestAskRunSplitsOnMessageID(t *testing.T) {
 }
 
 func TestStaleHTMLSnapshotsAreDropped(t *testing.T) {
-	r := &askRun{notify: make(chan struct{}), perms: map[string]chan string{}}
+	r := &agentRun{notify: make(chan struct{}), perms: map[string]chan string{}}
 	r.push(runEvent{Type: "html", HTML: "<p>a</p>"})
 	r.push(runEvent{Type: "chunk", Text: "b"})
 	r.push(runEvent{Type: "html", HTML: "<p>ab</p>"})
