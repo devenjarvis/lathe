@@ -46,9 +46,16 @@ var settingsTabs = []struct{ ID, Label string }{
 }
 
 // Shortcut is one row of the Settings window's read-only Shortcuts tab.
+// Label and Combo are for the server's platform (the desktop app's, and the
+// scripts-off fallback); the Mac*/Other* pairs let the page relabel itself
+// for the browser's platform, as the agent panel's key hints do, since a
+// browser on a Mac can be talking to lathe serve on Linux.
 type Shortcut struct {
 	Label string // what it does ("Next part")
-	Combo string // how to press it, as the menu shows it ("⌘]")
+	Combo string // how to press it, as the menu shows it ("⌘]"); "" = none here
+
+	MacLabel, MacCombo     string
+	OtherLabel, OtherCombo string
 }
 
 // shortcutGroup is one group of the Shortcuts tab (Library, Agent, ...).
@@ -59,16 +66,29 @@ type shortcutGroup struct {
 
 // shortcutGroups is the Shortcuts tab, from the one registry the menus and
 // key handlers use (internal/shortcuts), so they can never disagree. It lists
-// built commands that have a default combo on this platform.
+// built commands that have a default combo on either platform family.
 func shortcutGroups(goos string) []shortcutGroup {
 	var out []shortcutGroup
 	for _, g := range shortcuts.Groups() {
 		sg := shortcutGroup{Name: string(g.Group)}
 		for _, sc := range g.Shortcuts {
-			if sc.Stub || sc.Combo(goos) == "" {
+			if sc.Stub || (sc.Mac == "" && sc.Other == "") {
 				continue
 			}
-			sg.Items = append(sg.Items, Shortcut{Label: sc.LabelFor(goos), Combo: sc.Display(goos)})
+			it := Shortcut{
+				Label:    sc.LabelFor(goos),
+				MacLabel: sc.LabelFor("darwin"), OtherLabel: sc.LabelFor("linux"),
+			}
+			if sc.Mac != "" {
+				it.MacCombo = sc.Display("darwin")
+			}
+			if sc.Other != "" {
+				it.OtherCombo = sc.Display("linux")
+			}
+			if sc.Combo(goos) != "" {
+				it.Combo = sc.Display(goos)
+			}
+			sg.Items = append(sg.Items, it)
 		}
 		if len(sg.Items) > 0 {
 			out = append(out, sg)

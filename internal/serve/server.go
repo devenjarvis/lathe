@@ -137,6 +137,9 @@ func NewServer(tutorialsDir string) *Server {
 		// prefs is the reader's appearance and reading settings, read per
 		// page so every window agrees (the head partial applies them).
 		"prefs": pagePrefsNow,
+		// coverFor is a tutorial's cover color (1–4), fixed per slug, so a
+		// cover looks the same on Home, a shelf, All tutorials and ⌘K.
+		"coverFor": coverFor,
 		// The shortcut registry and its page script (native_menu.go).
 		"shortcutsJSON": shortcutsJSON,
 		"shortcutsJS":   shortcutsJS,

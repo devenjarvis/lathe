@@ -201,8 +201,9 @@ source underneath.
 ### List page — the bookshelf
 
 Each tutorial is a **book cover**: a colored top (red, teal, yellow, navy,
-cycled by position among the covers of a row or grid, `:nth-of-type`, so the
-blank cover and the more tile don't shift it) with its size and date and the title in big Casual type,
+fixed per tutorial from a hash of its slug, `data-cover` / `coverFor`, so a
+tutorial keeps its color on Home, a shelf page, All tutorials and the ⌘K
+palette) with its size and date and the title in big Casual type,
 and a paper strip below with version + tag chips, saved progress, the status
 badge and the delete button. It is built with CSS grid over the existing
 markup: `.tutorial-body` is `display: contents`, so `.meta`, `.tutorial-link`,

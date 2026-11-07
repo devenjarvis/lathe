@@ -969,9 +969,11 @@ body.list h1{font-size:clamp(3rem,2rem + 4.5vw,5.25rem);font-weight:1000;margin:
   .tutorial-list{row-gap:1.25rem}
   .tutorial-link{min-height:6.5rem}
 }
-.tutorial:nth-of-type(4n+2){--cover:var(--cover-2);--cover-ink:var(--cover-2-ink)}
-.tutorial:nth-of-type(4n+3){--cover:var(--cover-3);--cover-ink:var(--cover-3-ink)}
-.tutorial:nth-of-type(4n+4){--cover:var(--cover-4);--cover-ink:var(--cover-4-ink)}
+/* A cover's color is fixed per tutorial (coverFor, from its slug), so it is
+   the same on Home, a shelf page, All tutorials and the ⌘K palette. */
+.tutorial[data-cover="2"]{--cover:var(--cover-2);--cover-ink:var(--cover-2-ink)}
+.tutorial[data-cover="3"]{--cover:var(--cover-3);--cover-ink:var(--cover-3-ink)}
+.tutorial[data-cover="4"]{--cover:var(--cover-4);--cover-ink:var(--cover-4-ink)}
 .tutorial::before{content:'';grid-row:1/3;grid-column:1;background:var(--cover);border-bottom:var(--line) solid var(--rule);z-index:-1}
 .tutorial:hover{transform:translateY(-3px);box-shadow:var(--shadow-md)}
 .tutorial:has(.tutorial-link:focus-visible){outline:3px solid var(--focus);outline-offset:3px}
@@ -1263,6 +1265,9 @@ html[data-native] .settings-back{display:none}
 .settings-noscript{max-width:46rem;margin:1rem auto 0;padding:0 clamp(.85rem,.5rem + 1.5vw,2rem);color:var(--text-subtle)}
 .settings-main{max-width:46rem;margin:0 auto;padding:clamp(1.5rem,1rem + 1.5vw,2.5rem) clamp(.85rem,.5rem + 1.5vw,2rem) 4rem}
 .settings-panel{scroll-margin-top:7rem}
+/* With scripts on each tab is a page of its own, so the browser's jump to
+   a #tab anchor should land at the top (padding intact), not part-way. */
+html.settings-js .settings-panel{scroll-margin-top:100vh}
 html:not(.settings-js) .settings-panel + .settings-panel{margin-top:3rem;padding-top:2rem;border-top:2px dotted var(--rule)}
 .settings-panel h2{font-size:1.6rem;margin:0 0 .4rem}
 .settings-panel h3{font-size:1.05rem;margin:0 0 .4rem}

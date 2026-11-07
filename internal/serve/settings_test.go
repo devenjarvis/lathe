@@ -298,6 +298,15 @@ func TestShortcutGroupsFollowPlatform(t *testing.T) {
 	if got := find("linux", "Next part"); got != "Ctrl+]" {
 		t.Errorf("linux Next part = %q, want Ctrl+]", got)
 	}
+	// Each row carries both families, so a Mac browser on a Linux server
+	// can relabel the tab for itself.
+	for _, g := range shortcutGroups("linux") {
+		for _, it := range g.Items {
+			if it.Label == "Next part" && (it.MacCombo != "⌘]" || it.OtherCombo != "Ctrl+]") {
+				t.Errorf("Next part families = %q / %q", it.MacCombo, it.OtherCombo)
+			}
+		}
+	}
 }
 
 func TestSettingsNativeAffordances(t *testing.T) {

@@ -306,7 +306,7 @@
   <h3>{{.Name}}</h3>
   <dl class="settings-shortcuts">
     {{- range .Items}}
-    <div><dt>{{.Label}}</dt><dd><kbd>{{.Combo}}</kbd></dd></div>
+    <div data-mac-label="{{.MacLabel}}" data-mac-combo="{{.MacCombo}}" data-other-label="{{.OtherLabel}}" data-other-combo="{{.OtherCombo}}"{{if not .Combo}} hidden{{end}}><dt>{{.Label}}</dt><dd><kbd>{{.Combo}}</kbd></dd></div>
     {{- end}}
   </dl>
   {{- end}}
@@ -371,7 +371,9 @@
       tabs[n].focus();
     });
   });
-  function fromHash(){ show((location.hash || '#agent').slice(1)); }
+  // A tab is a page of its own: start it at the top, not scrolled so its
+  // heading sits under the sticky tab bar.
+  function fromHash(){ show((location.hash || '#agent').slice(1)); window.scrollTo(0, 0); }
   window.addEventListener('hashchange', fromHash);
   fromHash();
 
@@ -711,6 +713,20 @@
       .then(function(){ undoBtn.disabled = false; });
   });
   toast.addEventListener('keydown', function(ev){ if (ev.key === 'Escape') hideToast(); });
+})();
+</script>
+<script>
+// Shortcuts tab: label keys for the browser's platform (the server's may
+// differ: a Mac browser on lathe serve running on Linux).
+(function(){
+  var mac = /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent || '');
+  var fam = mac ? 'mac' : 'other';
+  document.querySelectorAll('.settings-shortcuts > div[data-' + fam + '-label]').forEach(function(row){
+    var combo = row.getAttribute('data-' + fam + '-combo') || '';
+    row.hidden = !combo;
+    row.querySelector('dt').textContent = row.getAttribute('data-' + fam + '-label');
+    row.querySelector('kbd').textContent = combo;
+  });
 })();
 </script>
 {{template "shortcuts" .}}
