@@ -174,7 +174,7 @@ func (h *agentHost) startCheck(tut *store.Tutorial, tutDir, workspace, part, com
 
 	started := time.Now()
 	prompt := checkPrompt(tut, abs, ws, scratch, part, command)
-	run, err := h.launch(c, key, jobCheck, sid, prompt, command, checkRunTimeout, func() string {
+	run, err := h.launch(c, key, jobCheck, jobTarget{tutDir: tutDir, part: part}, sid, prompt, command, checkRunTimeout, func() string {
 		c.SetPolicy(sid, nil)
 		_ = os.RemoveAll(scratch)
 		if res := store.LatestCheck(tutDir, part); res == nil || res.Time().Before(started) {

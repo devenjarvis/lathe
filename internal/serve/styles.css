@@ -715,6 +715,12 @@ pre samp{background:none;padding:0;color:inherit;font-family:var(--font-mono);fo
 .agent-workspace-form{display:flex;flex-wrap:wrap;gap:.45rem;margin-top:.5rem}
 .agent-workspace-form input{flex:1 1 12rem}
 .agent-workspace-form .agent-error{flex-basis:100%}
+/* Desktop app only (rendered when a native shell is present): "Choose folder…" beside the workspace path. */
+.agent-workspace-row .link-btn+.link-btn{margin-left:0}
+.link-btn[aria-busy="true"]{cursor:progress;opacity:.65}
+.agent-field-row{display:flex;gap:.45rem;align-items:stretch}
+.agent-field-row input{flex:1 1 auto}
+.agent-field-row .btn{flex-shrink:0;min-height:auto}
 
 /* Collapsed rail (docked mode only). */
 .agent-rail{display:none;position:fixed;top:var(--topbar-h);right:0;bottom:0;width:3rem;z-index:40;flex-direction:column;align-items:center;gap:.7rem;padding:1rem 0;background:var(--yellow);color:#1C2140;border:none;border-left:var(--line) solid #1C2140;cursor:pointer;font:inherit}

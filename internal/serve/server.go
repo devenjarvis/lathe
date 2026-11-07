@@ -178,6 +178,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /-/agents", s.handleAgents)
 	mux.HandleFunc("POST /-/agent", s.handleAgentPick)
 	mux.HandleFunc("POST /-/workspace/{slug}", s.handleWorkspace)
+	// Desktop shell (native_http.go): 404 unless SetNative installed one.
+	mux.HandleFunc("POST /-/native/pick-folder", s.handleNativePickFolder)
+	mux.HandleFunc("POST /-/native/window", s.handleNativeWindow)
 	return mux
 }
 
@@ -287,6 +290,8 @@ func (s *Server) handleList(w http.ResponseWriter, r *http.Request) {
 		"Tutorials":    tutorials,
 		"CSS":          s.designCSS,
 		"HighlightCSS": s.highlightCSS,
+		// Native: the desktop shell is present (data-native on <html>).
+		"Native": s.nativeShell() != nil,
 	}); err != nil {
 		http.Error(w, "template error", http.StatusInternalServerError)
 		return
@@ -473,8 +478,15 @@ func isSameOriginURL(r *http.Request, raw string) bool {
 	if host == "" {
 		return false
 	}
-	return isLoopbackHost(host) || host == requestHost(r)
+	return isLoopbackHost(host) || host == wailsWindowsHost || host == requestHost(r)
 }
+
+// wailsWindowsHost is the desktop app's page origin on Windows
+// (http://wails.localhost; WebView2 has no custom schemes). Its pages are
+// ours: the shell serves this handler there. On macOS and Linux the origin is
+// wails://localhost, which the loopback check already covers. A *.localhost
+// name never leaves the machine, so this widens nothing for a browser.
+const wailsWindowsHost = "wails.localhost"
 
 // isLoopbackHost reports whether a hostname is loopback. We match on host rather
 // than an exact port because the listen port is configurable (--port).
@@ -666,6 +678,9 @@ func (s *Server) renderPart(w http.ResponseWriter, tut *store.Tutorial, tutDir, 
 		"Content":           template.HTML(content),
 		"CSS":               s.designCSS,
 		"HighlightCSS":      s.highlightCSS,
+		// Native: the desktop shell is present, so the page renders its
+		// affordances (data-native, "Choose folder…", the app-window pop-out).
+		"Native":            s.nativeShell() != nil,
 		"JigScript":         jigScript,
 		"PrevPart":          prevPart,
 		"NextPart":          nextPart,

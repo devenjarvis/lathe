@@ -168,7 +168,7 @@ func (h *agentHost) startJob(job, tutDir, slug, command string) (*agentRun, erro
 	}
 	c.SetPolicy(sid, policy)
 
-	run, err := h.launch(c, key, job, sid, jobPrompt(job, abs, scratch, slug, command), command, jobRunTimeout, func() string {
+	run, err := h.launch(c, key, job, jobTarget{tutDir: tutDir}, sid, jobPrompt(job, abs, scratch, slug, command), command, jobRunTimeout, func() string {
 		c.SetPolicy(sid, nil)
 		note := settleJob(job, tutDir)
 		_ = os.RemoveAll(scratch)
@@ -184,7 +184,7 @@ func (h *agentHost) startJob(job, tutDir, slug, command string) (*agentRun, erro
 // launch registers a run under key and starts driving prompt in session sid.
 // after runs once the prompt ends, before the final event (see agentRun).
 // It returns the busy error for key's job when another run holds the key.
-func (h *agentHost) launch(c *acp.Client, key, job, sid, prompt, fallback string, timeout time.Duration, after func() string) (*agentRun, error) {
+func (h *agentHost) launch(c *acp.Client, key, job string, target jobTarget, sid, prompt, fallback string, timeout time.Duration, after func() string) (*agentRun, error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if _, busy := h.active[key]; busy {
@@ -207,6 +207,7 @@ func (h *agentHost) launch(c *acp.Client, key, job, sid, prompt, fallback string
 		started:  time.Now(),
 		fallback: fallback,
 		after:    after,
+		target:   target,
 	}
 	h.runs[run.id] = run
 	h.active[key] = run.id
