@@ -99,6 +99,9 @@ type Config struct {
 	// before it is deleted for good: one of TrashDayChoices, 0 for never.
 	// Nil means DefaultTrashDays.
 	TrashDays *int `json:"trash_days,omitempty"`
+	// UpdateCheck lets the desktop app look up the newest release on GitHub
+	// at most once a day and show a notice when one is out. Default on.
+	UpdateCheck *bool `json:"update_check,omitempty"`
 }
 
 // NotifyConfig is the per-event notification switches. Nil means on.

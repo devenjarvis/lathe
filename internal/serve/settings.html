@@ -253,6 +253,11 @@
     <legend>After writing</legend>
     <label class="settings-check"><input type="checkbox" data-setting="auto_verify"{{if .Settings.AutoVerify}} checked{{end}}><span><strong>Verify after writing a part</strong><span class="agent-hint">Your agent follows the new part in a scratch folder. Off by default.</span></span></label>
   </fieldset>
+  <fieldset class="settings-group settings-checks" id="updatesGroup">
+    <legend>Updates</legend>
+    <label class="settings-check"><input type="checkbox" data-setting="update_check"{{if .Settings.UpdateCheck}} checked{{end}}><span><strong>Check for updates automatically</strong><span class="agent-hint">Once a day, Lathe asks GitHub for its newest release and shows a note in the title bar when one is out. Nothing about you or your library is sent.</span></span></label>
+    <p class="agent-hint">{{if .Version}}You have Lathe {{.Version}}.{{else}}This is a development build of Lathe, which doesn't check for updates.{{end}}{{if .Native}} Lathe › Check for updates… checks now.{{else}} Update checks run in the desktop app.{{end}}</p>
+  </fieldset>
 </section>
 
 <section id="reading" class="settings-panel" role="tabpanel" aria-labelledby="tab-reading">

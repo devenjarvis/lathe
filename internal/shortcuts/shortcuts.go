@@ -123,7 +123,7 @@ var registry = []Shortcut{
 	{ID: "app.settings", Label: "Settings…", Menu: MenuLathe, Group: GroupWindows, Scope: ScopeGlobal, Handler: HandlerShell,
 		Mac: "Cmd+,", Other: "Ctrl+,", Href: "/-/settings",
 		Note: "⌘, is the macOS settings convention; Ctrl+, is free on Windows, GNOME and KDE."},
-	{ID: "app.updates", Label: "Check for updates…", Menu: MenuLathe, Group: GroupWindows, Scope: ScopeGlobal, Handler: HandlerShell, Stub: true},
+	{ID: "app.updates", Label: "Check for updates…", Menu: MenuLathe, Group: GroupWindows, Scope: ScopeGlobal, Handler: HandlerShell},
 	{ID: "app.quit", Label: "Quit Lathe", Menu: MenuLathe, Group: GroupWindows, Scope: ScopeGlobal, Handler: HandlerNative,
 		Mac: "Cmd+Q", Other: "Ctrl+Q"},
 

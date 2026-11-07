@@ -17,7 +17,7 @@ func TestLoadSettingsDefaults(t *testing.T) {
 		RememberPlace: true, PanelSuggestions: true, PanelWindow: false,
 		CodeRoot: config.DefaultCodeRoot, KeepVerifiedCode: true, AutoVerify: false,
 		NotifyVerify: true, NotifyExtend: true, NotifyCheck: true,
-		TrashDays: config.DefaultTrashDays,
+		TrashDays: config.DefaultTrashDays, UpdateCheck: true,
 	}
 	if got != want {
 		t.Errorf("LoadSettings() = %+v, want %+v", got, want)
@@ -47,6 +47,7 @@ func TestSettingsRoundTripAndKeys(t *testing.T) {
 		c.KeepVerifiedCode = config.Bool(false)
 		c.PanelWindow = true
 		c.AutoVerify = true
+		c.UpdateCheck = config.Bool(false)
 		c.Notify = &config.NotifyConfig{Extend: config.Bool(false)}
 		return nil
 	})
@@ -56,7 +57,7 @@ func TestSettingsRoundTripAndKeys(t *testing.T) {
 	got := config.LoadSettings()
 	if got.Appearance != "dark" || got.TextSize != "larger" || got.LineWidth != "wide" || got.CodeRoot != "~/src" ||
 		got.RememberPlace || got.PanelSuggestions || got.KeepVerifiedCode || !got.PanelWindow || !got.AutoVerify ||
-		!got.NotifyVerify || got.NotifyExtend || !got.NotifyCheck {
+		!got.NotifyVerify || got.NotifyExtend || !got.NotifyCheck || got.UpdateCheck || config.UpdateCheck() {
 		t.Errorf("LoadSettings() = %+v", got)
 	}
 	if config.KeepVerifiedCode() {

@@ -176,6 +176,66 @@
 </script>
 {{end}}
 
+{{define "updateNotice"}}
+{{/* Desktop app only: the title bar's quiet update notice (updates.go,
+     internal/update). Notify-only: Download opens the release page in the
+     browser (nativeLinks), a Homebrew install gets the brew command to copy,
+     and once the app on disk is newer, Restart reopens it. × hides it until
+     the next version. Rendered only when the checker has something to say. */}}
+{{- with updateNotice}}
+<div class="update-notice" id="updateNotice" data-kind="{{.Kind}}" data-version="{{.Version}}" role="group" aria-label="Update">
+  <span class="update-notice-text">Lathe {{.Label}}<span class="update-notice-state"> is {{if eq .Kind "restart"}}ready{{else}}available{{end}}</span></span>
+  <span class="update-notice-sep" aria-hidden="true">·</span>
+  {{- if eq .Kind "restart"}}
+  <button type="button" class="update-notice-act" data-update-restart aria-label="Restart into Lathe {{.Label}}">Restart</button>
+  {{- else if eq .Kind "homebrew"}}
+  <span class="update-notice-run">Run <code>{{.Command}}</code></span>
+  <button type="button" class="update-notice-act" data-update-copy="{{.Command}}" aria-label="Copy {{.Command}}" title="Copy {{.Command}}">Copy<span class="update-notice-narrow"> brew command</span></button>
+  {{- else}}
+  <a class="update-notice-act" href="{{.URL}}" target="_blank" rel="noopener" aria-label="Download Lathe {{.Label}}">Download</a>
+  {{- end}}
+  <button type="button" class="update-notice-close" data-update-dismiss aria-label="Hide until the next version" title="Hide until the next version">×</button>
+  <span class="visually-hidden" role="status" aria-live="polite" data-update-status></span>
+</div>
+<script>
+(function () {
+  var box = document.getElementById('updateNotice');
+  if (!box) return;
+  var say = box.querySelector('[data-update-status]');
+  function post(action) {
+    return fetch('/-/native/update', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: action, version: box.getAttribute('data-version') })
+    }).then(function (r) { if (!r.ok) throw new Error(r.status); });
+  }
+  box.addEventListener('click', function (e) {
+    var t = e.target.closest('button');
+    if (!t) return;
+    if (t.hasAttribute('data-update-dismiss')) {
+      post('dismiss').then(function () { box.remove(); }, function () { box.remove(); });
+    } else if (t.hasAttribute('data-update-restart')) {
+      t.disabled = true;
+      t.textContent = 'Restarting…';
+      post('restart').catch(function () {
+        t.disabled = false;
+        t.textContent = 'Restart';
+        say.textContent = 'Could not restart. Quit Lathe and open it again.';
+      });
+    } else if (t.hasAttribute('data-update-copy')) {
+      var cmd = t.getAttribute('data-update-copy');
+      var label = t.innerHTML;
+      var done = function () { t.textContent = 'Copied'; say.textContent = 'Copied ' + cmd; setTimeout(function () { t.innerHTML = label; }, 1600); };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(cmd).then(done, function () {});
+      }
+    }
+  });
+})();
+</script>
+{{- end}}
+{{end}}
+
 {{define "liveNudge"}}
 <div id="liveNudge" class="live-nudge" role="status" hidden>
   <span class="live-nudge-dot" aria-hidden="true">●</span>
