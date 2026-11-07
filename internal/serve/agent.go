@@ -560,7 +560,10 @@ type runEvent struct {
 	Title   string                 `json:"title,omitempty"`
 	Options []acp.PermissionOption `json:"options,omitempty"`
 	Choice  string                 `json:"choice,omitempty"`
-	HTML    string                 `json:"html,omitempty"`
+	// Input is the exact command (or path) a permission prompt is about,
+	// from the tool call's rawInput, when the agent sent one.
+	Input string `json:"input,omitempty"`
+	HTML  string `json:"html,omitempty"`
 	// tool / tool_update: the agent's tool call, keyed by ID
 	Status string `json:"status,omitempty"`
 	Kind   string `json:"kind,omitempty"`
@@ -803,7 +806,7 @@ func (r *agentRun) RequestPermission(ctx context.Context, req acp.PermissionRequ
 	if title == "" {
 		title = "The agent wants to use a tool"
 	}
-	r.appendLocked(runEvent{Type: "permission", ID: id, Title: title, Options: req.Options})
+	r.appendLocked(runEvent{Type: "permission", ID: id, Title: title, Options: req.Options, Kind: req.ToolCall.Kind, Input: req.ToolCall.Input()})
 	r.mu.Unlock()
 
 	var choice string

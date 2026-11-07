@@ -303,8 +303,14 @@ func TestPagePanelStructure(t *testing.T) {
 		`>Write Part 3</span><kbd class="agent-kbd agent-menu-key" data-kbd aria-hidden="true">⇧⌘N</kbd>`,
 		// The one suggestion (on by default; .PanelSuggestions).
 		`id="agentSuggestion" class="agent-suggestion"`,
-		// The job slots the panel's actions feed stay where they were.
-		`id="verifyLive"`, `id="extendLive"`,
+		// Jobs are cards in the log (#143); the About box keeps one line
+		// beside the badge that links to the newest card.
+		`<dd><span id="badgeRegion" aria-live="polite">`,
+		`<button type="button" id="jobLine" class="tb-job" hidden>`,
+		`window.latheAttachJob = function(job, runId, opts)`,
+		`window.lathePermissionCard = permissionCard;`,
+		`'Allow once', '↩'`, `'Allow for this job'`, `'Deny', 'esc'`,
+		`'In the scratch copy, not your folder'`,
 	} {
 		if !strings.Contains(page, want) {
 			t.Errorf("page missing %q", want)
@@ -313,6 +319,8 @@ func TestPagePanelStructure(t *testing.T) {
 	for _, gone := range []string{
 		`class="agent-actions"`, `data-agent-action="ask"`, `id="agentPickName"`,
 		`id="agentPopout" class="icon-btn"`, `id="saveProgressButton"`, `<footer class="agent-workspace"`,
+		// The article's job slots are gone: progress lives in the panel.
+		`id="verifyLive"`, `id="extendLive"`, `id="checkLive"`, `class="agent-job"`, `class="ask-permission"`,
 	} {
 		if strings.Contains(page, gone) {
 			t.Errorf("page still has %q", gone)

@@ -6,7 +6,7 @@
 <section class="check-work" id="checkWork" aria-labelledby="checkWorkTitle"
   data-slug="{{.Slug}}" data-part="{{.Part}}"
   data-checked-at="{{with .Result}}{{.CheckedAt}}{{end}}"
-  data-run-id="{{.RunID}}" data-has-workspace="{{if .HasWorkspace}}1{{end}}">
+  data-run-id="{{.RunID}}"{{if .RunStarted}} data-run-started="{{.RunStarted}}"{{end}} data-has-workspace="{{if .HasWorkspace}}1{{end}}">
   <div class="check-work-bar">
     <div class="check-work-text">
       <p class="check-work-title" id="checkWorkTitle">Check my work</p>
@@ -22,7 +22,6 @@
   </div>
   <p class="check-error" aria-live="polite"></p>
   <div class="check-handoff"></div>
-  <div id="checkLive" class="agent-job-slot check-live"></div>
   <div class="check-result-slot" aria-live="polite">{{template "checkResult" .}}</div>
 </section>
 {{end}}

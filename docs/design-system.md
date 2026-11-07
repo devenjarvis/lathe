@@ -117,12 +117,14 @@ Each component is a class in `styles.css`. Markup it expects:
 | Series TOC | `.series-toc`, `.current-row`, `.part-num` | layout.html |
 | Part nav | `.part-nav`, `.prev`/`.next`, `.label`, `.title` | layout.html |
 | Verify / extend | `.verify-section`, `.extend-section`, `#verifyForm`, `#extendForm` | layout.html |
-| About box | `.article-header`, `.article-title`, `dl.title-block` with one `div` per cell (`.tb-part`, `.tb-tools`, `.article-byline`, `.tb-voice`, `.tb-status`) and full-width `.tb-row`s; `.tb-big`, `.status-none`, `.status-jump` | layout.html + `statusHeader` (components.html) |
+| About box | `.article-header`, `.article-title`, `dl.title-block` with one `div` per cell (`.tb-part`, `.tb-tools`, `.article-byline`, `.tb-voice`, `.tb-status`) and full-width `.tb-row`s; `.tb-big`, `.status-none`, `.status-jump`; `#jobLine.tb-job[data-state]` (`.tb-job-dot`, `.tb-job-text`, `.tb-job-link`) | layout.html + `statusHeader` (components.html) |
 | Voice reveal | `.voice-reveal`, `.voice-reveal-body` | layout.html (in the Voice cell) |
 | Section index | `#tocRail`, `.label`, `.tick`, `a.active` | layout.html |
 | Agent panel | `#agentPanel.agent-panel` (docked ≥1100px via `html[data-agent-dock="open"\|"collapsed"]` and `--dock-w`; overlay dialog below, bottom sheet ≤700px; `html[data-agent-popout]` for the pop-out window), `.agent-panel-head` with one `.agent-chip` (+`.agent-dot`, `[data-state]`) and `.agent-state[data-state]` beside it, `.icon-btn`; `.agent-menu` (`role="menu"`; `.agent-chip-menu`, `.agent-action-menu`) of `.agent-menu-item`s (`.agent-menu-row`, `.agent-menu-label`, `.agent-menu-key`/`.agent-kbd` key hints, `.agent-menu-desc`, `.agent-menu-info` read-only rows, `[aria-disabled="true"]` with the reason as its description, `.agent-menu-sep`); `.agent-context` strip (`.agent-place`, `.agent-ws-btn`, `.agent-workspace-form`); `.agent-session`, `.agent-suggestion` (+`-text`/`-act`/`-close`), `.agent-composer` with `.agent-plus`; `.agent-rail` (collapsed), `.agent-toggle` (masthead, `.agent-toggle-key`), `.place-saved` (masthead, `[data-state="error"]`); desktop app only: a "Choose folder…" `btn btn-ghost btn-sm` in `.agent-workspace-actions` | layout.html |
 | Agent panel setup | `.agent-setup`, `.agent-choices`, `.agent-choice` (+`-text`/`-detail`), `.agent-others`, `.agent-field` (+ `.agent-field-row`, desktop app only: the field plus a "Choose folder…" `btn btn-ghost btn-sm`), `.agent-hint`, `.agent-error`, `.agent-fallback` (+`-cmd`) | layout.html |
-| Agent session log | `#askLog`, `.ask-bubble`, `.ask-question`, `.ask-answer`, `.ask-streaming` (caret), `.ask-note`/`.ask-note-error`, `.ask-permission` (+`-label`/`-title`/`-options`/`-result`, `.resolved`), `.agent-isolation` | layout.html |
+| Agent session log | `#askLog`, `.ask-bubble`, `.ask-question`, `.ask-answer`, `.ask-streaming` (caret), `.ask-note`/`.ask-note-error`, `.agent-isolation` | layout.html |
+| Agent job cards | `.job-card[data-job][data-state="running"\|"done"\|"failed"\|"hints"\|"stopped"\|"error"\|"queued"\|"handoff"]` (`[data-waiting]` while a permission prompt is open) in `#askLog`: `.job-card-head` (`.job-card-top` with `.job-card-kicker`, `.job-card-time`, `.job-card-dismiss`; `.job-card-title`), `.job-segs`/`.job-seg[data-status]`, `.job-plan`/`.job-plan-entry[data-status]`, `.job-tail` (`.job-tail-line`, `-out`, `-blocked`), `.job-card-summary`, `.job-card-error`, `.job-card-actions` (`.job-card-link`, `.job-card-next`, Stop), `.job-card-cmd`, `.job-card-details` (`.job-report`, `.job-step-list`/`.job-step`); `.job-flash` on the article target of a card's next step | layout.html |
+| Permission prompt | `.perm-card` (yellow and navy in both themes; `.resolved` dashed, `[data-choice]`): `.perm-kicker`, `.perm-ask`, `.perm-cmd`, `.perm-where`, `.perm-options` (Allow once `.perm-key` ↩, Allow for this job, Deny esc), `.perm-error` | layout.html |
 | Reading progress bar | `#progressBar` | layout.html |
 | Progress toast | `.progress-status`, `#progressStatus` (`aria-hidden`) | layout.html |
 | Announced status region | `#statusAnnouncer` (`role="status"`, shared by the progress and copy flows) | layout.html |
@@ -155,6 +157,9 @@ with its value. Cells, in order:
 - **Verification** (`#badgeRegion`, re-rendered live by `/-/status`) — the
   `statusHeader` partial: "Verified <date>" in the badge, or "Not verified" with
   a **Verify it** link to `#verifyRegion`, or "Failed" with **See what failed**.
+  Under it, `#jobLine` is the one-line status of the newest agent job ("Verifying
+  the tutorial · step 2 of 5 See progress"); it opens the agent panel to that
+  job's card, and the cell spans two columns while it shows.
 
 Full-width `.tb-row`s (dotted rule above) follow for the `[!UNVERIFIED]` count
 and the "Researched against N sources" disclosure.

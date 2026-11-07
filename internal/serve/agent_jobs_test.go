@@ -154,6 +154,26 @@ func TestAgentVerifyRunsOverACP(t *testing.T) {
 	if _, err := os.Stat(scratch); !os.IsNotExist(err) {
 		t.Errorf("scratch dir %s still exists after the run (err %v)", scratch, err)
 	}
+
+	// The panel's finished card reads the result and the saved code from
+	// /-/status ("Verified · All 2 parts passed … · Open code").
+	resp, err := http.Get(ts.URL + "/-/status/series/part-01.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var st struct {
+		Status string              `json:"status"`
+		Result *store.VerifyResult `json:"result"`
+		Code   map[string]string   `json:"code"`
+	}
+	_ = json.NewDecoder(resp.Body).Decode(&st)
+	_ = resp.Body.Close()
+	if st.Status != "verified" || st.Result == nil || st.Result.Status != store.StatusVerified {
+		t.Errorf("status = %q, result = %+v, want verified", st.Status, st.Result)
+	}
+	if st.Code["tag"] != "part-01" || st.Code["path"] == "" {
+		t.Errorf("status code = %v, want the part-01 snapshot", st.Code)
+	}
 }
 
 func TestAgentVerifyCancelRestoresStatus(t *testing.T) {
@@ -201,14 +221,18 @@ func TestAgentVerifyCancelRestoresStatus(t *testing.T) {
 	if st.Run == nil || st.Run.ID != out["runId"] || st.Run.Job != jobVerify {
 		t.Errorf("status run = %+v, want {%s verify}", st.Run, out["runId"])
 	}
+	// When it started, so the reattached card's clock is right.
+	if st.Run != nil && (st.Run.Started <= 0 || time.Since(time.UnixMilli(st.Run.Started)) > time.Minute) {
+		t.Errorf("status run started = %d, want about now", st.Run.Started)
+	}
 	page, err := http.Get(ts.URL + "/series/part-02.md")
 	if err != nil {
 		t.Fatal(err)
 	}
 	body, _ := io.ReadAll(page.Body)
 	_ = page.Body.Close()
-	if !strings.Contains(string(body), `data-run-id="`+out["runId"]+`" data-run-job="verify"`) {
-		t.Errorf("reading page does not name the running job")
+	if !strings.Contains(string(body), `data-run-id="`+out["runId"]+`" data-run-job="verify" data-run-started="`) {
+		t.Errorf("reading page does not name the running job and when it started")
 	}
 
 	// `lathe verify-cancel` path: stop it on the server.
