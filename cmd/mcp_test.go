@@ -117,7 +117,7 @@ func (c *mcpClient) mustCall(name string, args map[string]any) string {
 }
 
 func TestMCPListsEveryWriteToolUnscoped(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	setHome(t, t.TempDir())
 	got := strings.Join(newMCPClient(t, "").tools(), " ")
 	want := "lathe_store lathe_verify_result lathe_extend_start lathe_extend_commit lathe_tag lathe_check_result lathe_voice_add"
 	if got != want {
@@ -126,7 +126,7 @@ func TestMCPListsEveryWriteToolUnscoped(t *testing.T) {
 }
 
 func TestMCPScopedServerOffersOnlyTutorialTools(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	setHome(t, t.TempDir())
 	got := strings.Join(newMCPClient(t, "synth").tools(), " ")
 	want := "lathe_verify_result lathe_extend_start lathe_extend_commit lathe_tag lathe_check_result"
 	if got != want {
@@ -136,7 +136,7 @@ func TestMCPScopedServerOffersOnlyTutorialTools(t *testing.T) {
 
 func TestMCPStore(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setHome(t, home)
 	src := filepath.Join(t.TempDir(), "digital-synth")
 	if err := os.MkdirAll(src, 0755); err != nil {
 		t.Fatal(err)
@@ -181,7 +181,7 @@ func TestMCPStore(t *testing.T) {
 
 func TestMCPVerifyResult(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setHome(t, home)
 	tutDir := writeTutorial(t, home, "synth", store.StatusUnverified, []string{"part-01.md", "part-02.md"})
 	c := newMCPClient(t, "synth")
 
@@ -216,7 +216,7 @@ func TestMCPVerifyResult(t *testing.T) {
 
 func TestMCPVerifyResultRecordsStatusEvenWhenSnapshotFails(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setHome(t, home)
 	tutDir := writeTutorial(t, home, "synth", store.StatusVerifying, []string{"part-01.md"})
 	c := newMCPClient(t, "synth")
 	text, isErr := c.call("lathe_verify_result", map[string]any{"status": "verified", "code": t.TempDir()})
@@ -230,7 +230,7 @@ func TestMCPVerifyResultRecordsStatusEvenWhenSnapshotFails(t *testing.T) {
 
 func TestMCPExtendStartAndCommit(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setHome(t, home)
 	tutDir := writeTutorial(t, home, "synth", store.StatusVerified, []string{"part-01.md"})
 	c := newMCPClient(t, "synth")
 
@@ -270,7 +270,7 @@ func TestMCPExtendStartAndCommit(t *testing.T) {
 
 func TestMCPTag(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setHome(t, home)
 	tutDir := writeTutorial(t, home, "synth", store.StatusUnverified, []string{"part-01.md"})
 	c := newMCPClient(t, "")
 
@@ -294,7 +294,7 @@ func TestMCPTag(t *testing.T) {
 
 func TestMCPCheckResult(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setHome(t, home)
 	tutDir := writeTutorial(t, home, "synth", store.StatusUnverified, []string{"part-01.md", "part-02.md"})
 	c := newMCPClient(t, "synth")
 
@@ -321,7 +321,7 @@ func TestMCPCheckResult(t *testing.T) {
 }
 
 func TestMCPVoiceAdd(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	setHome(t, t.TempDir())
 	c := newMCPClient(t, "")
 	spec := "---\nname: terse\ndescription: Short sentences.\n---\nWrite tersely.\n"
 	c.mustCall("lathe_voice_add", map[string]any{"name": "terse", "spec": spec})
@@ -338,7 +338,7 @@ func TestMCPVoiceAdd(t *testing.T) {
 }
 
 func TestMCPUnknownToolIsAProtocolError(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	setHome(t, t.TempDir())
 	c := newMCPClient(t, "synth")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -354,7 +354,7 @@ func TestMCPUnknownToolIsAProtocolError(t *testing.T) {
 // stdout, the way an agent launches it from session/new.
 func TestMCPCommandServesStdio(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setHome(t, home)
 	tutDir := writeTutorial(t, home, "synth", store.StatusUnverified, []string{"part-01.md"})
 	mcpSlug = "synth"
 	t.Cleanup(func() { mcpSlug = "" })

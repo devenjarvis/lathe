@@ -13,7 +13,7 @@ import (
 )
 
 func TestResolveShowNameExplicitArgWins(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	setHome(t, t.TempDir())
 	got, err := resolveShowName([]string{"companion"}, "")
 	if err != nil {
 		t.Fatalf("resolveShowName: %v", err)
@@ -24,7 +24,7 @@ func TestResolveShowNameExplicitArgWins(t *testing.T) {
 }
 
 func TestResolveShowNameNoArgsUsesDefault(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	setHome(t, t.TempDir())
 	got, err := resolveShowName(nil, "")
 	if err != nil {
 		t.Fatalf("resolveShowName: %v", err)
@@ -36,7 +36,7 @@ func TestResolveShowNameNoArgsUsesDefault(t *testing.T) {
 
 func TestResolveShowNameTutorialVoice(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setHome(t, home)
 	writeTutorialWithVoice(t, home, "synth", "companion")
 
 	got, err := resolveShowName(nil, "synth")
@@ -50,7 +50,7 @@ func TestResolveShowNameTutorialVoice(t *testing.T) {
 
 func TestResolveShowNameTutorialWithoutVoiceFallsBack(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setHome(t, home)
 	writeTutorialWithVoice(t, home, "legacy", "") // pre-feature tutorial
 
 	got, err := resolveShowName(nil, "legacy")
@@ -63,7 +63,7 @@ func TestResolveShowNameTutorialWithoutVoiceFallsBack(t *testing.T) {
 }
 
 func TestVoiceShowCmdPrintsWrappedSpec(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	setHome(t, t.TempDir())
 	var out bytes.Buffer
 	voiceShowCmd.SetOut(&out)
 	t.Cleanup(func() { voiceShowCmd.SetOut(nil) })
@@ -76,7 +76,7 @@ func TestVoiceShowCmdPrintsWrappedSpec(t *testing.T) {
 }
 
 func TestVoiceRmResetsDefaultWhenRemovingTheDefault(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	setHome(t, t.TempDir())
 
 	// Add a custom voice and make it the default.
 	spec := []byte("---\nname: temp\ndescription: t\n---\n# Temp\nbody\n")
@@ -105,7 +105,7 @@ func TestVoiceRmResetsDefaultWhenRemovingTheDefault(t *testing.T) {
 }
 
 func TestVoiceRmKeepsDefaultWhenRemovingOther(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	setHome(t, t.TempDir())
 
 	if err := voice.Add("keep", []byte("---\nname: keep\n---\nx\n")); err != nil {
 		t.Fatalf("Add keep: %v", err)

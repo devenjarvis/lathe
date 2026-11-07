@@ -23,7 +23,7 @@ func runStart(t *testing.T, args ...string) (string, error) {
 
 func TestStartSetsWorkspaceFromPath(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setHome(t, home)
 	tutDir := writeTutorial(t, home, "synth", store.StatusUnverified, []string{"part-01.md"})
 
 	out, err := runStart(t, "synth", "~/code/synth")
@@ -45,7 +45,7 @@ func TestStartSetsWorkspaceFromPath(t *testing.T) {
 
 func TestStartDefaultsToCurrentDirAndPrintsURL(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setHome(t, home)
 	tutDir := writeTutorial(t, home, "synth", store.StatusUnverified, []string{"part-01.md"})
 	work := t.TempDir()
 	if err := os.WriteFile(filepath.Join(work, "main.zig"), nil, 0o644); err != nil {
@@ -75,7 +75,7 @@ func TestStartDefaultsToCurrentDirAndPrintsURL(t *testing.T) {
 }
 
 func TestStartUnknownTutorial(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	setHome(t, t.TempDir())
 	if _, err := runStart(t, "nope", "/tmp/x"); err == nil {
 		t.Error("start on an unknown tutorial succeeded")
 	}

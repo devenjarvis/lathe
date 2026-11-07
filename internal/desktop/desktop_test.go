@@ -194,7 +194,7 @@ func TestNotifyNeverBlocks(t *testing.T) {
 }
 
 func TestBridgeWritesAndRemovesServeRuntime(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	setHome(t, t.TempDir())
 	h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = io.WriteString(w, "lathe") })
 	var log logLines
 	b, err := startBridge(h, log.logf)
@@ -232,7 +232,7 @@ func TestBridgeWritesAndRemovesServeRuntime(t *testing.T) {
 }
 
 func TestBridgeKeepsAnotherServersRuntime(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	setHome(t, t.TempDir())
 	var log logLines
 	b, err := startBridge(http.NotFoundHandler(), log.logf)
 	if err != nil {
