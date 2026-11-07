@@ -87,12 +87,17 @@ func tutorialCard(t *testing.T, body, slug string) string {
 	if start < 0 {
 		t.Fatalf("missing tutorial card wrapper for %q; body excerpt:\n%s", slug, body)
 	}
-	endMarker := "</form>\n    </div>\n  </div>"
-	end := strings.Index(body[slugIdx:], endMarker)
+	// The cover ends with its ⋯ menu, whose last item is Move to Trash.
+	trash := strings.Index(body[slugIdx:], `action="/-/delete/`+slug+`"`)
+	if trash < 0 {
+		t.Fatalf("tutorial card for %q has no Move to Trash; body excerpt:\n%s", slug, body[slugIdx:])
+	}
+	endMarker := "</details>"
+	end := strings.Index(body[slugIdx+trash:], endMarker)
 	if end < 0 {
 		t.Fatalf("tutorial card for %q not closed; body excerpt:\n%s", slug, body[slugIdx:])
 	}
-	return body[start : slugIdx+end+len(endMarker)]
+	return body[start : slugIdx+trash+end+len(endMarker)]
 }
 
 func TestDeleteRejectsForeignOrigin(t *testing.T) {
@@ -1295,11 +1300,15 @@ func TestDeleteEndpointRemovesTutorial(t *testing.T) {
 	if w.Code != http.StatusSeeOther {
 		t.Errorf("POST /-/delete/doomed = %d, want %d", w.Code, http.StatusSeeOther)
 	}
-	if loc := w.Header().Get("Location"); loc != "/" {
-		t.Errorf("redirect Location = %q, want %q", loc, "/")
+	// Back to the library, with the "Moved to Trash · Undo" toast.
+	if loc := w.Header().Get("Location"); !strings.HasPrefix(loc, "/?trashed=doomed-") {
+		t.Errorf("redirect Location = %q, want /?trashed=doomed-…", loc)
 	}
 	if _, err := os.Stat(tutDir); !os.IsNotExist(err) {
 		t.Errorf("tutorial dir still exists after delete: stat err = %v", err)
+	}
+	if list, err := store.ListTrash(dir); err != nil || len(list) != 1 || list[0].Slug != "doomed" {
+		t.Errorf("delete should move the tutorial to the Trash: %+v, %v", list, err)
 	}
 }
 

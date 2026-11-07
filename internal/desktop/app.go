@@ -123,6 +123,12 @@ func Run(ctx context.Context, opts Options) error {
 		return err
 	}
 	srv := serve.NewServer(dir)
+	// Delete Trash entries past the retention setting (trash_days).
+	if n, err := srv.PurgeTrash(); err != nil {
+		logf("could not empty old Trash entries: %v", err)
+	} else if n > 0 {
+		logf("Trash: deleted %d tutorial(s) past the retention setting", n)
+	}
 	agentCmd := opts.Agent
 	if agentCmd == "" {
 		if a, ok := agents.ByID(config.Agent()); ok {

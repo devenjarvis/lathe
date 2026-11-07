@@ -951,7 +951,7 @@ html[data-agent-popout] #agentPopout,html[data-agent-popout] #askClose,html[data
 /* ---- List page (body.list) — the bookshelf ------------------------------
    Each tutorial is a book cover: a colored top with its size and title in big
    Casual type, and a paper strip below with progress, chips, status and the
-   delete button. The cover is built with CSS grid over the existing markup:
+   ⋯ menu. The cover is built with CSS grid over the existing markup:
    .tutorial-body is display:contents, so its children (.meta, .tutorial-link,
    .tutorial-progress, .chips) sit directly in the card's grid, and ::before
    paints the colored top behind the first two rows. */
@@ -989,17 +989,8 @@ body.list h1{font-size:clamp(3rem,2rem + 4.5vw,5.25rem);font-weight:1000;margin:
 .tutorial-progress-label{font-size:.8125rem;font-weight:750;color:var(--text-subtle);white-space:nowrap;font-variant-numeric:tabular-nums}
 .chips{grid-row:3;grid-column:1;align-self:start;display:flex;gap:.35rem;flex-wrap:wrap;align-items:center;padding:.85rem 1.2rem 0}
 .chips:empty{display:none}
-/* Above the stretched-link overlay so the badge reads and the × deletes. */
+/* Above the stretched-link overlay so the badge reads and ⋯ opens. */
 .tutorial-actions{grid-row:5;grid-column:1;position:relative;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:.5rem;padding:.7rem .8rem .8rem 1.2rem;min-height:3rem}
-.delete-form{margin:0;margin-left:auto}
-.delete-btn{background:var(--bg);border:2px solid var(--border-strong);color:var(--text-subtle);font:inherit;font-size:1.15rem;font-weight:700;line-height:1;width:2.25rem;height:2.25rem;border-radius:var(--radius-pill);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;transition:color var(--transition),border-color var(--transition),background var(--transition),opacity var(--transition)}
-.delete-btn:hover,.delete-btn:focus-visible{color:var(--badge-failed-text);border-color:var(--badge-failed-text);background:var(--badge-failed-bg)}
-/* Deleting is rare and permanent, so on pointer devices the button stays out
-   of the way until the cover is hovered or anything in it has focus. */
-@media (hover:hover){
-  .delete-btn{opacity:0}
-  .tutorial:hover .delete-btn,.tutorial:focus-within .delete-btn{opacity:1}
-}
 .empty{padding:2.5rem 2rem;border:var(--line) dashed var(--rule);border-radius:var(--radius-lg);color:var(--text-muted);font-size:1.1rem;line-height:1.6;max-width:44rem}
 .empty strong{display:block;font-family:var(--font-display);font-variation-settings:var(--casual);font-size:1.75rem;font-weight:950;letter-spacing:-.02em;margin-bottom:.4rem}
 .empty code{background:var(--cmd-bg);color:var(--cmd-text);padding:.12rem .45rem;border-radius:var(--radius-sm);font-family:var(--font-mono);font-variation-settings:var(--mono);font-size:.9em}
@@ -1124,6 +1115,129 @@ body.list h1{font-size:clamp(3rem,2rem + 4.5vw,5.25rem);font-weight:1000;margin:
   .more-tile{transition:none}
   .more-tile:hover{transform:none}
 }
+/* Library actions — the cover ⋯ menu, the shelf page's controls and ⋯, drag
+   to a shelf, the Trash, and the bottom toast. */
+.tutorial-actions{flex-wrap:wrap}
+.cover-menu{margin-left:auto}
+.cover-menu > summary{list-style:none}
+.cover-menu > summary::-webkit-details-marker{display:none}
+.cover-menu-btn{background:var(--bg);border:2px solid var(--border-strong);color:var(--text-subtle);font:inherit;font-size:1.15rem;font-weight:900;line-height:1;width:2.25rem;height:2.25rem;border-radius:var(--radius-pill);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;letter-spacing:.02em;transition:color var(--transition),border-color var(--transition),background var(--transition),opacity var(--transition)}
+.cover-menu-btn:hover,.cover-menu-btn[aria-expanded="true"],.cover-menu[open] > .cover-menu-btn{color:var(--text);border-color:var(--rule);background:var(--accent-soft)}
+.cover-menu-btn:focus-visible{outline:3px solid var(--focus);outline-offset:2px;opacity:1}
+/* The menu is how covers are managed now, so it stays findable: dimmed on
+   pointer devices until the cover is hovered or focused, never invisible. */
+@media (hover:hover){
+  .tutorial .cover-menu-btn{opacity:.55}
+  .tutorial:hover .cover-menu-btn,.tutorial:focus-within .cover-menu-btn,.cover-menu-btn[aria-expanded="true"]{opacity:1}
+}
+/* Scripts off: the <details> opens its items in the cover's foot. */
+.cover-menu[open]{flex-basis:100%;margin-left:0}
+.tutorial:has(.cover-menu[open]){transform:none}
+.cover-menu[open] > .cover-menu-btn{margin-left:auto;display:flex}
+.cover-menu-panel{margin-top:.5rem}
+.menu{display:flex;flex-direction:column;padding:.35rem;background:var(--surface);color:var(--text);border:var(--line) solid var(--rule);border-radius:var(--radius-md);box-shadow:var(--shadow-md);font-family:var(--font-body);font-variation-settings:normal}
+.menu form{margin:0;display:contents}
+.menu-item{display:flex;align-items:center;gap:.75rem;width:100%;text-align:left;font:inherit;font-size:.9375rem;font-weight:700;color:var(--text);background:none;border:none;border-radius:var(--radius-sm);padding:.5rem .65rem;cursor:pointer;text-decoration:none;line-height:1.3;list-style:none}
+.menu-item::-webkit-details-marker{display:none}
+.menu-item:hover,.menu-item:focus{background:var(--accent-soft);color:var(--text);outline:none}
+.menu-item:focus-visible{outline:3px solid var(--focus);outline-offset:-3px}
+.menu-item:disabled{cursor:default;color:var(--text-subtle);background:none}
+.menu-item[aria-checked="true"]::after{content:'✓';margin-left:auto;font-weight:900;color:var(--teal)}
+.menu-label{flex:1;min-width:0}
+.menu-key{margin:0 0 0 auto;font-size:.8125rem;color:var(--text-subtle);border:none;background:none;padding:0}
+.menu-chevron{margin-left:auto;font-weight:900;transition:transform var(--transition)}
+.menu-sub[open] > summary .menu-chevron{transform:rotate(90deg)}
+.menu-sub-panel{display:flex !important;flex-direction:column;margin:.1rem 0 .2rem .75rem;padding-left:.35rem;border-left:2px dotted var(--border-strong)}
+.menu-sep{height:0;margin:.3rem .4rem;border-top:2px dotted var(--rule)}
+.menu-danger{color:var(--badge-failed-text)}
+.menu-danger:hover,.menu-danger:focus{background:var(--badge-failed-bg);color:var(--badge-failed-text)}
+.cover-popup{position:fixed;z-index:90;min-width:15rem;max-width:min(20rem,calc(100vw - 1rem));max-height:calc(100vh - 1rem);overflow-y:auto}
+.cover-popup:focus{outline:none}
+
+/* Shelf page head: title, count, description, ⋯. */
+.view-head{align-items:flex-start;flex-wrap:nowrap}
+.view-title{min-width:0}
+.shelf-desc{margin:.45rem 0 0;color:var(--text-muted);font-size:1.02rem;max-width:44rem}
+.shelf-desc a{font-weight:750}
+.shelf-menu{position:relative;flex:none;margin-top:.35rem}
+.shelf-menu > summary{list-style:none}
+.shelf-menu > summary::-webkit-details-marker{display:none}
+.shelf-menu-panel{position:absolute;right:0;top:calc(100% + .45rem);z-index:60;width:min(21rem,calc(100vw - 2rem));display:flex;flex-direction:column;gap:.85rem;padding:1rem;background:var(--surface);color:var(--text);border:var(--line) solid var(--rule);border-radius:var(--radius-md);box-shadow:var(--shadow-md)}
+.shelf-edit{display:flex;flex-direction:column;gap:.3rem;margin:0}
+.shelf-edit label{font-size:.8125rem;font-weight:850;color:var(--teal)}
+.shelf-edit-row{display:flex;gap:.4rem}
+.shelf-edit input{flex:1;min-width:0;min-height:2.3rem;padding:.3rem .65rem;font:inherit;font-size:.95rem;color:var(--text);background:var(--bg);border:2px solid var(--rule);border-radius:var(--radius-md)}
+.shelf-edit input:focus{outline:3px solid var(--focus);outline-offset:1px}
+.shelf-delete{border-top:2px dotted var(--border-strong);padding-top:.7rem}
+.shelf-delete-toggle{cursor:pointer;font-weight:800;color:var(--badge-failed-text);list-style:none;border-radius:var(--radius-sm);padding:.15rem .1rem}
+.shelf-delete-toggle::-webkit-details-marker{display:none}
+.shelf-delete-toggle:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+.shelf-delete-form{margin:.5rem 0 0}
+.shelf-delete-form p{margin:0 0 .6rem;font-size:.9rem;color:var(--text-muted)}
+.shelf-menu-error{margin:0;font-size:.875rem;font-weight:700;color:var(--badge-failed-text)}
+
+/* Sort and Group by: segmented links (plain GETs, so they work with
+   scripts off). */
+.grid-options{display:flex;flex-wrap:wrap;gap:.6rem 1.5rem;align-items:center}
+.seg-links{display:flex;align-items:center;gap:.55rem;flex-wrap:wrap}
+.seg-label{font-size:.875rem;font-weight:850;color:var(--teal)}
+.seg{display:inline-flex;flex-wrap:wrap;border:2px solid var(--rule);border-radius:var(--radius-pill);background:var(--surface);padding:3px;gap:2px}
+.seg a{display:block;padding:.35rem .9rem;border-radius:var(--radius-pill);font-size:.875rem;font-weight:750;color:var(--text);text-decoration:none;white-space:nowrap}
+.seg a:hover{background:var(--accent-soft);color:var(--text)}
+.seg a:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+.seg a[aria-current="true"]{background:var(--rule);color:var(--bg)}
+
+/* Grouped grids: one titled grid per group. */
+.card-group{margin:0 0 2rem}
+.card-group.hidden{display:none}
+.card-group-head{margin:0 0 .8rem;font-size:1.3rem;line-height:1.15;letter-spacing:-.015em;display:flex;align-items:baseline;gap:.2rem;padding-bottom:.45rem;border-bottom:2px dotted var(--border-strong)}
+
+/* Drag a cover onto a sidebar shelf. */
+.tutorial[draggable="true"]{cursor:grab}
+.tutorial.is-dragging{opacity:.45;transform:none;box-shadow:none}
+.dragging-cover .nav-shelves .nav-link{outline:2px dashed var(--border-strong);outline-offset:-2px}
+.nav-link.drop-target,.dragging-cover .nav-shelves .nav-link.drop-target{background:var(--yellow);color:var(--on-yellow);outline:3px solid #1C2140;outline-offset:-3px}
+.nav-link.drop-target .nav-count{color:var(--on-yellow)}
+.drag-ghost{position:fixed;z-index:95;pointer-events:none;transform:translate(14px,14px);max-width:18rem;padding:.45rem .85rem;border-radius:var(--radius-pill);background:var(--surface);color:var(--text);border:var(--line) solid var(--rule);box-shadow:var(--shadow-md);font-weight:850;font-size:.9rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.drag-ghost.over{background:var(--yellow);color:var(--on-yellow);border-color:#1C2140}
+
+/* The Trash. */
+.nav-attention .nav-link[href="/?view=trash"]:not([aria-current]) .nav-count{color:var(--text-subtle)}
+.trash-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.75rem;max-width:52rem}
+.trash-item{display:flex;align-items:center;justify-content:space-between;gap:.75rem 1.25rem;flex-wrap:wrap;padding:.9rem 1.1rem;background:var(--surface);border:var(--line) solid var(--rule);border-radius:var(--radius-lg)}
+.trash-info{display:flex;flex-direction:column;gap:.2rem;min-width:0;flex:1 1 18rem}
+.trash-title{font-family:var(--font-display);font-variation-settings:var(--casual);font-size:1.2rem;font-weight:900;letter-spacing:-.015em;overflow-wrap:anywhere}
+.trash-meta{font-size:.875rem;font-weight:650;color:var(--text-subtle)}
+.trash-note{font-size:.875rem;color:var(--badge-failed-text);font-weight:700}
+.trash-actions{display:flex;gap:.5rem;flex:none}
+.trash-actions form{margin:0}
+.trash-empty > summary{list-style:none;cursor:pointer}
+.settings-trash-link{margin-top:.9rem}
+.trash-empty > summary::-webkit-details-marker{display:none}
+
+/* The bottom toast: "Moved “…” to Trash · Undo ⌘Z". */
+.toast{position:fixed;left:50%;bottom:1.25rem;z-index:85;display:flex;align-items:center;gap:.4rem .9rem;max-width:min(94vw,40rem);padding:.6rem .6rem .6rem 1.15rem;background:var(--cmd-bg);color:var(--cmd-text);border:var(--line) solid var(--rule);border-radius:var(--radius-lg);box-shadow:var(--shadow-md);font-size:.95rem;font-weight:700;line-height:1.4;transform:translateX(-50%) translateY(.5rem);opacity:0;transition:opacity .25s ease,transform .25s ease}
+.toast.show,html:not(.js-toast) .toast:not([hidden]){opacity:1;transform:translateX(-50%) translateY(0)}
+.toast[hidden]{display:none}
+.toast-msg{min-width:0;overflow-wrap:anywhere}
+.toast-undo-form{margin:0;flex:none}
+.toast-undo{display:inline-flex;align-items:center;gap:.45rem;min-height:2.3rem;padding:.3rem .9rem;font:inherit;font-weight:900;color:var(--on-yellow);background:var(--yellow);border:2px solid var(--yellow);border-radius:var(--radius-pill);cursor:pointer}
+.toast-undo:hover{background:#FFD75E}
+.toast-undo:focus-visible,.toast-close:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+.toast-key{font-size:.8125rem;border:none;background:none;padding:0;margin:0;color:inherit;opacity:.8}
+.toast-close{flex:none;display:inline-flex;align-items:center;justify-content:center;width:2.2rem;height:2.2rem;border-radius:var(--radius-pill);color:var(--cmd-text);text-decoration:none;font-size:1.25rem;line-height:1;opacity:.8}
+.toast-close:hover{opacity:1;color:var(--cmd-text);background:rgba(255,255,255,.12)}
+@media (prefers-reduced-motion:reduce){.toast{transition:none}}
+/* No keyboard to press it on a touch screen. */
+@media (hover:none) and (pointer:coarse){.toast-key{display:none}}
+html:not(.js-toast) .toast-key{display:none}
+@media (max-width:599px){
+  .toast{left:.75rem;right:.75rem;bottom:.75rem;max-width:none;transform:none}
+  .toast.show,html:not(.js-toast) .toast:not([hidden]){transform:none}
+  .grid-options{gap:.6rem}
+  .seg a{padding:.35rem .65rem;font-size:.8125rem}
+}
+
 /* The list masthead's tools: the Settings link beside the theme toggle. */
 body.list .header > .header-tools{flex:0 0 auto;align-items:center;gap:.5rem}
 .settings-link{display:inline-flex;align-items:center;font-size:.875rem;font-weight:800;color:var(--text);text-decoration:none;background:var(--surface);border:2px solid var(--rule);border-radius:var(--radius-pill);padding:.35rem .85rem;min-height:2.25rem}

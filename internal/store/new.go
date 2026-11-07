@@ -20,8 +20,9 @@ import (
 // ends without storing removes the reservation (CancelNew), so it never leaves
 // an empty tutorial behind.
 
-// ErrSlugTaken is returned by ReserveNew when an explicitly requested slug
-// already names a tutorial.
+// ErrSlugTaken is returned when a slug already names a tutorial: by
+// ReserveNew for an explicitly requested slug, and by RestoreTrashed when a
+// tutorial was stored under the trashed one's slug since.
 var ErrSlugTaken = errors.New("a tutorial with that slug already exists")
 
 // maxSlugWords and maxSlugLen keep a slug derived from a topic short enough

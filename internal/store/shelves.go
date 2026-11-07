@@ -33,6 +33,12 @@ const (
 // MaxShelfNameLen caps a shelf name, in characters.
 const MaxShelfNameLen = 60
 
+// MaxShelfDescriptionLen caps a shelf description, in characters.
+const MaxShelfDescriptionLen = 200
+
+// UnsortedShelfDescription is the virtual Unsorted shelf's fixed description.
+const UnsortedShelfDescription = "Tutorials that aren't on a shelf yet. New tutorials land here."
+
 const shelvesVersion = 1
 
 // Shelf is one shelf in the library. ID is derived from the name at creation
@@ -41,13 +47,18 @@ const shelvesVersion = 1
 type Shelf struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
+	// Description is an optional one-line note shown under the shelf's title
+	// on its page.
+	Description string `json:"description,omitempty"`
 }
 
 // Unsorted reports whether s is the virtual Unsorted shelf.
 func (s Shelf) Unsorted() bool { return s.ID == UnsortedShelfID }
 
 // UnsortedShelf returns the virtual shelf for unassigned tutorials.
-func UnsortedShelf() Shelf { return Shelf{ID: UnsortedShelfID, Name: UnsortedShelfName} }
+func UnsortedShelf() Shelf {
+	return Shelf{ID: UnsortedShelfID, Name: UnsortedShelfName, Description: UnsortedShelfDescription}
+}
 
 // Shelves is the decoded shelves.json. Shelves is in display order; Placements maps
 // a tutorial slug to a shelf ID. A slug with no entry, or one pointing at a
@@ -141,6 +152,7 @@ func (s *Shelves) normalize() *Shelves {
 	for _, sh := range s.Shelves {
 		sh.ID = strings.TrimSpace(sh.ID)
 		sh.Name = strings.TrimSpace(sh.Name)
+		sh.Description = strings.Join(strings.Fields(sh.Description), " ")
 		if sh.ID == "" || seen[sh.ID] {
 			continue
 		}
@@ -229,6 +241,29 @@ func (s *Shelves) Rename(id, name string) error {
 		return err
 	}
 	s.Shelves[i].Name = name
+	return nil
+}
+
+// Describe sets a shelf's one-line description; "" clears it. Whitespace
+// (newlines included) collapses to single spaces.
+func (s *Shelves) Describe(id, description string) error {
+	if id == UnsortedShelfID {
+		return errors.New("the Unsorted shelf's description can't be changed")
+	}
+	i := s.index(id)
+	if i < 0 {
+		return fmt.Errorf("%w: %q", ErrShelfNotFound, id)
+	}
+	description = strings.Join(strings.Fields(description), " ")
+	if n := utf8.RuneCountInString(description); n > MaxShelfDescriptionLen {
+		return fmt.Errorf("shelf description is %d characters; the limit is %d", n, MaxShelfDescriptionLen)
+	}
+	for _, r := range description {
+		if unicode.IsControl(r) {
+			return errors.New("shelf description contains a control character")
+		}
+	}
+	s.Shelves[i].Description = description
 	return nil
 }
 

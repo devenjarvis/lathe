@@ -3104,6 +3104,18 @@
   })();
 </script>
 {{template "shortcuts" .}}
+<script>
+  // Arriving from the library cover menu's "Verify again" (/{slug}/#verify):
+  // run Verify the way the Verify command would, then drop the hash so a
+  // reload doesn't start another run.
+  (function(){
+    if (location.hash !== '#verify') return;
+    try { history.replaceState(history.state, '', location.pathname + location.search); } catch (e) {}
+    setTimeout(function(){
+      if (window.latheShortcuts) window.latheShortcuts.run('tutorial.verify');
+    }, 0);
+  })();
+</script>
 {{if .Native}}{{template "nativeLinks" .}}{{end}}
 {{template "liveNudge" .}}
 </body>

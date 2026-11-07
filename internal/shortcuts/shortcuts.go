@@ -13,7 +13,7 @@
 // Shift, Ctrl) and Other, for Windows and Linux (Ctrl, Alt, Shift). They are
 // written in the accelerator syntax Wails takes, "Cmd+Shift+K" and
 // "Ctrl+Shift+K", with one key after the modifiers: a single character or
-// Enter / Home. Every default was checked against the system and toolkit
+// Enter / Home / Backspace. Every default was checked against the system and toolkit
 // shortcuts in Reserved; the notes on each command say what was avoided.
 package shortcuts
 
@@ -134,6 +134,11 @@ var registry = []Shortcut{
 	{ID: "library.open-window", Label: "Open in new window", Menu: MenuFile, Group: GroupWindows, Scope: ScopeGlobal, Handler: HandlerPage, Stub: true,
 		Mac: "Cmd+Enter", Other: "Ctrl+Enter",
 		Note: "Not bound while a stub: Windows menu accelerators fire before the page, and the agent composer takes Enter."},
+	{ID: "library.trash", Label: "Move to Trash", Menu: MenuFile, Group: GroupLibrary, Scope: ScopeHome, Handler: HandlerPage,
+		Mac: "Cmd+Backspace",
+		Note: "Finder's Move to Trash. The page enables it only while a cover (or its ⋯ menu) has focus, never in a text field, where ⌘⌫ deletes to the line start. " +
+			"No default on Windows and Linux: Delete and Ctrl+Backspace edit text, and Windows fires a menu accelerator even when the item is disabled. " +
+			"Its Undo is not a command here: ⌘Z/Ctrl+Z is the toolkit's Edit › Undo (Reserved), so the library's Trash toast handles the key itself, only while it offers Undo and focus is not in a text field."},
 	{ID: "window.close", Label: "Close", Menu: MenuFile, Group: GroupWindows, Scope: ScopeGlobal, Handler: HandlerNative,
 		Mac: "Cmd+W", Other: "Ctrl+W"},
 
@@ -304,6 +309,8 @@ func DisplayCombo(combo string, mac bool) string {
 		key = "↩"
 	case "Home":
 		key = "↖"
+	case "Backspace":
+		key = "⌫"
 	}
 	b.WriteString(key)
 	return b.String()
