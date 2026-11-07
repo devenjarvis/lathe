@@ -71,6 +71,10 @@ type Server struct {
 	// lookPath finds programs for the agent picker's PATH detection (nil:
 	// exec.LookPath).
 	lookPath agents.LookPath
+	// native, when set, is the desktop app's shell (folder picker,
+	// notifications, windows); nil in a plain browser. See native.go.
+	native   Native
+	nativeMu sync.RWMutex
 }
 
 // staticVersion fingerprints the embedded static assets so every page can ask
