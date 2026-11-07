@@ -78,6 +78,12 @@ type commandClient struct {
 	enabled map[string]bool
 	active  uint64 // last time it was the focused page (hub tick)
 	ch      chan string
+	// window is the app window the page is in (x-wails-window-name; ""
+	// when the shell doesn't say).
+	window string
+	// drops carries folder drops for this page (native_drop.go), as the
+	// "drop" event's JSON.
+	drops chan []byte
 }
 
 // commandHub tracks the pages that can take menu commands and which one is
@@ -92,7 +98,7 @@ type commandHub struct {
 	pushMu sync.Mutex
 }
 
-func (h *commandHub) add(path string) *commandClient {
+func (h *commandHub) add(path, window string) *commandClient {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if h.clients == nil {
@@ -106,6 +112,8 @@ func (h *commandHub) add(path string) *commandClient {
 		enabled: map[string]bool{},
 		active:  h.tick,
 		ch:      make(chan string, 8),
+		window:  window,
+		drops:   make(chan []byte, 2),
 	}
 	h.clients[c.id] = c
 	// The page that just loaded is the one in front.
@@ -129,6 +137,38 @@ func (h *commandHub) remove(id string) {
 			best, h.current = c.active, cid
 		}
 	}
+}
+
+// clientWindow returns the app window and page path of a connected client.
+func (h *commandHub) clientWindow(id string) (window, path string, ok bool) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	c, ok := h.clients[id]
+	if !ok {
+		return "", "", false
+	}
+	return c.window, c.path, true
+}
+
+// dropTarget picks the page a folder drop on window landed on: the client
+// the drop names when it is in that window, else the window's most recently
+// active page, else (no window given) the focused page.
+func (h *commandHub) dropTarget(window, client string) *commandClient {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if c, ok := h.clients[client]; ok && (window == "" || c.window == window) {
+		return c
+	}
+	if window == "" {
+		return h.clients[h.current]
+	}
+	var best *commandClient
+	for _, c := range h.clients {
+		if c.window == window && (best == nil || c.active > best.active) {
+			best = c
+		}
+	}
+	return best
 }
 
 // focus records what a page can run and makes it the focused page.
@@ -235,7 +275,12 @@ func (s *Server) handleNativeCommands(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "path must be this page's same-origin path", http.StatusBadRequest)
 		return
 	}
-	c := s.cmds.add(path)
+	window := r.Header.Get(windowHeader)
+	if len(window) > 256 {
+		window = ""
+	}
+	c := s.cmds.add(path, window)
+	scroll := s.views.opened(window, path)
 	defer func() {
 		s.cmds.remove(c.id)
 		s.pushMenuState()
@@ -248,7 +293,12 @@ func (s *Server) handleNativeCommands(w http.ResponseWriter, r *http.Request) {
 	h.Set("X-Accel-Buffering", "no")
 	w.WriteHeader(http.StatusOK)
 
-	hello, _ := json.Marshal(map[string]string{"client": c.id})
+	helloData := map[string]any{"client": c.id}
+	if scroll > 0 {
+		// The app reopened this window here: the page scrolls back.
+		helloData["scroll"] = scroll
+	}
+	hello, _ := json.Marshal(helloData)
 	if _, err := fmt.Fprintf(w, "event: hello\ndata: %s\n\n", hello); err != nil {
 		return
 	}
@@ -268,6 +318,10 @@ func (s *Server) handleNativeCommands(w http.ResponseWriter, r *http.Request) {
 		case id := <-c.ch:
 			raw, _ := json.Marshal(map[string]string{"id": id})
 			if _, err := fmt.Fprintf(w, "event: command\ndata: %s\n\n", raw); err != nil {
+				return
+			}
+		case raw := <-c.drops:
+			if _, err := fmt.Fprintf(w, "event: drop\ndata: %s\n\n", raw); err != nil {
 				return
 			}
 		case <-keepAlive.C:

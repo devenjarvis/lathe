@@ -1,0 +1,159 @@
+{{define "drop"}}
+{{/* drop — folder drops in the desktop app (#147; native_drop.go). The shell
+     reports a folder dropped on the window, the server sends this page a
+     "drop" event on its command stream (shortcuts.js calls latheDrop), and
+     this dialog asks before anything changes: on a tutorial, "Use … as this
+     tutorial's workspace?"; on Home, "Add to your shelf" with the title,
+     shelf and tags prefilled. The page only ever sends back the drop's
+     token, never a path. Rendered only in the app (.Native). */}}
+<dialog class="drop-sheet" id="dropSheet" aria-labelledby="dropTitle" aria-describedby="dropLead">
+  <form method="dialog" class="drop-form" id="dropForm" novalidate>
+    <div class="drop-head">
+      <span class="drop-glyph" aria-hidden="true"><svg width="26" height="22" viewBox="0 0 26 22" fill="none"><path d="M1.5 4.5a2 2 0 0 1 2-2h6l2.5 3h10.5a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2h-19a2 2 0 0 1-2-2z" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/></svg></span>
+      <h2 class="drop-title" id="dropTitle"></h2>
+    </div>
+    <div class="drop-body">
+      <p class="drop-path" id="dropPath"><code></code></p>
+      <p class="drop-lead" id="dropLead"></p>
+      <div class="drop-fields" id="dropFields" hidden>
+        <label class="drop-field"><span>Title</span><input type="text" name="title" id="dropTitleInput" maxlength="200" autocomplete="off" required></label>
+        <label class="drop-field"><span>Shelf</span><select name="shelf" id="dropShelf"></select></label>
+        <label class="drop-field"><span>Tags <em>comma-separated</em></span><input type="text" name="tags" id="dropTags" autocomplete="off" spellcheck="false" placeholder="zig, audio"></label>
+      </div>
+      <p class="drop-error" id="dropError" role="alert" hidden></p>
+    </div>
+    <div class="drop-actions">
+      <button type="button" class="btn btn-ghost" id="dropCancel" value="cancel">Cancel</button>
+      <button type="submit" class="btn btn-primary" id="dropOK" value="ok"></button>
+    </div>
+  </form>
+</dialog>
+<script>
+  (function(){
+    var root = document.documentElement;
+    var dlg = document.getElementById('dropSheet');
+    if (!dlg || typeof dlg.showModal !== 'function') return;
+    var form = document.getElementById('dropForm');
+    var title = document.getElementById('dropTitle');
+    var pathEl = document.getElementById('dropPath');
+    var lead = document.getElementById('dropLead');
+    var fields = document.getElementById('dropFields');
+    var titleInput = document.getElementById('dropTitleInput');
+    var shelf = document.getElementById('dropShelf');
+    var tags = document.getElementById('dropTags');
+    var err = document.getElementById('dropError');
+    var ok = document.getElementById('dropOK');
+    var cancel = document.getElementById('dropCancel');
+    var plan = null, busy = false, returnTo = null;
+
+    // The whole page takes folder drops (Wails delivers a drop only on an
+    // element marked data-file-drop-target); the hint names what a drop
+    // here would do, for the outline drawn while a folder is over the window.
+    var home = location.pathname === '/';
+    var tutorial = !home && !/^\/(-|_static)\//.test(location.pathname);
+    if (tutorial || home) {
+      root.setAttribute('data-file-drop-target', '');
+      root.setAttribute('data-drop-hint', tutorial ? 'Drop a folder to use it as this tutorial’s workspace' : 'Drop a tutorial folder to add it to your shelf');
+    }
+
+    function show(p){
+      plan = p;
+      returnTo = document.activeElement;
+      err.hidden = true;
+      busy = false;
+      ok.removeAttribute('aria-busy');
+      dlg.setAttribute('data-kind', p.kind);
+      fields.hidden = p.kind !== 'add';
+      pathEl.hidden = !p.display;
+      pathEl.querySelector('code').textContent = p.display || '';
+      pathEl.title = p.path || '';
+      cancel.hidden = p.kind === 'error';
+      if (p.kind === 'workspace') {
+        title.textContent = 'Use this folder as the workspace?';
+        lead.textContent = 'Your code for ' + p.tutorial + ' goes here' +
+          (p.current ? ', instead of ' + p.current + '.' : '. Check my work and the agent will look in this folder.');
+        ok.textContent = 'Use';
+      } else if (p.kind === 'add') {
+        title.textContent = 'Add to your shelf';
+        lead.textContent = (p.parts === 1 ? '1 part' : p.parts + ' parts') + ', stored as ' + p.slug + '. Lathe copies the folder; the original stays where it is.';
+        titleInput.value = p.title || '';
+        tags.value = (p.tags || []).join(', ');
+        shelf.textContent = '';
+        (p.shelves || []).forEach(function(s){
+          var o = document.createElement('option');
+          o.value = s.id;
+          o.textContent = s.name;
+          if (s.id === p.shelf) o.selected = true;
+          shelf.appendChild(o);
+        });
+        ok.textContent = 'Add to shelf';
+      } else {
+        title.textContent = 'Lathe can’t use that folder';
+        lead.textContent = p.message || '';
+        ok.textContent = 'OK';
+      }
+      if (!dlg.open) dlg.showModal();
+      setTimeout(function(){
+        var f = p.kind === 'add' ? titleInput : ok;
+        try { f.focus(); if (f === titleInput) f.select(); } catch (e) {}
+      }, 0);
+    }
+
+    function close(){
+      plan = null;
+      if (dlg.open) dlg.close();
+      if (returnTo && typeof returnTo.focus === 'function') { try { returnTo.focus(); } catch (e) {} }
+    }
+    dlg.addEventListener('cancel', function(ev){ if (busy) ev.preventDefault(); else plan = null; });
+    dlg.addEventListener('close', function(){ plan = null; });
+    cancel.addEventListener('click', close);
+
+    function post(url, body){
+      return fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)})
+        .then(function(r){
+          if (!r.ok) return r.text().then(function(t){ throw new Error((t || ('HTTP ' + r.status)).trim()); });
+          return r.json();
+        });
+    }
+    function fail(e){
+      busy = false;
+      ok.removeAttribute('aria-busy');
+      err.textContent = e.message;
+      err.hidden = false;
+    }
+
+    form.addEventListener('submit', function(ev){
+      ev.preventDefault();
+      if (!plan || busy) return;
+      if (plan.kind === 'error') { close(); return; }
+      var p = plan;
+      busy = true;
+      ok.setAttribute('aria-busy', 'true');
+      err.hidden = true;
+      if (p.kind === 'workspace') {
+        post('/-/native/drop/workspace', {token: p.token}).then(function(ws){
+          busy = false;
+          close();
+          var panel = window.latheAgentPanel;
+          if (panel && panel.applyWorkspace) panel.applyWorkspace(ws);
+          else if (window.latheAnnounce) window.latheAnnounce('Workspace set to ' + ws.display);
+        }).catch(fail);
+        return;
+      }
+      if (!titleInput.value.trim()) { fail(new Error('Give it a title.')); titleInput.focus(); return; }
+      post('/-/native/drop/add', {token: p.token, title: titleInput.value, shelf: shelf.value, tags: tags.value}).then(function(res){
+        busy = false;
+        close();
+        // Open it: the new cover is the reader's next stop anyway.
+        location.href = res.url;
+      }).catch(fail);
+    });
+
+    window.latheDrop = function(p){
+      if (!p || !p.kind) return;
+      if (busy) return; // still saving the last one
+      show(p);
+    };
+  })();
+</script>
+{{end}}

@@ -20,7 +20,9 @@ import (
 // server.
 //
 //	POST /-/native/pick-folder  {"slug"}  → {"path", "display"} ("" when cancelled)
-//	POST /-/native/window       {"path"}  → 204
+//	POST /-/native/window       {"path"}  → 204 (a tutorial, a pop-out or Settings; native_window.go)
+//	POST /-/native/view         {"client", "scroll"} → 204 (scroll position for restore on launch)
+//	POST /-/native/drop/…       folder drops (native_drop.go)
 //	POST /-/native/open-url     {"url"}   → 204 (links to other sites; nativeLinks in components.html)
 //	POST /-/native/reveal       {"what", "slug"} → 204 (show the tutorials or voices folder, or a tutorial's workspace, in Finder; needs a FolderRevealer)
 //
@@ -101,11 +103,12 @@ func (s *Server) handleNativePickFolder(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, map[string]string{"path": path, "display": display})
 }
 
-// handleNativeWindow opens the agent panel's pop-out in an app window, where
-// window.open has nothing to open. Only the pop-out of a real part is
-// accepted ("/{slug}/{part}?agent=popout"), plus the Settings window
-// ("/-/settings", optionally with a #tab), so a page can't make the shell
-// open anything else.
+// handleNativeWindow opens an app window, where window.open has nothing to
+// open. Only these are accepted, so a page can't make the shell open
+// anything else: a tutorial's reading page ("/{slug}/" or "/{slug}/{part}",
+// optionally with a heading #id; see tutorialPage), the agent panel's
+// pop-out of a real part ("/{slug}/{part}?agent=popout"), and the Settings
+// window ("/-/settings", optionally with a #tab).
 func (s *Server) handleNativeWindow(w http.ResponseWriter, r *http.Request) {
 	n := s.nativeShell()
 	if n == nil {
@@ -130,9 +133,19 @@ func (s *Server) handleNativeWindow(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
+	if tut, ok := s.tutorialPage(payload.Path); ok {
+		// A tutorial in its own window (⌘↩ on a cover or a palette result,
+		// ⌘-click on a cover). The shell keeps one window per tutorial.
+		if err := n.OpenWindow(payload.Path, tutorialName(tut)); err != nil {
+			http.Error(w, "could not open a window: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
 	tut, ok := s.popoutTutorial(payload.Path)
 	if !ok {
-		http.Error(w, "not an agent panel pop-out path", http.StatusBadRequest)
+		http.Error(w, "not a tutorial page or agent panel pop-out path", http.StatusBadRequest)
 		return
 	}
 	if err := n.OpenWindow(payload.Path, "Agent · "+tutorialName(tut)); err != nil {
@@ -275,7 +288,7 @@ func (s *Server) notifyJob(o jobOutcome) {
 	if !ok {
 		return
 	}
-	go n.Notify(title, body)
+	s.postNotice(n, Notice{Title: title, Body: body, Action: s.jobAction(o)})
 }
 
 // jobNotice words a finished job's notification from what it left on disk.

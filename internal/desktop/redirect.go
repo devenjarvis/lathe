@@ -56,7 +56,9 @@ func (w *redirectWriter) writeRedirectPage(target string) {
 	esc := html.EscapeString(target)
 	_, _ = fmt.Fprintf(w.ResponseWriter, `<!doctype html><meta charset="utf-8">`+
 		`<meta http-equiv="refresh" content="0;url=%s">`+
-		`<script>location.replace(%s)</script>`+
+		// A redirect keeps the page's #fragment, as an HTTP redirect does
+		// in a browser ("/slug/#agent" lands on the part with the panel).
+		`<script>(function(t){if(location.hash&&t.indexOf('#')<0)t+=location.hash;location.replace(t)})(%s)</script>`+
 		`<a href="%s">Continue</a>`, esc, js, esc)
 }
 

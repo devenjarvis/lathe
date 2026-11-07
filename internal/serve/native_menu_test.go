@@ -48,14 +48,25 @@ func (m *menuNative) waitState(t *testing.T, ok func(MenuState) bool) MenuState 
 // commandStream is an open GET /-/native/commands.
 type commandStream struct {
 	client string
+	hello  string         // the hello event's data
 	events chan [2]string // event, data
 	cancel context.CancelFunc
 }
 
 func openCommands(t *testing.T, ts *httptest.Server, path string) *commandStream {
 	t.Helper()
+	return openCommandsIn(t, ts, path, "")
+}
+
+// openCommandsIn opens the stream as a page in app window window (the
+// x-wails-window-name header the shell's webview sends; "" for none).
+func openCommandsIn(t *testing.T, ts *httptest.Server, path, window string) *commandStream {
+	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, ts.URL+"/-/native/commands?path="+url.QueryEscape(path), nil)
+	if window != "" {
+		req.Header.Set("x-wails-window-name", window)
+	}
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
 		cancel()
@@ -87,6 +98,7 @@ func openCommands(t *testing.T, ts *httptest.Server, path string) *commandStream
 		t.Fatalf("first event = %v, want hello with a client", hello)
 	}
 	cs.client = h.Client
+	cs.hello = hello[1]
 	t.Cleanup(cancel)
 	return cs
 }

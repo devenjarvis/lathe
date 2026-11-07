@@ -805,7 +805,12 @@
     var wsSetupInput = document.getElementById('workspaceSetupInput');
 
     function saveWorkspace(path){
-      return postJSON('/-/workspace/' + encodeURIComponent(slug), {path: path}).then(function(ws){
+      return postJSON('/-/workspace/' + encodeURIComponent(slug), {path: path}).then(applyWorkspace);
+    }
+    // applyWorkspace shows a saved workspace in the panel (also a dropped
+    // folder the reader accepted, drop.html).
+    function applyWorkspace(ws){
+      {
         wsShort.textContent = ws.display;
         wsShort.removeAttribute('data-empty');
         wsChange.title = ws.path;
@@ -816,7 +821,7 @@
         if (window.latheAnnounce) window.latheAnnounce('Workspace set to ' + ws.display + did);
         document.dispatchEvent(new CustomEvent('lathe-workspace', {detail: ws}));
         return ws;
-      });
+      }
     }
     function showWsForm(show){
       wsForm.hidden = !show;
@@ -912,6 +917,7 @@
       // card's "Show the first hint" closes it before scrolling the article.
       modal: function(){ return !popout && !docked(); },
       editWorkspace: function(){ open({focus: 'workspace'}); },
+      applyWorkspace: applyWorkspace,
       // For the shortcut registry (shortcuts.js): can/run an action-menu
       // action ('check', 'verify', 'extend') under the menu's own rules.
       canRun: function(action){ return !actionBlock(action); },
@@ -926,6 +932,13 @@
     if (!setup.hidden) loadAgents();
     sync();
     updateContext();
+
+    // Arriving from a notification's Answer ("<agent> needs you"): open the
+    // panel, where the prompt waits, without scrolling the article.
+    if (location.hash === '#agent' && !popout) {
+      open({focus: 'none'});
+      try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
+    }
   })();
 </script>
 <script>

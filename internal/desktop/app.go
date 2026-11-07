@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -70,7 +71,9 @@ func Run(ctx context.Context, opts Options) error {
 	// serve.json first.
 	var assets lateHandler
 	notes := newNotificationService(logf)
-	sh := &shell{logf: logf}
+	badge := newBadgeService(logf)
+	sh := &shell{logf: logf, badge: badge}
+	notes.setOnOpen(sh.showPath)
 
 	var single *application.SingleInstanceOptions
 	if ok, why := singleInstanceUsable(); ok {
@@ -90,7 +93,7 @@ func Run(ctx context.Context, opts Options) error {
 		Description: "Hands-on technical tutorials, with your coding agent alongside.",
 		Icon:        appIcon,
 		Assets:      application.AssetOptions{Handler: &assets},
-		Services:    []application.Service{application.NewService(notes)},
+		Services:    []application.Service{application.NewService(notes), application.NewService(badge)},
 		// Run handles SIGINT/SIGTERM itself so it can quit through the app
 		// and still run its cleanup.
 		DisableDefaultSignalHandler: true,
@@ -104,7 +107,14 @@ func Run(ctx context.Context, opts Options) error {
 		},
 		// On macOS, quitting terminates the process from inside the run
 		// loop, so Run below never returns there: cleanup must run here.
+		// Quit from the menu (⌘Q) or the Dock: record the open windows
+		// before they close (saveWindows reads only cached state).
+		ShouldQuit: func() bool {
+			sh.saveWindows()
+			return true
+		},
 		OnShutdown: func() {
+			sh.saveWindows()
 			if cleanup != nil {
 				cleanup()
 			}
@@ -142,6 +152,7 @@ func Run(ctx context.Context, opts Options) error {
 	// The menu bar goes in before any window exists (windows take it when
 	// they are created on Windows and Linux).
 	sh.setMenu(newMenuBar(app, sh, srv))
+	sh.srv = srv
 	srv.SetNative(sh)
 	assets.set(followRedirects(srv.Handler()))
 
@@ -161,10 +172,31 @@ func Run(ctx context.Context, opts Options) error {
 	}
 	defer cleanup()
 
+	// Reopen last time's windows (winstate.go): the main window at its
+	// page, then each tutorial window, every page checked first.
+	var saved []config.WindowState
+	if c, err := config.ReadConfig(); err == nil {
+		saved = c.Windows
+	}
+	plan := planRestore(saved, pageChecker{
+		tutorial: func(p string) (string, bool) {
+			slug, _, ok := srv.TutorialPage(p)
+			return slug, ok
+		},
+		home: serve.HomePage,
+	})
+	scrolls := map[string]serve.WindowView{}
+	for _, rw := range plan {
+		if rw.scroll > 0 {
+			scrolls[rw.name] = serve.WindowView{Path: rw.path, Scroll: rw.scroll}
+		}
+	}
+	srv.RestoreViews(scrolls)
+
 	mainWin := app.Window.NewWithOptions(application.WebviewWindowOptions{
-		Name:             "main",
+		Name:             mainWindowName,
 		Title:            AppName,
-		URL:              "/",
+		URL:              plan[0].path,
 		Width:            mainWidth,
 		Height:           mainHeight,
 		MinWidth:         mainMinWidth,
@@ -174,11 +206,19 @@ func Run(ctx context.Context, opts Options) error {
 		Linux:            application.LinuxWindow{Icon: appIcon},
 		// The menu bar (menu.go) shows in this window on Windows and Linux.
 		UseApplicationMenu: true,
+		// Folders dropped on the window are offered to the page (#147).
+		EnableFileDrop: true,
 	})
 	sh.setMain(mainWin)
+	sh.track(mainWin, true, plan[0].path)
+	for _, rw := range plan[1:] {
+		_, title, _ := srv.TutorialPage(rw.path)
+		sh.openTutorialWindow(strings.TrimPrefix(rw.name, tutorialWindowPrefix), rw.path, title)
+	}
 	// Closing the reader quits the app, pop-outs included: they are views of
 	// it, not windows of their own.
 	mainWin.OnWindowEvent(events.Common.WindowClosing, func(*application.WindowEvent) {
+		sh.saveWindows()
 		go app.Quit()
 	})
 
@@ -187,6 +227,7 @@ func Run(ctx context.Context, opts Options) error {
 	ran := make(chan struct{})
 	defer close(ran)
 	app.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) {
+		go sh.restoreBounds(plan)
 		go func() {
 			select {
 			case <-sigCtx.Done():

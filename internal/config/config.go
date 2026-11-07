@@ -99,6 +99,25 @@ type Config struct {
 	// before it is deleted for good: one of TrashDayChoices, 0 for never.
 	// Nil means DefaultTrashDays.
 	TrashDays *int `json:"trash_days,omitempty"`
+	// Windows is the desktop app's open windows when it last quit, for
+	// reopening them (and their tutorials and scroll positions) on launch.
+	// The app writes it; see WindowState.
+	Windows []WindowState `json:"windows,omitempty"`
+}
+
+// WindowState is one desktop app window as it was at quit: the page it
+// showed, how far down it was scrolled, and where it sat on screen. Main is
+// the library window; the others are tutorials opened in their own window.
+// The app validates every field before using it (a hand edit can't open
+// anything but a Lathe page).
+type WindowState struct {
+	Main   bool   `json:"main,omitempty"`
+	Path   string `json:"path"`
+	Scroll int    `json:"scroll,omitempty"`
+	X      int    `json:"x,omitempty"`
+	Y      int    `json:"y,omitempty"`
+	Width  int    `json:"width,omitempty"`
+	Height int    `json:"height,omitempty"`
 }
 
 // NotifyConfig is the per-event notification switches. Nil means on.
@@ -106,6 +125,9 @@ type NotifyConfig struct {
 	Verify *bool `json:"verify,omitempty"`
 	Extend *bool `json:"extend,omitempty"`
 	Check  *bool `json:"check,omitempty"`
+	// NeedsYou is a notification when the hosted agent waits on the
+	// reader: a permission prompt or a question.
+	NeedsYou *bool `json:"needs_you,omitempty"`
 }
 
 func configPath() (string, error) {

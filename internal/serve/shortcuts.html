@@ -5,4 +5,5 @@
 <script type="application/json" id="latheShortcuts">{{shortcutsJSON}}</script>
 <script>{{shortcutsJS}}</script>
 {{template "palette" .}}
+{{- if .Native}}{{template "drop" .}}{{end}}
 {{end}}

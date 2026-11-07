@@ -284,6 +284,7 @@ type settingsPatch struct {
 	NotifyVerify     *bool   `json:"notify_verify"`
 	NotifyExtend     *bool   `json:"notify_extend"`
 	NotifyCheck      *bool   `json:"notify_check"`
+	NotifyNeedsYou   *bool   `json:"notify_needs_you"`
 	TrashDays        *int    `json:"trash_days"`
 }
 
@@ -352,14 +353,15 @@ func (p *settingsPatch) apply(c *config.Config) error {
 			c.TrashDays = &v
 		}
 	}
-	if p.NotifyVerify != nil || p.NotifyExtend != nil || p.NotifyCheck != nil {
+	if p.NotifyVerify != nil || p.NotifyExtend != nil || p.NotifyCheck != nil || p.NotifyNeedsYou != nil {
 		if c.Notify == nil {
 			c.Notify = &config.NotifyConfig{}
 		}
 		setOn(&c.Notify.Verify, p.NotifyVerify)
 		setOn(&c.Notify.Extend, p.NotifyExtend)
 		setOn(&c.Notify.Check, p.NotifyCheck)
-		if c.Notify.Verify == nil && c.Notify.Extend == nil && c.Notify.Check == nil {
+		setOn(&c.Notify.NeedsYou, p.NotifyNeedsYou)
+		if c.Notify.Verify == nil && c.Notify.Extend == nil && c.Notify.Check == nil && c.Notify.NeedsYou == nil {
 			c.Notify = nil
 		}
 	}
@@ -479,6 +481,8 @@ func notifyEnabled(job string) bool {
 		return st.NotifyExtend
 	case jobCheck:
 		return st.NotifyCheck
+	case noticeNeedsYou:
+		return st.NotifyNeedsYou
 	}
 	return true
 }

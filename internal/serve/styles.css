@@ -1517,6 +1517,34 @@ kbd{font-family:var(--font-mono);font-variation-settings:var(--mono);font-size:.
 .palette-empty{margin:0;padding:1.6rem 1rem;text-align:center;color:var(--text-muted)}
 .palette-foot{display:flex;flex-wrap:wrap;gap:.35rem 1.1rem;margin:0;padding:.55rem 1rem;border-top:2px solid var(--border);background:var(--surface-sunken);font-size:.8rem;color:var(--text-muted)}
 .palette-foot span{display:inline-flex;align-items:center;gap:.25rem}
+
+/* Folder drops (desktop app; drop.html). The outline while a folder is over
+   the window, then the confirmation sheet: a palette-shaped dialog with the
+   folder in a mono chip, and for Home the add-to-shelf fields. */
+html.file-drop-target-active[data-drop-hint]::before{content:"";position:fixed;inset:.6rem;z-index:90;border:3px dashed var(--red);border-radius:var(--radius-lg);background:color-mix(in srgb,var(--yellow) 22%,transparent);pointer-events:none}
+html.file-drop-target-active[data-drop-hint]::after{content:attr(data-drop-hint);position:fixed;left:50%;bottom:2rem;transform:translateX(-50%);z-index:91;max-width:calc(100vw - 3rem);font-family:var(--font-sans);font-weight:850;font-size:1rem;line-height:1.3;text-align:center;color:var(--on-red);background:var(--red);border:var(--line) solid var(--rule);border-radius:var(--radius-pill);padding:.6rem 1.2rem;box-shadow:4px 4px 0 var(--rule);pointer-events:none}
+.drop-sheet{position:fixed;inset:min(14vh,8rem) 0 auto;margin:0 auto;width:min(32rem,calc(100vw - 2rem));padding:0;color:var(--text);background:var(--bg);border:var(--line) solid var(--rule);border-radius:var(--radius-lg);box-shadow:var(--shadow-md),6px 6px 0 var(--rule);overflow:hidden}
+.drop-sheet::backdrop{background:rgba(20,24,46,.42)}
+[data-theme="dark"] .drop-sheet::backdrop{background:rgba(5,7,18,.66)}
+.drop-head{display:flex;align-items:center;gap:.7rem;padding:.85rem 1.1rem;background:var(--yellow);color:var(--on-yellow);border-bottom:var(--line) solid var(--rule)}
+.drop-sheet[data-kind="error"] .drop-head{background:var(--badge-failed-bg);color:var(--badge-failed-text)}
+.drop-glyph{display:inline-flex;flex-shrink:0;color:#1C2140}
+.drop-sheet[data-kind="error"] .drop-glyph{color:inherit}
+.drop-title{margin:0;font-size:1.2rem;line-height:1.25;font-weight:900;font-variation-settings:var(--casual);color:inherit}
+.drop-body{padding:1rem 1.1rem .4rem}
+.drop-path{margin:0 0 .7rem}
+.drop-path code{display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom;font-family:var(--font-mono);font-variation-settings:var(--mono);font-size:.92rem;font-weight:700;color:var(--cmd-text);background:var(--cmd-bg);border-radius:var(--radius-sm);padding:.3rem .6rem}
+.drop-lead{margin:0 0 .8rem;color:var(--text-muted);line-height:1.5}
+.drop-fields{display:flex;flex-direction:column;gap:.75rem;margin:0 0 .6rem}
+.drop-field{display:flex;flex-direction:column;gap:.3rem;font-size:.85rem;font-weight:800}
+.drop-field em{font-style:normal;font-weight:600;color:var(--text-subtle)}
+.drop-field input,.drop-field select{min-height:2.5rem;padding:.4rem .7rem;font:inherit;font-size:1rem;font-weight:600;color:var(--text);background:var(--surface);border:2px solid var(--rule);border-radius:var(--radius-md)}
+.drop-field input:focus,.drop-field select:focus{outline:3px solid var(--focus);outline-offset:1px}
+.drop-error{margin:.2rem 0 .6rem;padding:.55rem .75rem;border-radius:var(--radius-md);background:var(--badge-failed-bg);color:var(--badge-failed-text);font-weight:700;font-size:.9rem}
+.drop-actions{display:flex;justify-content:flex-end;gap:.6rem;padding:.8rem 1.1rem 1rem;border-top:2px solid var(--border);background:var(--surface-sunken)}
+@media (max-width:700px){
+  .drop-sheet{inset:auto 0 0;width:100vw;max-width:100vw;border-width:var(--line) 0 0;border-radius:var(--radius-lg) var(--radius-lg) 0 0;box-shadow:var(--shadow-md)}
+}
 @media (max-width:700px){
   .palette{inset:0 0 auto;width:100vw;max-width:100vw;max-height:100dvh;border-width:0 0 var(--line);border-radius:0 0 var(--radius-lg) var(--radius-lg);box-shadow:var(--shadow-md)}
   .palette-list{max-height:none}
