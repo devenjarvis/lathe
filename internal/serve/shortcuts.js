@@ -69,6 +69,11 @@
   }
   var actions = {
     'library.home': {run: go('/')},
+    // Go to anything: the palette (palette.js, included with this script).
+    'library.goto': {
+      when: function () { return !popout && !!window.lathePalette; },
+      run: function () { window.lathePalette.open(); }
+    },
     'reading.bigger': textStep(1),
     'reading.smaller': textStep(-1),
     'reading.actualsize': textStep(0),
@@ -187,7 +192,7 @@
     });
   }
 
-  // For the palette (#144) and anything else that runs commands by id.
+  // For the palette and anything else that runs commands by id.
   window.latheShortcuts = {list: list, groups: data.groups || [], scope: scope, available: available, run: run};
 
   if (!native || typeof EventSource !== 'function') return;

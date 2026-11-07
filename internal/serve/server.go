@@ -28,7 +28,7 @@ import (
 	"github.com/devenjarvis/lathe/internal/voice"
 )
 
-//go:embed layout.html list.html components.html check.html settings.html shortcuts.html
+//go:embed layout.html list.html components.html check.html settings.html shortcuts.html palette.html
 var templateFS embed.FS
 
 // styles.css is the entire design system (tokens + components). It's loaded
@@ -87,6 +87,8 @@ type Server struct {
 	// voiceTrash keeps voices deleted in Settings › Voices for Undo
 	// (voices.go).
 	voiceTrash voiceTrash
+	// index caches the part outlines GET /-/index serves (index.go).
+	index indexCache
 }
 
 // staticVersion fingerprints the embedded static assets so every page can ask
@@ -138,12 +140,14 @@ func NewServer(tutorialsDir string) *Server {
 		// The shortcut registry and its page script (native_menu.go).
 		"shortcutsJSON": shortcutsJSON,
 		"shortcutsJS":   shortcutsJS,
+		// The Go to anything palette's script (index.go).
+		"paletteJS": paletteJS,
 	}
 	// components.html is parsed into both template sets so its shared partials
 	// ({{define "head"}}, "badge", "themeToggle") are available to each page.
-	layoutTmpl := template.Must(template.New("layout.html").Funcs(funcMap).ParseFS(templateFS, "components.html", "shortcuts.html", "check.html", "layout.html"))
-	listTmpl := template.Must(template.New("list.html").Funcs(funcMap).ParseFS(templateFS, "components.html", "shortcuts.html", "list.html"))
-	settingsTmpl := template.Must(template.New("settings.html").Funcs(funcMap).ParseFS(templateFS, "components.html", "shortcuts.html", "settings.html"))
+	layoutTmpl := template.Must(template.New("layout.html").Funcs(funcMap).ParseFS(templateFS, "components.html", "shortcuts.html", "palette.html", "check.html", "layout.html"))
+	listTmpl := template.Must(template.New("list.html").Funcs(funcMap).ParseFS(templateFS, "components.html", "shortcuts.html", "palette.html", "list.html"))
+	settingsTmpl := template.Must(template.New("settings.html").Funcs(funcMap).ParseFS(templateFS, "components.html", "shortcuts.html", "palette.html", "settings.html"))
 	css, err := HighlightCSS()
 	if err != nil {
 		panic(fmt.Sprintf("lathe: failed to build syntax-highlight CSS: %v", err))
@@ -216,6 +220,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /-/native/reveal", s.handleNativeReveal)
 	// Shortcut registry and desktop menu commands (native_menu.go).
 	mux.HandleFunc("GET /-/shortcuts", s.handleShortcuts)
+	mux.HandleFunc("GET /-/index", s.handleIndex)
 	mux.HandleFunc("GET /-/native/commands", s.handleNativeCommands)
 	mux.HandleFunc("POST /-/native/context", s.handleNativeContext)
 	return mux
