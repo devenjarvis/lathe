@@ -131,7 +131,7 @@ func TestAgentNewStoresIntoTheReservation(t *testing.T) {
 				if resp, err := http.Get(baseURL + "/?view=writing"); err == nil {
 					body, _ := io.ReadAll(resp.Body)
 					_ = resp.Body.Close()
-					duringWriting = strings.Contains(string(body), `data-slug="`+slug+`"`) && strings.Contains(string(body), "Writing…")
+					duringWriting = strings.Contains(string(body), `data-slug="`+slug+`"`) && strings.Contains(string(body), "Writing Part 1")
 				}
 				// The session's MCP server: scoped to the reservation, new mode.
 				m := &mcp.Server{Slug: slug, New: true}
@@ -324,8 +324,8 @@ func TestAgentNewCancelRemovesReservation(t *testing.T) {
 	if resp, err := http.Get(ts.URL + "/" + slug + "/"); err == nil {
 		body, _ := io.ReadAll(resp.Body)
 		_ = resp.Body.Close()
-		if resp.StatusCode != http.StatusOK || !strings.Contains(string(body), "still being written") {
-			t.Errorf("GET /%s/ = %d %q, want the being-written note", slug, resp.StatusCode, body)
+		if resp.StatusCode != http.StatusOK || !strings.Contains(string(body), "You can close this window") || !strings.Contains(string(body), `action="/-/new/`+slug+`/cancel"`) {
+			t.Errorf("GET /%s/ = %d %.300q, want the progress page with Stop writing", slug, resp.StatusCode, body)
 		}
 	}
 

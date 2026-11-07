@@ -90,6 +90,10 @@ type libCard struct {
 	// TrashKey is the Move to Trash shortcut as the menu shows it ("⌘⌫"),
 	// "" where there is none.
 	TrashKey string
+	// Writing is set for a tutorial the hosted agent is writing (status
+	// writing): the cover is the dark "Writing Part 1" one, with its steps
+	// and "Needs you" (writing.go).
+	Writing *writingView
 }
 
 // LastPart is the part "Add a part" opens (its extend form is at the end).
@@ -234,8 +238,11 @@ type libraryEnv struct {
 	// Reveal reports whether a tutorial's workspace can be shown in the file
 	// manager (nil: never).
 	Reveal func(slug string) bool
-	GOOS   string
-	Now    time.Time
+	// Writing returns a reservation's progress for its "Writing Part 1"
+	// cover (nil: plain covers).
+	Writing func(t *store.Tutorial) *writingView
+	GOOS    string
+	Now     time.Time
 }
 
 // shelvesPath is where this server reads and writes shelves.json.
@@ -290,6 +297,13 @@ func (s *Server) libraryEnvFor() libraryEnv {
 	}
 	if s.revealer() != nil {
 		env.Reveal = func(slug string) bool { return s.workspaceDir(slug) != "" }
+	}
+	env.Writing = func(t *store.Tutorial) *writingView {
+		tutDir, ok := s.safeTutorialPath(t.Slug)
+		if !ok {
+			return nil
+		}
+		return s.writingFor(t, tutDir, false)
 	}
 	return env
 }
@@ -553,6 +567,9 @@ func buildLibrary(tutorials []*store.Tutorial, shelves *store.Shelves, q url.Val
 		c := &libCard{Tutorial: t, ShelfID: sh.ID, ShelfName: sh.Name, MoveTo: moveTo, RevealLabel: revealLabel(env.GOOS), TrashKey: trashKey(env.GOOS)}
 		if env.Reveal != nil {
 			c.Reveal = env.Reveal(t.Slug)
+		}
+		if env.Writing != nil && t.Status == store.StatusWriting {
+			c.Writing = env.Writing(t)
 		}
 		cards[i] = c
 		perShelf[sh.ID] = append(perShelf[sh.ID], c)

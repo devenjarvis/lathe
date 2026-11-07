@@ -28,7 +28,7 @@ import (
 	"github.com/devenjarvis/lathe/internal/voice"
 )
 
-//go:embed layout.html list.html components.html check.html settings.html shortcuts.html palette.html
+//go:embed layout.html list.html components.html check.html settings.html shortcuts.html palette.html writing.html
 var templateFS embed.FS
 
 // styles.css is the entire design system (tokens + components). It's loaded
@@ -81,6 +81,7 @@ type Server struct {
 	nativeMu sync.RWMutex
 	// settingsTmpl renders the Settings window (/-/settings, settings.go).
 	settingsTmpl *template.Template
+	writingTmpl  *template.Template
 	// cmds tracks the pages that take desktop menu commands, and which one
 	// is focused (native_menu.go).
 	cmds commandHub
@@ -151,6 +152,7 @@ func NewServer(tutorialsDir string) *Server {
 	layoutTmpl := template.Must(template.New("layout.html").Funcs(funcMap).ParseFS(templateFS, "components.html", "shortcuts.html", "palette.html", "check.html", "layout.html"))
 	listTmpl := template.Must(template.New("list.html").Funcs(funcMap).ParseFS(templateFS, "components.html", "shortcuts.html", "palette.html", "list.html"))
 	settingsTmpl := template.Must(template.New("settings.html").Funcs(funcMap).ParseFS(templateFS, "components.html", "shortcuts.html", "palette.html", "settings.html"))
+	writingTmpl := template.Must(template.New("writing.html").Funcs(funcMap).ParseFS(templateFS, "components.html", "shortcuts.html", "palette.html", "writing.html"))
 	css, err := HighlightCSS()
 	if err != nil {
 		panic(fmt.Sprintf("lathe: failed to build syntax-highlight CSS: %v", err))
@@ -160,6 +162,7 @@ func NewServer(tutorialsDir string) *Server {
 		layoutTmpl:   layoutTmpl,
 		listTmpl:     listTmpl,
 		settingsTmpl: settingsTmpl,
+		writingTmpl:  writingTmpl,
 		highlightCSS: css,
 		designCSS:    template.CSS(stylesCSS),
 		jigScript:    template.JS(jig.Script()),
@@ -195,6 +198,8 @@ func (s *Server) Handler() http.Handler {
 	// reserved slug (else a worker job, else the /lathe handoff); stop it.
 	mux.HandleFunc("POST /-/new", s.handleNew)
 	mux.HandleFunc("POST /-/new/{slug}/cancel", s.handleJobCancel(jobNew))
+	mux.HandleFunc("POST /-/new/{slug}/reply", s.handleNewReply)
+	mux.HandleFunc("GET /-/new/{slug}/progress", s.handleWritingProgress)
 	mux.HandleFunc("GET /-/status/{slug}/{part}", s.handleStatus)
 	// "Check my work": start a check of the reader's code against a part, and
 	// read the newest result back.
@@ -362,11 +367,9 @@ func (s *Server) handleTutorial(w http.ResponseWriter, r *http.Request) {
 	// the historical first-part redirect. The index.md fallback is only for
 	// legacy tutorials that were never split into parts.
 	if tut.Status == store.StatusWriting && len(tut.Parts) == 0 {
-		// A reservation (agent_new.go): nothing to read yet. Check back
-		// every few seconds; once stored, this redirects to Part 1.
-		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		w.Header().Set("Refresh", "5")
-		_, _ = fmt.Fprintf(w, "%s is still being written by your agent.\nThis page opens Part 1 once it is stored.\n", tut.Title)
+		// A reservation (agent_new.go): the progress page (writing.go).
+		// Once stored, this redirects to Part 1.
+		s.renderWriting(w, tut, tutDir)
 		return
 	}
 	if len(tut.Parts) > 0 {

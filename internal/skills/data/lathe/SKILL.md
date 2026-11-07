@@ -39,6 +39,16 @@ A flag that's absent is a question still open: ask it as usual. In particular, w
 
 When `lathe serve` hosts you for this form, its prompt tells you the reserved slug and where to write; follow it over "Output files" below.
 
+### Report progress (hosted runs only)
+
+When `lathe serve` hosts you for the form, the reader watches a progress page and a "Being written" cover with four steps: **Pin versions → Research → Write Part 1 → Put it on your shelf**. Report each step as you start it with the `lathe_progress` tool (else `lathe writing-step <slug> <step>`), so what they see is true:
+
+- `step: "versions"` as you start pinning the repo and versions; `step: "research"` when you start reading; `step: "write"` when you start `part-01.md`; `step: "shelve"` when you run `lathe jig check` and store.
+- While researching, pass each source as you finish reading it: `sources: [{url, title}]` (CLI: `--source "Title|URL"`). The page lists them live.
+- **Before you end your turn on a question**, call it with `ask` — a 2–4 word label for what you need ("confirm versions", "pick a scope") — and up to four short `replies` the reader can send with one click ("Sounds right", "No repo", "Other versions…"; end one with … when the reader should type the rest). The cover then reads "Needs you: confirm versions". Your next call clears it.
+
+Without the tool and outside a hosted run (no reserved slug), skip this: there's nothing to report to.
+
 ## Pin the repo and versions (before research)
 
 Lathe is for **programming tutorials**, and a tutorial is only as trustworthy as the versions it's rooted in. Settle two things before you research or write, then pass them to `lathe store` (see "After writing"). Pre-answered `--repo`/`--tool`/`--workspace` flags settle them already (see "Pre-answered inputs"). Both flow into `lathe serve`: tutorials are grouped by repo, and the versions show as chips with their own filter — so an old tutorial written against a stale toolchain is identifiable at a glance.
