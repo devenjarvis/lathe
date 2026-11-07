@@ -131,9 +131,10 @@ var registry = []Shortcut{
 	{ID: "library.new", Label: "New tutorial…", Menu: MenuFile, Group: GroupLibrary, Scope: ScopeGlobal, Handler: HandlerPage,
 		Mac: "Cmd+N", Other: "Ctrl+N", Href: "/-/new",
 		Note: "Browsers reserve ⌘N/Ctrl+N (new window), so in plain lathe serve only the app gets it; the title bar's New tutorial button and ⌘K open the sheet there."},
-	{ID: "library.open-window", Label: "Open in new window", Menu: MenuFile, Group: GroupWindows, Scope: ScopeGlobal, Handler: HandlerPage, Stub: true,
-		Mac: "Cmd+Enter", Other: "Ctrl+Enter",
-		Note: "Not bound while a stub: Windows menu accelerators fire before the page, and the agent composer takes Enter."},
+	{ID: "library.open-window", Label: "Open in new window", Menu: MenuFile, Group: GroupWindows, Scope: ScopeGlobal, Handler: HandlerPage,
+		Mac: "Cmd+Enter",
+		Note: "Opens the focused cover, or the ⌘K result, in its own window; the page enables it only then (never in a text field, so the agent composer keeps ⌘↩). " +
+			"⌘-click (Ctrl+click) on a cover does the same. No default on Windows and Linux: Windows fires a menu accelerator even when the item is disabled, which would take Ctrl+Enter from the composer; the ⌘K palette handles Ctrl+Enter itself."},
 	{ID: "library.trash", Label: "Move to Trash", Menu: MenuFile, Group: GroupLibrary, Scope: ScopeHome, Handler: HandlerPage,
 		Mac: "Cmd+Backspace",
 		Note: "Finder's Move to Trash. The page enables it only while a cover (or its ⋯ menu) has focus, never in a text field, where ⌘⌫ deletes to the line start. " +

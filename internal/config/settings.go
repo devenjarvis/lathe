@@ -66,6 +66,7 @@ type Settings struct {
 	NotifyVerify     bool   `json:"notify_verify"`
 	NotifyExtend     bool   `json:"notify_extend"`
 	NotifyCheck      bool   `json:"notify_check"`
+	NotifyNeedsYou   bool   `json:"notify_needs_you"`
 	// TrashDays is the Trash retention in days; 0 means never purge.
 	TrashDays int `json:"trash_days"`
 	// UpdateCheck is the desktop app's daily check for a new release.
@@ -95,6 +96,7 @@ func (c *Config) Resolve() Settings {
 		NotifyVerify:     true,
 		NotifyExtend:     true,
 		NotifyCheck:      true,
+		NotifyNeedsYou:   true,
 		TrashDays:        DefaultTrashDays,
 		UpdateCheck:      on(c.UpdateCheck),
 		ShelfSplitAt:     DefaultShelfSplitAt,
@@ -120,6 +122,7 @@ func (c *Config) Resolve() Settings {
 	resolveLaunchers(c, &s)
 	if n := c.Notify; n != nil {
 		s.NotifyVerify, s.NotifyExtend, s.NotifyCheck = on(n.Verify), on(n.Extend), on(n.Check)
+		s.NotifyNeedsYou = on(n.NeedsYou)
 	}
 	return s
 }

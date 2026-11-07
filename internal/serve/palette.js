@@ -570,6 +570,8 @@
     b.addEventListener('pointerenter', function () { if (!index) load(); }, {once: true});
   });
 
-  window.lathePalette = {open: open, close: close, isOpen: function () { return dlg.open; }};
+  window.lathePalette = {open: open, close: close, isOpen: function () { return dlg.open; },
+    // The menu's Open in new window (⌘↩) while the palette is open.
+    openInWindow: function () { choose(true); }};
   if (window.latheShortcuts && window.latheShortcuts.refresh) window.latheShortcuts.refresh();
 })();

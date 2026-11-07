@@ -727,9 +727,30 @@
       var c = a.closest && a.closest('.tutorial');
       return c && !c.hasAttribute('data-trashed') ? c : null;
     }
+    // Open a cover's tutorial in its own app window: ⌘↩ (the menu's Open
+    // in new window) on the focused cover, or ⌘-click / Ctrl+click on it.
+    // In a browser those keep their usual meaning (a new tab).
+    function openWindow(card){
+      var slug = card && card.getAttribute('data-slug');
+      if (!slug || !window.lathePaletteOpenWindow) return;
+      window.lathePaletteOpenWindow('/' + encodeURIComponent(slug) + '/').catch(function(){
+        showToast('Could not open a separate window');
+      });
+    }
+    if (root.hasAttribute('data-native')) {
+      document.addEventListener('click', function(ev){
+        if (!(ev.metaKey || ev.ctrlKey) || ev.button !== 0) return;
+        var a = ev.target.closest && ev.target.closest('.tutorial a.tutorial-link');
+        if (!a) return;
+        ev.preventDefault();
+        openWindow(a.closest('.tutorial'));
+      });
+    }
     window.latheLibrary = {
       target: function(){ return !!target(); },
-      trashTarget: function(){ var c = target(); if (c) trash(c.getAttribute('data-slug')); }
+      trashTarget: function(){ var c = target(); if (c) trash(c.getAttribute('data-slug')); },
+      windowTarget: function(){ var c = target(); return !!c && c.getAttribute('data-status') !== 'writing'; },
+      openTargetWindow: function(){ openWindow(target()); }
     };
     // The desktop menu's Move to Trash follows focus.
     var refreshTimer;

@@ -17,7 +17,7 @@ func TestLoadSettingsDefaults(t *testing.T) {
 		Appearance: "", TextSize: "default", LineWidth: "default",
 		RememberPlace: true, PanelSuggestions: true, PanelWindow: false,
 		CodeRoot: config.DefaultCodeRoot, KeepVerifiedCode: true, AutoVerify: false,
-		NotifyVerify: true, NotifyExtend: true, NotifyCheck: true,
+		NotifyVerify: true, NotifyExtend: true, NotifyCheck: true, NotifyNeedsYou: true,
 		TrashDays: config.DefaultTrashDays, UpdateCheck: true, ShelfSplitAt: config.DefaultShelfSplitAt,
 	}
 	if got != want {
@@ -184,5 +184,30 @@ func TestLaunchersResolve(t *testing.T) {
 	}
 	if _, ok := config.TerminalByID("linux", "iterm"); ok {
 		t.Error("iTerm offered on Linux")
+	}
+}
+
+func TestNeedsYouToggleAndWindowsRoundTrip(t *testing.T) {
+	withTempHome(t)
+	err := config.UpdateConfig(func(c *config.Config) error {
+		c.Notify = &config.NotifyConfig{NeedsYou: config.Bool(false)}
+		c.Windows = []config.WindowState{
+			{Main: true, Path: "/", Width: 1200, Height: 800},
+			{Path: "/demo/part-02.md", Scroll: 640, X: 40, Y: 60, Width: 900, Height: 700},
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := config.LoadSettings(); got.NotifyNeedsYou || !got.NotifyVerify {
+		t.Errorf("LoadSettings() = %+v, want needs-you off and the rest on", got)
+	}
+	c, err := config.ReadConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(c.Windows) != 2 || !c.Windows[0].Main || c.Windows[1].Path != "/demo/part-02.md" || c.Windows[1].Scroll != 640 {
+		t.Errorf("Windows = %+v", c.Windows)
 	}
 }

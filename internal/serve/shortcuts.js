@@ -79,6 +79,19 @@
       when: function () { return !popout && !!window.latheNewSheet; },
       run: function () { window.latheNewSheet.open({}); }
     },
+    // A tutorial in its own window: the ⌘K result, else the focused cover
+    // (list.html), in the app. A browser opens new tabs its own way.
+    'library.open-window': {
+      when: function () {
+        if (!native) return false;
+        if (window.lathePalette && window.lathePalette.isOpen()) return true;
+        return !!window.latheLibrary && !!window.latheLibrary.windowTarget && window.latheLibrary.windowTarget();
+      },
+      run: function () {
+        if (window.lathePalette && window.lathePalette.isOpen()) { window.lathePalette.openInWindow(); return; }
+        window.latheLibrary.openTargetWindow();
+      }
+    },
     // The library page (list.html) says which cover is current.
     'library.trash': {
       when: function () { return !!window.latheLibrary && window.latheLibrary.target(); },
@@ -239,9 +252,41 @@
   }
   var es = new EventSource('/-/native/commands?path=' + encodeURIComponent(location.pathname + location.search));
   es.addEventListener('hello', function (ev) {
-    try { client = JSON.parse(ev.data).client || ''; } catch (e) { client = ''; }
+    var hello = {};
+    try { hello = JSON.parse(ev.data) || {}; } catch (e) {}
+    client = hello.client || '';
+    // Drops on this page name it (the shell reads the drop target's
+    // attributes), so a folder dropped here is offered here (drop.html).
+    if (client) root.setAttribute('data-drop-client', client);
+    // The app reopened this window where it was: scroll back once the page
+    // has laid out.
+    if (hello.scroll > 0) {
+      var y = hello.scroll;
+      var back = function () { window.scrollTo(0, y); };
+      if (document.readyState === 'complete') back(); else window.addEventListener('load', back, {once: true});
+    }
     report();
   });
+  es.addEventListener('drop', function (ev) {
+    var plan = null;
+    try { plan = JSON.parse(ev.data); } catch (e) {}
+    if (plan && window.latheDrop) window.latheDrop(plan);
+  });
+  // How far down this page is, so the app can reopen it there.
+  var viewTimer = 0, lastY = -1;
+  function reportView() {
+    clearTimeout(viewTimer);
+    viewTimer = 0;
+    var y = Math.max(0, Math.round(window.scrollY || 0));
+    if (!client || y === lastY) return;
+    lastY = y;
+    var body = JSON.stringify({client: client, scroll: y});
+    fetch('/-/native/view', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: body, keepalive: true}).catch(function () {});
+  }
+  window.addEventListener('scroll', function () {
+    if (!viewTimer) viewTimer = setTimeout(reportView, 500);
+  }, {passive: true});
+  window.addEventListener('pagehide', reportView);
   es.addEventListener('command', function (ev) {
     var id = '';
     try { id = JSON.parse(ev.data).id || ''; } catch (e) {}

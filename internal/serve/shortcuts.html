@@ -7,4 +7,5 @@
 <script>{{shortcutsJS}}</script>
 {{template "palette" .}}
 {{template "newSheetDialog" .}}
+{{- if .Native}}{{template "drop" .}}{{end}}
 {{end}}

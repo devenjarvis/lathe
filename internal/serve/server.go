@@ -28,7 +28,7 @@ import (
 	"github.com/devenjarvis/lathe/internal/voice"
 )
 
-//go:embed layout.html list.html components.html check.html settings.html shortcuts.html palette.html newsheet.html new.html writing.html reading_tools.html
+//go:embed layout.html list.html components.html check.html settings.html shortcuts.html palette.html newsheet.html new.html writing.html reading_tools.html drop.html
 var templateFS embed.FS
 
 // styles.css is the entire design system (tokens + components). It's loaded
@@ -96,6 +96,13 @@ type Server struct {
 	// updates is the desktop app's update checker, for the title-bar
 	// notice (updates.go).
 	updates *updateSlot
+	// views is what each desktop window shows, for restore on launch;
+	// attn keeps the Dock badge and "needs you" notifications current;
+	// drops holds folder drops waiting for the reader's answer
+	// (native_window.go, native_notify.go, native_drop.go).
+	views viewBook
+	attn  attentionRunner
+	drops dropBook
 }
 
 // staticVersion fingerprints the embedded static assets so every page can ask
@@ -164,11 +171,11 @@ func NewServer(tutorialsDir string) *Server {
 	}
 	// components.html is parsed into both template sets so its shared partials
 	// ({{define "head"}}, "badge", "themeToggle") are available to each page.
-	layoutTmpl := template.Must(template.New("layout.html").Funcs(funcMap).ParseFS(templateFS, "components.html", "shortcuts.html", "palette.html", "newsheet.html", "check.html", "reading_tools.html", "layout.html"))
-	listTmpl := template.Must(template.New("list.html").Funcs(funcMap).ParseFS(templateFS, "components.html", "shortcuts.html", "palette.html", "newsheet.html", "list.html"))
-	settingsTmpl := template.Must(template.New("settings.html").Funcs(funcMap).ParseFS(templateFS, "components.html", "shortcuts.html", "palette.html", "newsheet.html", "settings.html"))
-	newTmpl := template.Must(template.New("new.html").Funcs(funcMap).ParseFS(templateFS, "components.html", "shortcuts.html", "palette.html", "newsheet.html", "new.html"))
-	writingTmpl := template.Must(template.New("writing.html").Funcs(funcMap).ParseFS(templateFS, "components.html", "shortcuts.html", "palette.html", "newsheet.html", "writing.html"))
+	layoutTmpl := template.Must(template.New("layout.html").Funcs(funcMap).ParseFS(templateFS, "components.html", "shortcuts.html", "palette.html", "newsheet.html", "drop.html", "check.html", "reading_tools.html", "layout.html"))
+	listTmpl := template.Must(template.New("list.html").Funcs(funcMap).ParseFS(templateFS, "components.html", "shortcuts.html", "palette.html", "newsheet.html", "drop.html", "list.html"))
+	settingsTmpl := template.Must(template.New("settings.html").Funcs(funcMap).ParseFS(templateFS, "components.html", "shortcuts.html", "palette.html", "newsheet.html", "drop.html", "settings.html"))
+	newTmpl := template.Must(template.New("new.html").Funcs(funcMap).ParseFS(templateFS, "components.html", "shortcuts.html", "palette.html", "newsheet.html", "drop.html", "new.html"))
+	writingTmpl := template.Must(template.New("writing.html").Funcs(funcMap).ParseFS(templateFS, "components.html", "shortcuts.html", "palette.html", "newsheet.html", "drop.html", "writing.html"))
 	css, err := HighlightCSS()
 	if err != nil {
 		panic(fmt.Sprintf("lathe: failed to build syntax-highlight CSS: %v", err))
@@ -277,6 +284,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /-/index", s.handleIndex)
 	mux.HandleFunc("GET /-/native/commands", s.handleNativeCommands)
 	mux.HandleFunc("POST /-/native/context", s.handleNativeContext)
+	mux.HandleFunc("POST /-/native/view", s.handleNativeView)
+	mux.HandleFunc("POST /-/native/drop/workspace", s.handleDropWorkspace)
+	mux.HandleFunc("POST /-/native/drop/add", s.handleDropAdd)
 	return mux
 }
 

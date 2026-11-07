@@ -168,7 +168,7 @@ func TestNativePickFolder(t *testing.T) {
 	}
 }
 
-func TestNativeWindowOpensOnlyThePopout(t *testing.T) {
+func TestNativeWindowOpensOnlyKnownWindows(t *testing.T) {
 	dir := t.TempDir()
 	makeTutFixture(t, dir, "series", true)
 	srv := NewServer(dir)
@@ -186,7 +186,7 @@ func TestNativeWindowOpensOnlyThePopout(t *testing.T) {
 	for _, p := range []string{
 		"", "series/part-01.md?agent=popout", "//evil.example/series/part-01.md?agent=popout",
 		"https://evil.example/series/part-01.md?agent=popout", "javascript:alert(1)",
-		"/series/part-01.md", "/series/part-01.md?agent=popout&x=1", "/series/part-01.md?agent=popout#x",
+		"/series/part-01.md?agent=popout&x=1", "/series/part-01.md?agent=popout#x",
 		"/series/part-09.md?agent=popout", "/series/metadata.json?agent=popout", "/nope/part-01.md?agent=popout",
 		"/../series/part-01.md?agent=popout", "/series/../series/part-01.md?agent=popout",
 		"/series%2Fpart-01.md?agent=popout", "/\\evil.example/x?agent=popout", "/series/part-01.md/x?agent=popout",

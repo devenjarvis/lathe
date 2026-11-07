@@ -470,6 +470,7 @@
     <label class="settings-check"><input type="checkbox" data-setting="notify_verify"{{if .Settings.NotifyVerify}} checked{{end}}><span><strong>A verify run finishes</strong></span></label>
     <label class="settings-check"><input type="checkbox" data-setting="notify_extend"{{if .Settings.NotifyExtend}} checked{{end}}><span><strong>A new part is written</strong></span></label>
     <label class="settings-check"><input type="checkbox" data-setting="notify_check"{{if .Settings.NotifyCheck}} checked{{end}}><span><strong>Check my work has feedback</strong></span></label>
+    <label class="settings-check"><input type="checkbox" data-setting="notify_needs_you"{{if .Settings.NotifyNeedsYou}} checked{{end}}><span><strong>Your agent needs you</strong><span class="agent-hint">It asks for permission or waits for your answer.</span></span></label>
     {{- if not .Native}}<p class="agent-hint">Notifications appear in the desktop app.</p>{{end}}
   </fieldset>
 </section>

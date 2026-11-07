@@ -1,6 +1,7 @@
 package desktop
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -16,7 +17,15 @@ type notifyBackend interface {
 	// wants that (macOS). It may block until the user answers.
 	authorize() (bool, error)
 	send(id, title, body string) error
+	// sendAction posts a notification with one button (label) that, like
+	// a click on the notification, opens path in the app. It returns
+	// errNoActions where the platform can't show buttons; the notifier then
+	// posts it plainly.
+	sendAction(id, title, body, label, path string) error
 }
+
+// errNoActions is a backend saying it can't put a button on a notification.
+var errNoActions = errors.New("notification actions are not supported here")
 
 // notifier posts notifications without ever blocking or failing its caller:
 // Notify only queues, and one goroutine authorizes (once) and sends in
@@ -37,7 +46,12 @@ type notifier struct {
 	seq         int
 }
 
-type note struct{ title, body string }
+type note struct {
+	title, body string
+	// label and path are the notification's action ("Open" → a page);
+	// empty for a plain notification.
+	label, path string
+}
 
 // notifyQueueSize bounds the backlog: a run ending is rare, so anything past
 // this is a burst nobody wants to see as notifications anyway.
@@ -59,8 +73,20 @@ func newNotifier(b notifyBackend, logf func(string, ...any)) *notifier {
 
 // Notify queues a notification. It never blocks.
 func (n *notifier) Notify(title, body string) {
+	n.enqueue(note{title: title, body: body})
+}
+
+// NotifyAction queues a notification with an action button (label) that
+// opens path. Where the platform shows no buttons it is posted plainly.
+func (n *notifier) NotifyAction(title, body, label, path string) {
+	n.enqueue(note{title: title, body: body, label: label, path: path})
+}
+
+func (n *notifier) enqueue(m note) {
+	title, body := m.title, m.body
 	if title == "" {
 		title = AppName
+		m.title = title
 	}
 	n.mu.Lock()
 	defer n.mu.Unlock()
@@ -69,7 +95,7 @@ func (n *notifier) Notify(title, body string) {
 		return
 	}
 	select {
-	case n.queue <- note{title, body}:
+	case n.queue <- m:
 	default:
 		n.logf("notification dropped (queue full): %s: %s", title, body)
 	}
@@ -116,5 +142,15 @@ func (n *notifier) post(m note) error {
 		return fmt.Errorf("notifications are turned off for %s", AppName)
 	}
 	n.seq++
-	return n.backend.send(fmt.Sprintf("lathe-%d", n.seq), m.title, m.body)
+	id := fmt.Sprintf("lathe-%d", n.seq)
+	if m.label != "" && m.path != "" {
+		err := n.backend.sendAction(id, m.title, m.body, m.label, m.path)
+		if err == nil {
+			return nil
+		}
+		if !errors.Is(err, errNoActions) {
+			n.logf("notification posted without its %s button (%v)", m.label, err)
+		}
+	}
+	return n.backend.send(id, m.title, m.body)
 }

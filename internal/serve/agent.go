@@ -201,6 +201,7 @@ func (h *agentHost) mcpServers(slug string) []acp.MCPServer {
 
 // Close stops the hosted agent, if any.
 func (s *Server) Close() {
+	s.attn.close()
 	if h := s.hostedAgent(); h != nil {
 		h.close()
 	}
