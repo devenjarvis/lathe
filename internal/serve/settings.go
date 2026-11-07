@@ -273,6 +273,9 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 		// Version is the running release for Settings › Library › Updates,
 		// "" for a development build.
 		"Version": releaseVersion(),
+		// Editors and Terminals: Settings › Reading's "Open code in"
+		// (native_workspace.go).
+		"Launchers": launcherChoices(runtime.GOOS),
 		// Shortcuts is the read-only list from the shortcut registry.
 		"Shortcuts": shortcutGroups(runtime.GOOS),
 	}
@@ -310,6 +313,8 @@ type settingsPatch struct {
 	TrashDays        *int    `json:"trash_days"`
 	UpdateCheck      *bool   `json:"update_check"`
 	ShelfSplitAt     *int    `json:"shelf_split_at"`
+	Editor           *string `json:"editor"`
+	Terminal         *string `json:"terminal"`
 }
 
 func (p *settingsPatch) apply(c *config.Config) error {
@@ -388,6 +393,9 @@ func (p *settingsPatch) apply(c *config.Config) error {
 			v := *p.ShelfSplitAt
 			c.ShelfSplitAt = &v
 		}
+	}
+	if err := p.applyLaunchers(c); err != nil {
+		return err
 	}
 	if p.NotifyVerify != nil || p.NotifyExtend != nil || p.NotifyCheck != nil {
 		if c.Notify == nil {

@@ -438,6 +438,28 @@
       {{- end}}
     </div>
   </fieldset>
+  <fieldset class="settings-group settings-launchers" id="launchersGroup">
+    <legend>Open code in</legend>
+    <p class="agent-hint" id="launchersHint">{{if .Native}}Where a listing's <strong>Open in</strong> and a command's <strong>Run in Terminal</strong> go. Lathe types the command in; you press Return.{{else}}Open in editor and Run in Terminal are in the desktop app. These choices are saved for it.{{end}}</p>
+    <div class="settings-select-row">
+      <label for="editorSelect">Editor</label>
+      <select id="editorSelect" class="sort-select" data-setting="editor" aria-describedby="launchersHint">
+        {{- $ed := .Settings.Editor}}
+        {{- range .Launchers.Editors}}
+        <option value="{{.Value}}"{{if eq $ed .Value}} selected{{end}}>{{.Label}}</option>
+        {{- end}}
+      </select>
+    </div>
+    <div class="settings-select-row">
+      <label for="terminalSelect">Terminal</label>
+      <select id="terminalSelect" class="sort-select" data-setting="terminal" aria-describedby="launchersHint">
+        {{- $tm := .Settings.Terminal}}
+        {{- range .Launchers.Terminals}}
+        <option value="{{.Value}}"{{if eq $tm .Value}} selected{{end}}>{{.Label}}</option>
+        {{- end}}
+      </select>
+    </div>
+  </fieldset>
   <div class="settings-group settings-checks">
     <label class="settings-check"><input type="checkbox" data-setting="remember_place"{{if .Settings.RememberPlace}} checked{{end}}><span><strong>Remember my place</strong><span class="agent-hint">Reopen a tutorial at the part you saved.</span></span></label>
     <label class="settings-check"><input type="checkbox" data-setting="panel_suggestions"{{if .Settings.PanelSuggestions}} checked{{end}}><span><strong>Suggestions in the agent panel</strong><span class="agent-hint">Offer questions to ask about the part you're reading.</span></span></label>

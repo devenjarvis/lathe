@@ -172,15 +172,20 @@ var registry = []Shortcut{
 	{ID: "tutorial.extend", Label: "Write next part", Menu: MenuTutorial, Group: GroupAgent, Scope: ScopeTutorial, Handler: HandlerPage,
 		Mac: "Cmd+Shift+N", Other: "Ctrl+Shift+N",
 		Note: "New folder in Finder/Explorer only; browsers reserve it for a private window, so in plain lathe serve only the app gets it."},
-	{ID: "tutorial.workspace", Label: "Show workspace in Finder", OtherLabel: "Show workspace folder", Menu: MenuTutorial, Group: GroupLibrary, Scope: ScopeTutorial, Handler: HandlerShell, Stub: true},
+	// The workspace items run in the page, which knows its tutorial (and
+	// whether it has a workspace); the page asks the shell through
+	// /-/native/open-editor, /-/native/terminal and /-/native/reveal.
+	{ID: "tutorial.open-editor", Label: "Open workspace in editor", Menu: MenuTutorial, Group: GroupLibrary, Scope: ScopeTutorial, Handler: HandlerPage},
+	{ID: "tutorial.open-terminal", Label: "Open workspace in Terminal", OtherLabel: "Open workspace in terminal", Menu: MenuTutorial, Group: GroupLibrary, Scope: ScopeTutorial, Handler: HandlerPage},
+	{ID: "tutorial.workspace", Label: "Show workspace in Finder", OtherLabel: "Show workspace folder", Menu: MenuTutorial, Group: GroupLibrary, Scope: ScopeTutorial, Handler: HandlerPage},
 
 	// Agent
 	{ID: "agent.panel", Label: "Show panel", Menu: MenuAgent, Group: GroupAgent, Scope: ScopeTutorial, Handler: HandlerPage,
 		Mac: "Cmd+J", Other: "Ctrl+J",
 		Note: "Ctrl+J is Downloads in Windows and Linux browsers (the page can take it); free in the app."},
-	{ID: "agent.ask-selection", Label: "Ask about selection", Menu: MenuAgent, Group: GroupAgent, Scope: ScopeTutorial, Handler: HandlerPage, Stub: true,
+	{ID: "agent.ask-selection", Label: "Ask about selection", Menu: MenuAgent, Group: GroupAgent, Scope: ScopeTutorial, Handler: HandlerPage,
 		Mac: "Cmd+L", Other: "Ctrl+L",
-		Note: "⌘L/Ctrl+L focuses the address bar in browsers; unbound while a stub, so the browser keeps it."},
+		Note: "The editor convention for sending a selection to the chat (Cursor, Zed). ⌘L/Ctrl+L focuses the address bar in browsers; on a tutorial page lathe serve takes it (the address bar is a click away), and the app has no address bar. Not a system shortcut on macOS, Windows, GNOME or KDE."},
 	{ID: "agent.check", Label: "Check my work", Menu: MenuAgent, Group: GroupAgent, Scope: ScopeTutorial, Handler: HandlerPage,
 		Mac: "Cmd+Shift+K", Other: "Ctrl+Shift+K",
 		Note: "Firefox's web console on Windows and Linux (browser only); free in the app and in the OS."},

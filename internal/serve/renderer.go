@@ -238,7 +238,9 @@ var (
 // block, so a source-supplied caption would be a second place to say what that
 // prose says, and the reader would hear both. The renderer's job is to name the
 // artifact's kind; the author's prose names the particular thing. Reopen only
-// with a tutorial that needs a caption the intro prose cannot carry.
+// with a tutorial that needs a caption the intro prose cannot carry. A
+// listing's workspace path (listingPath) is not a caption: it names the file,
+// which is the artifact's identity, and it is what Compare needs.
 func classifyBlock(lang string) (cssClass, caption, tag string, copyable bool) {
 	switch {
 	case commandLangs[lang]:
@@ -309,7 +311,17 @@ func (r *tutorialBlockRenderer) renderFencedBlock(w util.BufWriter, src []byte, 
 	text := string(n.Lines().Value(src))
 	skipWrapper := !copyable && strings.Count(text, "\n") >= longBlockLines
 
-	_, _ = fmt.Fprintf(w, `<div class="tutorial-block %s">`, class)
+	// A source listing may name the workspace file it belongs to after the
+	// language (```zig src/envelope.zig): the label shows it, and the
+	// reader's listing menu offers Compare and Open in editor for it.
+	pathAttr := ""
+	if class == "tutorial-block-code" && n.Info != nil {
+		if p := listingPath(string(n.Info.Value(src))); p != "" {
+			caption = p + " · " + lang
+			pathAttr = ` data-path="` + html.EscapeString(p) + `"`
+		}
+	}
+	_, _ = fmt.Fprintf(w, `<div class="tutorial-block %s"%s>`, class, pathAttr)
 	if skipWrapper {
 		// role="list" keeps the list in the accessibility tree once list-style:none
 		// drops the markers.
@@ -333,6 +345,60 @@ func (r *tutorialBlockRenderer) renderFencedBlock(w util.BufWriter, src []byte, 
 	}
 	_, _ = w.WriteString("</div>")
 	return ast.WalkContinue, nil
+}
+
+// listingPath is the workspace path a fence's info string names after the
+// language, or "": a bare path (```zig src/envelope.zig) or a title=, file=
+// or path= attribute (```zig title="src/envelope.zig"), the forms other
+// Markdown tools use. Only a plain relative path is taken: no "..", no
+// leading "/" or "~", no backslashes or spaces, and a short one.
+func listingPath(info string) string {
+	fields := strings.Fields(info)
+	if len(fields) < 2 {
+		return ""
+	}
+	for _, f := range fields[1:] {
+		v := f
+		if k, val, ok := strings.Cut(f, "="); ok {
+			switch strings.ToLower(k) {
+			case "title", "file", "path", "filename":
+				if q := strings.IndexAny(val, `"'`); q >= 0 {
+					// A quoted value must close in this field: a
+					// path with a space in it is not taken.
+					if q != 0 || len(val) < 2 || val[len(val)-1] != val[0] {
+						continue
+					}
+					val = val[1 : len(val)-1]
+				}
+				v = val
+			default:
+				continue
+			}
+		} else if !strings.ContainsAny(f, "./") {
+			continue // a bare word, not a path ("linenos")
+		}
+		if okListingPath(v) {
+			return v
+		}
+	}
+	return ""
+}
+
+func okListingPath(p string) bool {
+	if p == "" || len(p) > 200 || strings.HasPrefix(p, "/") || strings.HasPrefix(p, "~") || strings.HasPrefix(p, "-") {
+		return false
+	}
+	for _, r := range p {
+		if r <= ' ' || r == 0x7f || strings.ContainsRune(`\:*?"'<>|{}`+"`", r) {
+			return false
+		}
+	}
+	for _, seg := range strings.Split(p, "/") {
+		if seg == "" || seg == "." || seg == ".." {
+			return false
+		}
+	}
+	return true
 }
 
 // blockPreWrapper swaps Chroma's <code> for <samp> on output blocks.

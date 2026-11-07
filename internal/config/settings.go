@@ -73,6 +73,10 @@ type Settings struct {
 	// ShelfSplitAt is the shelf size past which its page suggests a split;
 	// 0 means never.
 	ShelfSplitAt int `json:"shelf_split_at"`
+	// Editor and Terminal are the desktop app's launchers (launchers.go);
+	// "" is the system default.
+	Editor   string `json:"editor"`
+	Terminal string `json:"terminal"`
 }
 
 // Resolve applies the defaults to c's Settings-window keys. An unknown value
@@ -113,6 +117,7 @@ func (c *Config) Resolve() Settings {
 	if v := strings.TrimSpace(c.CodeRoot); v != "" {
 		s.CodeRoot = v
 	}
+	resolveLaunchers(c, &s)
 	if n := c.Notify; n != nil {
 		s.NotifyVerify, s.NotifyExtend, s.NotifyCheck = on(n.Verify), on(n.Extend), on(n.Check)
 	}

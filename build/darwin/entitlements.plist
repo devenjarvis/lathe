@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Run in Terminal / Open in Terminal (issue #145): Lathe asks Terminal
+	     or iTerm, through osascript, to open a window at the workspace and
+	     type a command in (never run it). Sending Apple Events from a
+	     hardened-runtime app needs this; macOS still asks the reader once
+	     (NSAppleEventsUsageDescription in Info.plist). -->
+	<key>com.apple.security.automation.apple-events</key>
+	<true/>
+</dict>
+</plist>

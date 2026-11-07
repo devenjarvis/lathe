@@ -37,7 +37,7 @@ var sepBefore = map[string]bool{
 	"reading.bigger":           true,
 	"reading.appearance.light": true,
 	"tutorial.verify":          true,
-	"tutorial.workspace":       true,
+	"tutorial.open-editor":     true,
 	"agent.settings":           true,
 }
 

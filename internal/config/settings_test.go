@@ -3,6 +3,7 @@ package config_test
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -145,5 +146,43 @@ func TestShelfSplitAt(t *testing.T) {
 		if got := config.ShelfSplitAt(); got != c.want {
 			t.Errorf("shelf_split_at %d resolves to %d, want %d", c.stored, got, c.want)
 		}
+	}
+}
+
+func TestLaunchersResolve(t *testing.T) {
+	withTempHome(t)
+	err := config.UpdateConfig(func(c *config.Config) error {
+		c.Editor = "zed"
+		c.Terminal = config.TerminalsFor(runtime.GOOS)[0].ID
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st := config.LoadSettings(); st.Editor != "zed" || st.Terminal != config.TerminalsFor(runtime.GOOS)[0].ID {
+		t.Errorf("settings = %+v", st)
+	}
+	// Hand edits, or a config.json from another OS, fall back to the default.
+	err = config.UpdateConfig(func(c *config.Config) error {
+		c.Editor = "notepad; rm -rf ~"
+		c.Terminal = "nope"
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st := config.LoadSettings(); st.Editor != "" || st.Terminal != "" {
+		t.Errorf("unknown ids resolved to %+v", st)
+	}
+	for _, goos := range []string{"darwin", "linux", "windows"} {
+		if len(config.TerminalsFor(goos)) == 0 {
+			t.Errorf("no terminals for %s", goos)
+		}
+		if config.TerminalLabel(goos, "") == "" {
+			t.Errorf("no default terminal label for %s", goos)
+		}
+	}
+	if _, ok := config.TerminalByID("linux", "iterm"); ok {
+		t.Error("iTerm offered on Linux")
 	}
 }

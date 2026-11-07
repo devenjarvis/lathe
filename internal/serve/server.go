@@ -28,7 +28,7 @@ import (
 	"github.com/devenjarvis/lathe/internal/voice"
 )
 
-//go:embed layout.html list.html components.html check.html settings.html shortcuts.html palette.html newsheet.html new.html writing.html
+//go:embed layout.html list.html components.html check.html settings.html shortcuts.html palette.html newsheet.html new.html writing.html reading_tools.html
 var templateFS embed.FS
 
 // styles.css is the entire design system (tokens + components). It's loaded
@@ -159,10 +159,12 @@ func NewServer(tutorialsDir string) *Server {
 		"paletteJS": paletteJS,
 		// The New tutorial sheet's script (new_sheet.go).
 		"newSheetJS": newSheetJS,
+		// The reading page's selection toolbar and listing menu.
+		"readingToolsJS": readingToolsJS,
 	}
 	// components.html is parsed into both template sets so its shared partials
 	// ({{define "head"}}, "badge", "themeToggle") are available to each page.
-	layoutTmpl := template.Must(template.New("layout.html").Funcs(funcMap).ParseFS(templateFS, "components.html", "shortcuts.html", "palette.html", "newsheet.html", "check.html", "layout.html"))
+	layoutTmpl := template.Must(template.New("layout.html").Funcs(funcMap).ParseFS(templateFS, "components.html", "shortcuts.html", "palette.html", "newsheet.html", "check.html", "reading_tools.html", "layout.html"))
 	listTmpl := template.Must(template.New("list.html").Funcs(funcMap).ParseFS(templateFS, "components.html", "shortcuts.html", "palette.html", "newsheet.html", "list.html"))
 	settingsTmpl := template.Must(template.New("settings.html").Funcs(funcMap).ParseFS(templateFS, "components.html", "shortcuts.html", "palette.html", "newsheet.html", "settings.html"))
 	newTmpl := template.Must(template.New("new.html").Funcs(funcMap).ParseFS(templateFS, "components.html", "shortcuts.html", "palette.html", "newsheet.html", "new.html"))
@@ -268,6 +270,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /-/native/open-url", s.handleNativeOpenURL)
 	mux.HandleFunc("POST /-/native/reveal", s.handleNativeReveal)
 	mux.HandleFunc("POST /-/native/update", s.handleNativeUpdate)
+	// Editor, terminal and Compare (native_workspace.go).
+	s.workspaceRoutes(mux)
 	// Shortcut registry and desktop menu commands (native_menu.go).
 	mux.HandleFunc("GET /-/shortcuts", s.handleShortcuts)
 	mux.HandleFunc("GET /-/index", s.handleIndex)
@@ -741,8 +745,11 @@ func (s *Server) renderPart(w http.ResponseWriter, tut *store.Tutorial, tutDir, 
 		"HighlightCSS":      s.highlightCSS,
 		// Native: the desktop shell is present, so the page renders its
 		// affordances (data-native, "Choose folder…", the app-window pop-out).
-		"Native":            s.nativeShell() != nil,
-		"JigScript":         jigScript,
+		"Native":    s.nativeShell() != nil,
+		"JigScript": jigScript,
+		// ReadingTools: the selection toolbar, listing menu, Run in
+		// Terminal and the title bar's workspace menu (native_workspace.go).
+		"ReadingTools":      s.readingToolsFor(tut.Slug),
 		"PrevPart":          prevPart,
 		"NextPart":          nextPart,
 		"PrevTitle":         prevTitle,

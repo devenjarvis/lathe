@@ -106,6 +106,12 @@ type Config struct {
 	// splitting it: one of ShelfSplitChoices, 0 for never. Nil means
 	// DefaultShelfSplitAt.
 	ShelfSplitAt *int `json:"shelf_split_at,omitempty"`
+	// Editor is the code editor the desktop app opens workspace files in
+	// (an Editors id). Empty: the file's default app.
+	Editor string `json:"editor,omitempty"`
+	// Terminal is the terminal app Run in Terminal and Open in Terminal use
+	// (a Terminals id for this platform). Empty: the platform default.
+	Terminal string `json:"terminal,omitempty"`
 }
 
 // NotifyConfig is the per-event notification switches. Nil means on.

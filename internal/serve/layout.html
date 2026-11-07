@@ -60,6 +60,7 @@
   <button type="button" id="placeSaved" class="place-saved" data-progress-save hidden>Place saved</button>
   {{/* The masthead toggle: "<Agent name> ⌘J". The key hint is visual; the
        global shortcut is the shortcut registry's (#132). */}}
+  {{template "workspaceMenu" .}}
   <button type="button" id="agentToggle" class="agent-toggle" hidden aria-controls="agentPanel" aria-expanded="false" data-state="{{if .AgentName}}starting{{else}}none{{end}}"><span class="agent-dot" aria-hidden="true"></span><span class="agent-toggle-label" id="agentToggleName">{{if .AgentName}}{{.AgentName}}{{else}}Agent{{end}}</span><kbd class="agent-kbd agent-toggle-key" data-kbd aria-hidden="true">⌘J</kbd></button>
   {{template "newButton"}}
   {{template "paletteButton" .}}
@@ -298,6 +299,7 @@
          box) that opens the action menu. */}}
     <form id="askForm">
       <label for="askInput" class="visually-hidden">Ask a question about "{{.Tutorial.Title}}"</label>
+      {{template "askQuote"}}
       <div class="agent-composer">
         <button type="button" id="agentActionsButton" class="agent-plus" aria-haspopup="menu" aria-expanded="false" aria-controls="agentActionMenu" aria-label="Actions" title="Actions (or type /)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
         <textarea id="askInput" placeholder="{{if and .Tutorial.IsSeries .CurrentPartNumber}}Ask about Part {{.CurrentPartNumber}}…{{else}}Ask about this tutorial…{{end}}" rows="2" required aria-describedby="askHint"></textarea>
@@ -1482,6 +1484,7 @@
     });
   })();
 </script>
+{{template "readingTools" .}}
 {{if .JigScript}}
 <script>
   // Jigs: interactive blocks from ```jig <kind> fences (internal/jig). The
@@ -1910,6 +1913,8 @@
       ev.preventDefault();
       var question = (input.value || '').trim();
       if (!question) return;
+      // A quote from the selection toolbar or a listing goes ahead of it.
+      if (window.latheAskQuote) question = window.latheAskQuote.wrap(question);
 
       appendBubble('ask-question', question);
       input.value = '';

@@ -31,14 +31,15 @@
 # downloaded copy. With secrets it is signed with the hardened runtime,
 # notarized with `notarytool --wait`, stapled, and checked with spctl.
 #
-# Entitlements: none. Hardened-runtime entitlements are only needed for JIT,
-# unsigned executable memory, DYLD_* variables or loading third-party dylibs.
-# Go does none of these, and WKWebView runs its JavaScript JIT in Apple's own
+# Entitlements: only com.apple.security.automation.apple-events
+# (entitlements.plist), for Run in Terminal: osascript asks Terminal or iTerm to
+# open a window and type a command in. Otherwise hardened-runtime entitlements
+# are only needed for JIT, unsigned executable memory, DYLD_* variables or
+# loading third-party dylibs. Go does none of these, and WKWebView runs its JavaScript JIT in Apple's own
 # WebContent XPC processes, which carry their own entitlements. The app is not
 # sandboxed, so no network/file entitlements either. Child processes (the
 # user's ACP agent, e.g. node) are separate executables with their own
-# signatures; the hardened runtime is not inherited. If a future feature needs
-# one, add build/darwin/entitlements.plist and pass --entitlements below.
+# signatures; the hardened runtime is not inherited.
 set -euo pipefail
 
 MIN_MACOS=12.0 # keep in sync with LSMinimumSystemVersion in Info.plist
@@ -155,6 +156,7 @@ if [ "$SIGN" = true ]; then
 
 	log "codesign (hardened runtime) with $identity"
 	codesign --force --options runtime --timestamp \
+		--entitlements build/darwin/entitlements.plist \
 		--keychain "$KEYCHAIN" --sign "$identity" "$app"
 else
 	log "codesign (ad-hoc)"
