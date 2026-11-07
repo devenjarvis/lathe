@@ -3,6 +3,9 @@
 // decides what to do from markers in the prompt text:
 //
 //	[permission]  ask for permission first, then report the outcome
+//	[permission-run:CMD]  ask to run CMD (an execute tool call whose rawInput
+//	              carries the command), offering allow once, allow always
+//	              and reject
 //	[crash]       stream one chunk, then stop as if the process died
 //	[slow]        stream slowly, honouring session/cancel
 //	[tool]        send a short message and a tool call before the reply, the
@@ -178,6 +181,10 @@ func (a *Agent) await(ch chan frame) (json.RawMessage, string) {
 	return f.Result, ""
 }
 
+// permissionRunRe matches [permission-run:CMD]: ask to run CMD, offering
+// allow once, allow always and reject.
+var permissionRunRe = regexp.MustCompile(`\[permission-run:([^\]]+)\]`)
+
 var clientCallRe = regexp.MustCompile(`\[(read|write|run):([^\]]+)\]`)
 
 // clientCalls runs the [read:…], [write:…] and [run:…] markers in prompt
@@ -331,18 +338,34 @@ func (a *Agent) prompt(f frame, crash func()) {
 		return
 	}
 
-	if strings.Contains(prompt, "[permission]") {
+	permRun := permissionRunRe.FindStringSubmatch(prompt)
+	if strings.Contains(prompt, "[permission]") || permRun != nil {
+		toolCall := map[string]any{
+			"toolCallId": "call-1",
+			"title":      "Read part-02.md",
+			"kind":       "read",
+		}
+		options := []map[string]string{
+			{"optionId": "allow", "name": "Allow", "kind": "allow_once"},
+			{"optionId": "deny", "name": "Deny", "kind": "reject_once"},
+		}
+		if permRun != nil {
+			toolCall = map[string]any{
+				"toolCallId": "call-1",
+				"title":      "`" + permRun[1] + "`",
+				"kind":       "execute",
+				"rawInput":   map[string]string{"command": permRun[1]},
+			}
+			options = []map[string]string{
+				{"optionId": "allow", "name": "Allow", "kind": "allow_once"},
+				{"optionId": "allow-always", "name": "Always Allow", "kind": "allow_always"},
+				{"optionId": "deny", "name": "Reject", "kind": "reject_once"},
+			}
+		}
 		res := a.call("session/request_permission", map[string]any{
 			"sessionId": p.SessionID,
-			"toolCall": map[string]any{
-				"toolCallId": "call-1",
-				"title":      "Read part-02.md",
-				"kind":       "read",
-			},
-			"options": []map[string]string{
-				{"optionId": "allow", "name": "Allow", "kind": "allow_once"},
-				{"optionId": "deny", "name": "Deny", "kind": "reject_once"},
-			},
+			"toolCall":  toolCall,
+			"options":   options,
 		})
 		var out struct {
 			Outcome struct {
@@ -355,7 +378,7 @@ func (a *Agent) prompt(f frame, crash func()) {
 		case out.Outcome.Outcome == "cancelled":
 			a.respond(f.ID, map[string]string{"stopReason": "cancelled"})
 			return
-		case out.Outcome.OptionID == "allow":
+		case out.Outcome.OptionID == "allow", out.Outcome.OptionID == "allow-always":
 			a.chunk(p.SessionID, "(permission granted) ")
 		default:
 			a.chunk(p.SessionID, "(permission denied) ")

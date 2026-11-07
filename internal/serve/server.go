@@ -855,7 +855,20 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 		"verify": s.renderPartial("verifySection", data),
 		"extend": extend,
 		"run":    s.runningJob(slug),
+		// For the agent panel's finished-job card: the recorded result, the
+		// code a verify saved for this part, and the part an extend added.
+		"result": verifyResult,
+		"code":   statusCode(codeSnapshotFor(tutDir, tut, part)),
+		"added":  justAdded,
 	})
+}
+
+// statusCode is the code snapshot as /-/status reports it, or nil.
+func statusCode(c *CodeSnapshot) any {
+	if c == nil {
+		return nil
+	}
+	return map[string]string{"path": c.Path, "tag": c.Tag}
 }
 
 // renderPartial executes a named layout partial against data and returns the

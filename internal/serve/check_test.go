@@ -144,9 +144,14 @@ func TestCheckRunsOnACopyOfTheWorkspace(t *testing.T) {
 		CheckedAt string `json:"checkedAt"`
 		Status    string `json:"status"`
 		HTML      string `json:"html"`
+		Findings  int    `json:"findings"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
 		t.Fatal(err)
+	}
+	// The panel's finished card says "1 hint · Show the first hint".
+	if got.Findings != 1 {
+		t.Errorf("findings = %d, want 1", got.Findings)
 	}
 	for _, want := range []string{"Not quite yet", "What does <code>main</code> call?", "Another hint", "Show me where", "Reveal the reference code", "Lower confidence"} {
 		if !strings.Contains(got.HTML, want) {

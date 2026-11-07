@@ -240,6 +240,61 @@ func TestAgentPermissionFromUI(t *testing.T) {
 	}
 }
 
+// A permission prompt carries the exact command (from the tool call's
+// rawInput) and its kind, so the panel's yellow card can show it, and every
+// option the agent offered, so the card can map Allow once / Allow for this
+// job / Deny onto them.
+func TestAgentPermissionCarriesTheCommand(t *testing.T) {
+	f := &fakeHost{}
+	_, ts, _ := newAgentServer(t, f, "Ran it.")
+
+	_, out := askJSON(t, ts, "[permission-run:zig build test] run the tests")
+	runID := out["runId"]
+	var perm runEvent
+	evs := eventStream(t, ts, runID, func(ev runEvent) {
+		if ev.Type != "permission" {
+			return
+		}
+		perm = ev
+		resp, err := http.Post(ts.URL+"/-/acp/"+runID+"/permission", "application/json",
+			strings.NewReader(`{"permissionId":"`+ev.ID+`","optionId":"allow-always"}`))
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		_ = resp.Body.Close()
+	})
+	if perm.Input != "zig build test" || perm.Kind != "execute" || perm.Title != "`zig build test`" {
+		t.Errorf("permission event = %+v, want input %q, kind execute", perm, "zig build test")
+	}
+	var kinds []string
+	for _, o := range perm.Options {
+		kinds = append(kinds, o.Kind)
+	}
+	if strings.Join(kinds, ",") != "allow_once,allow_always,reject_once" {
+		t.Errorf("option kinds = %v", kinds)
+	}
+	if got := streamedText(evs); !strings.HasPrefix(got, "(permission granted) ") {
+		t.Errorf("text = %q", got)
+	}
+}
+
+func TestToolCallInput(t *testing.T) {
+	for raw, want := range map[string]string{
+		`{"command":"zig build"}`:           "zig build",
+		`{"command":["zig","build"]}`:       "zig build",
+		`{"file_path":"/tmp/x/main.zig"}`:   "/tmp/x/main.zig",
+		`{"description":"no command here"}`: "",
+		`"not an object"`:                   "",
+		``:                                  "",
+	} {
+		tc := acp.ToolCallRef{RawInput: json.RawMessage(raw)}
+		if got := tc.Input(); got != want {
+			t.Errorf("Input(%s) = %q, want %q", raw, got, want)
+		}
+	}
+}
+
 func TestAgentCrashFallsBackAndRestarts(t *testing.T) {
 	f := &fakeHost{}
 	srv, ts, _ := newAgentServer(t, f, "Fresh answer.")

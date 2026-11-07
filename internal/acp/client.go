@@ -71,6 +71,33 @@ type ToolCallRef struct {
 	ToolCallID string `json:"toolCallId"`
 	Title      string `json:"title,omitempty"`
 	Kind       string `json:"kind,omitempty"`
+	// RawInput is the tool's input as the agent sent it, e.g.
+	// {"command": "zig build test"}; see Input.
+	RawInput json.RawMessage `json:"rawInput,omitempty"`
+}
+
+// Input returns the exact command (or, for a file tool, the path) the tool
+// call carries in its rawInput, or "" when it names none Lathe recognizes.
+func (t ToolCallRef) Input() string {
+	var in map[string]json.RawMessage
+	if len(t.RawInput) == 0 || json.Unmarshal(t.RawInput, &in) != nil {
+		return ""
+	}
+	for _, k := range []string{"command", "cmd", "file_path", "path"} {
+		v, ok := in[k]
+		if !ok {
+			continue
+		}
+		var str string
+		if json.Unmarshal(v, &str) == nil && str != "" {
+			return str
+		}
+		var argv []string
+		if json.Unmarshal(v, &argv) == nil && len(argv) > 0 {
+			return strings.Join(argv, " ")
+		}
+	}
+	return ""
 }
 
 // PermissionRequest is a session/request_permission call from the agent.

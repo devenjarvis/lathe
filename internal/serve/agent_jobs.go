@@ -275,6 +275,9 @@ func (s *Server) handleJobCancel(job string) http.HandlerFunc {
 type jobRunInfo struct {
 	ID  string `json:"id"`
 	Job string `json:"job"`
+	// Started is when the run began (Unix milliseconds), for the panel's
+	// elapsed time after a reload.
+	Started int64 `json:"started,omitempty"`
 }
 
 // runningJob reports the hosted verify/extend run for slug, if any.
@@ -287,5 +290,5 @@ func (s *Server) runningJob(slug string) *jobRunInfo {
 	if !ok {
 		return nil
 	}
-	return &jobRunInfo{ID: run.id, Job: run.job}
+	return &jobRunInfo{ID: run.id, Job: run.job, Started: run.started.UnixMilli()}
 }

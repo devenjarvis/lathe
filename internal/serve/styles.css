@@ -447,6 +447,16 @@ pre samp{background:none;padding:0;color:inherit;font-family:var(--font-mono);fo
 .title-block .badge.failed{color:var(--badge-failed-text)}
 .title-block .status-none{color:var(--text-subtle)}
 .title-block .status-jump{font-size:.875rem;font-weight:800;margin-left:.35rem;white-space:nowrap}
+.title-block .tb-job{display:block;margin-top:.3rem;padding:0;font:inherit;font-size:.8125rem;font-weight:700;line-height:1.4;color:var(--text-muted);text-align:left;background:none;border:none;cursor:pointer}
+.title-block .tb-status:has(.tb-job:not([hidden])){grid-column:span 2}
+.title-block .tb-job[hidden]{display:none}
+.tb-job-dot{display:inline-block;width:.5rem;height:.5rem;margin-right:.4rem;border-radius:9999px;background:var(--text-faint);vertical-align:.05rem}
+.tb-job[data-state="running"] .tb-job-dot{background:var(--red);animation:badge-pulse 1.6s ease-in-out infinite}
+.tb-job[data-state="done"] .tb-job-dot{background:var(--badge-verified-text)}
+.tb-job[data-state="failed"] .tb-job-dot,.tb-job[data-state="error"] .tb-job-dot{background:var(--badge-failed-text)}
+@media (prefers-reduced-motion:reduce){.tb-job[data-state="running"] .tb-job-dot{animation:none}}
+.tb-job-link{color:var(--link);text-decoration:underline;text-underline-offset:2px;white-space:nowrap}
+.tb-job:hover .tb-job-link{color:var(--link-hover)}
 .article-header .provenance{font-size:.9375rem;font-weight:500;line-height:1.45;color:var(--text-subtle)}
 .article-header .provenance.unverified-note{color:var(--callout-unverified-label);font-weight:750}
 .article-header details.provenance summary{cursor:pointer;color:var(--text);font-weight:750;width:max-content;max-width:100%}
@@ -587,37 +597,66 @@ pre samp{background:none;padding:0;color:inherit;font-family:var(--font-mono);fo
 @keyframes status-spin{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion:reduce){.status-spinner{animation:none}}
 #extendForm .btn{align-self:flex-start}
-/* Hosted agent verify/extend progress (lathe serve --agent): the agent's plan
-   as a checklist, its steps (tool calls, files and commands Lathe ran or
-   refused), permission prompts, and its closing report. */
-.agent-job{margin-top:1.25rem;padding:1rem 1.15rem;border:2px solid var(--rule);border-radius:var(--radius-lg);background:var(--surface);color:var(--text)}
-.agent-job[data-state="error"]{border-color:var(--badge-failed-text)}
-.agent-job-head{display:flex;align-items:center;justify-content:space-between;gap:.75rem}
-.agent-job-title{margin:0;font-weight:800}
-.agent-job-stop{flex:none}
-.agent-plan{list-style:none;margin:.75rem 0 0;padding:0}
-.agent-plan-entry{position:relative;margin:.2rem 0;padding-left:1.6rem;line-height:1.45}
-.agent-plan-entry::before{content:"○";position:absolute;left:.2rem;color:var(--text-faint);font-weight:800}
-.agent-plan-entry[data-status="in_progress"]{font-weight:700}
-.agent-plan-entry[data-status="in_progress"]::before{content:"◐";color:var(--red)}
-.agent-plan-entry[data-status="completed"]{color:var(--text-muted)}
-.agent-plan-entry[data-status="completed"]::before{content:"✓";color:var(--badge-verified-text)}
-.agent-perms:not(:empty){display:flex;flex-direction:column;gap:.6rem;margin-top:.75rem}
-.agent-steps{margin-top:.75rem;font-size:.875rem}
-.agent-steps summary{cursor:pointer;color:var(--text-subtle);font-weight:700}
-.agent-step-list{list-style:none;margin:.4rem 0 0;padding:0;max-height:16rem;overflow-y:auto}
-.agent-step{margin:.15rem 0;padding-left:1.4rem;position:relative;color:var(--text-muted);word-break:break-word}
-.agent-step::before{content:"·";position:absolute;left:.45rem;color:var(--text-faint)}
-.agent-step-tool[data-status="pending"]::before,.agent-step-tool[data-status="in_progress"]::before{content:"…";left:.25rem;color:var(--red)}
-.agent-step-tool[data-status="completed"]::before{content:"✓";left:.25rem;color:var(--badge-verified-text)}
-.agent-step-tool[data-status="failed"]::before{content:"✗";left:.25rem;color:var(--badge-failed-text)}
-.agent-step-blocked{font-weight:700;color:var(--badge-failed-text)}
-.agent-step-term::before{content:none}
-.agent-step-term .ask-terminal{margin:0}
-.agent-report{margin-top:.85rem;padding-top:.75rem;border-top:2px dotted var(--rule);font-size:.95rem;line-height:1.55;max-height:24rem;overflow-y:auto}
-.agent-job-note{margin:.6rem 0 0;font-size:.9rem;color:var(--text-muted)}
-.agent-job-note:empty{display:none}
-.agent-job .handoff-panel{margin-top:.75rem}
+/* Hosted agent jobs (Verify, Write Part N, Check my work) as cards in the
+   agent panel's log. Running: the kicker and clock, the title with a
+   spinner, step segments, the plan, a short output tail, Stop and Details.
+   Done: the result and the next step. See layout.html (latheAttachJob). */
+.job-card{align-self:stretch;padding:.75rem .95rem .8rem;border:2px solid var(--rule);border-radius:var(--radius-lg);background:var(--surface);color:var(--text);scroll-margin:1rem}
+.job-card:focus{outline:none}
+.job-card:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+.job-card[data-state="failed"],.job-card[data-state="error"]{border-color:var(--badge-failed-text);border-width:var(--line)}
+.job-card[data-state="done"]{border-color:var(--badge-verified-text)}
+.job-card[data-state="stopped"],.job-card[data-state="queued"],.job-card[data-state="handoff"]{border-style:dashed;border-color:var(--border-strong)}
+.job-card-top{display:flex;align-items:center;gap:.5rem;min-height:1.5rem}
+.job-card-kicker{flex:1 1 auto;min-width:0;margin:0;font-size:.75rem;font-weight:850;letter-spacing:.06em;text-transform:uppercase;color:var(--teal);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.job-card-time{flex:none;font-family:var(--font-mono);font-variation-settings:var(--mono);font-size:.8125rem;font-weight:700;color:var(--text-subtle);font-variant-numeric:tabular-nums}
+.job-card-dismiss{flex:none;width:1.75rem;height:1.75rem;margin:-.2rem -.35rem -.2rem 0;font:inherit;font-size:1.1rem;line-height:1;color:var(--text-subtle);background:none;border:none;border-radius:var(--radius-pill);cursor:pointer}
+.job-card-dismiss:hover{color:var(--text);background:var(--accent-soft)}
+.job-card-title{margin:.1rem 0 0;color:var(--text);font-size:1.05rem;font-weight:850;font-variation-settings:var(--casual);line-height:1.3}
+.job-card[data-state="done"] .job-card-title{color:var(--badge-verified-text)}
+.job-card[data-state="failed"] .job-card-title,.job-card[data-state="error"] .job-card-title{color:var(--badge-failed-text)}
+.job-card-summary{margin:.25rem 0 0;font-size:.9rem;line-height:1.45;color:var(--text-muted)}
+.job-card-warn{font-weight:700;color:var(--badge-failed-text)}
+.job-card-error{margin:.5rem 0 0;padding:.45rem .6rem;max-height:7rem;overflow:auto;font-size:.78rem;white-space:pre-wrap;word-break:break-word;border:none;border-left:3px solid var(--badge-failed-text);border-radius:var(--radius-sm);background:var(--badge-failed-bg);color:var(--text)}
+.job-card[data-state="hints"]{border-color:var(--callout-warn-border);border-width:var(--line)}
+.job-card[data-waiting]{border-color:var(--yellow);border-width:var(--line)}
+.job-segs{display:flex;gap:3px;margin:.6rem 0 .1rem}
+.job-seg{flex:1 1 0;height:.4rem;border-radius:2px;background:var(--border)}
+.job-seg[data-status="completed"]{background:var(--teal-fill)}
+.job-seg[data-status="in_progress"]{background:var(--red);animation:badge-pulse 1.6s ease-in-out infinite}
+@media (prefers-reduced-motion:reduce){.job-seg[data-status="in_progress"]{animation:none}}
+.job-plan{list-style:none;margin:.5rem 0 0;padding:0;font-size:.875rem}
+.job-plan-entry{position:relative;margin:.15rem 0;padding-left:1.4rem;line-height:1.4;color:var(--text-muted)}
+.job-plan-entry::before{content:"○";position:absolute;left:.15rem;color:var(--text-faint);font-weight:800}
+.job-plan-entry[data-status="in_progress"]{font-weight:750;color:var(--text)}
+.job-plan-entry[data-status="in_progress"]::before{content:"◐";color:var(--red)}
+.job-plan-entry[data-status="completed"]::before{content:"✓";color:var(--badge-verified-text)}
+.job-tail{margin-top:.55rem;padding:.4rem .6rem;background:var(--surface-sunken);border-radius:var(--radius-sm);font-family:var(--font-mono);font-variation-settings:var(--mono);font-size:.75rem;line-height:1.5;color:var(--text-muted)}
+.job-tail-line{margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.job-tail-out{color:var(--text-subtle);padding-left:.8rem}
+.job-tail-blocked{color:var(--badge-failed-text);font-weight:700}
+.job-card-actions{display:flex;flex-wrap:wrap;align-items:center;gap:.35rem 1rem;margin-top:.6rem}
+.job-card-actions:empty{display:none}
+.job-card-link{font:inherit;font-size:.875rem;font-weight:800;color:var(--link);background:none;border:none;padding:.2rem 0;cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+.job-card-link:hover{color:var(--link-hover)}
+.job-card-next{color:var(--text);text-decoration-color:var(--red);text-decoration-thickness:2px}
+.job-card-cmd{margin-top:.6rem}
+.job-card-cmd-lead{margin:0 0 .4rem;font-size:.85rem;color:var(--text-muted)}
+.job-card-details{margin-top:.6rem;padding-top:.55rem;border-top:2px dotted var(--rule);font-size:.875rem}
+.job-report{max-height:22rem;overflow-y:auto;margin-bottom:.6rem;font-size:.9rem;line-height:1.5}
+.job-steps-title{margin:0 0 .2rem;font-size:.75rem;font-weight:850;letter-spacing:.06em;text-transform:uppercase;color:var(--text-subtle)}
+.job-steps-none{margin:0;color:var(--text-faint)}
+.job-step-list{list-style:none;margin:0;padding:0;max-height:14rem;overflow-y:auto}
+.job-step{margin:.12rem 0;padding-left:1.3rem;position:relative;color:var(--text-muted);word-break:break-word}
+.job-step::before{content:"·";position:absolute;left:.4rem;color:var(--text-faint)}
+.job-step-tool[data-status="pending"]::before,.job-step-tool[data-status="in_progress"]::before{content:"…";left:.2rem;color:var(--red)}
+.job-step-tool[data-status="completed"]::before{content:"✓";left:.2rem;color:var(--badge-verified-text)}
+.job-step-tool[data-status="failed"]::before{content:"✗";left:.2rem;color:var(--badge-failed-text)}
+.job-step-blocked{font-weight:700;color:var(--badge-failed-text)}
+.job-step-term::before{content:none}
+.job-step-term .ask-terminal{margin:0}
+/* A job card's "See what failed" / "Show the first hint" lands here. */
+.job-flash{outline:3px solid var(--yellow);outline-offset:4px;border-radius:var(--radius-sm);transition:outline-color 1.2s ease}
 [data-agent-job] #verifyForm,[data-agent-job] #extendForm{display:none}
 
 /* Floating reader actions (wide screens) */
@@ -855,12 +894,31 @@ html[data-agent-popout] #agentPopout,html[data-agent-popout] #askClose,html[data
 .ask-terminal summary{cursor:pointer;color:var(--text-subtle);font-family:var(--font-mono);font-variation-settings:var(--mono)}
 .ask-terminal pre{margin:.4rem 0 0;max-height:14rem;overflow:auto;font-size:.8rem}
 .ask-note-error{margin-top:0;font-style:normal;font-weight:700;color:var(--badge-failed-text)}
-.ask-permission{align-self:stretch;padding:.75rem .95rem;background:var(--callout-warn-bg);border:2px solid var(--callout-warn-border);border-radius:var(--radius-md);color:var(--text)}
-.ask-permission-label{margin:0;font-size:.8125rem;font-weight:800;color:var(--callout-warn-label);text-transform:uppercase;letter-spacing:.04em}
-.ask-permission-title{margin:.2rem 0 .6rem;font-family:var(--font-mono);font-variation-settings:var(--mono);font-size:.9rem;word-break:break-word}
-.ask-permission-options{display:flex;flex-wrap:wrap;gap:.5rem}
-.ask-permission-result{margin:0;font-size:.9rem;font-weight:700}
-.ask-permission.resolved{background:transparent;border-style:dashed}
+/* Permission prompt: the yellow "you are here" card (Ask and jobs alike) —
+   what the agent wants to do, the exact command, where it runs, and Allow
+   once ↩ / Allow for this job / Deny esc. Yellow and navy in both themes,
+   like the rail, so it is the brightest thing in the panel. */
+.perm-card{align-self:stretch;padding:.8rem .95rem .9rem;background:var(--yellow);color:#1C2140;border:var(--line) solid #1C2140;border-radius:var(--radius-md);box-shadow:4px 4px 0 #1C2140}
+.perm-card p{color:inherit}
+.perm-card:focus{outline:none}
+.perm-card:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+.perm-kicker{margin:0;font-size:.75rem;font-weight:900;letter-spacing:.06em;text-transform:uppercase}
+.perm-ask{margin:.35rem 0 .3rem;font-weight:800;font-variation-settings:var(--casual)}
+.perm-cmd{margin:0;padding:.55rem .7rem;border:none;background:#1C2140;color:#FFF4D6;border-radius:var(--radius-sm);font-size:.85rem;white-space:pre-wrap;word-break:break-word;max-height:9rem;overflow:auto}
+.perm-cmd code{background:none;color:inherit;padding:0;font-size:inherit}
+.perm-where{margin:.4rem 0 .65rem;font-size:.85rem;font-weight:700}
+.perm-where::before{content:"↳ ";font-weight:900}
+.perm-options{display:flex;flex-wrap:wrap;gap:.45rem}
+.perm-options .btn{border-color:#1C2140}
+.perm-options .btn:not(.btn-primary){background:#FFFBF0;color:#1C2140}
+.perm-options .btn:not(.btn-primary):hover:not(:disabled){background:#FFE7A3}
+.perm-key{font-family:var(--font-mono);font-variation-settings:var(--mono);font-size:.75rem;font-weight:700;padding:0 .3rem;margin:0;border:1.5px solid currentColor;border-bottom-width:1.5px;border-radius:4px;background:none;color:inherit;opacity:.8}
+.perm-error{margin:.5rem 0 0;font-size:.85rem;font-weight:800;color:#962512}
+.perm-error:empty{display:none}
+.perm-card.resolved{background:transparent;color:var(--text);border:2px dashed var(--border-strong);box-shadow:none;padding:.5rem .75rem}
+.perm-card.resolved .perm-kicker{color:var(--text-subtle)}
+.perm-card.resolved[data-choice^="reject"] .perm-kicker,.perm-card.resolved[data-choice="none"] .perm-kicker{color:var(--badge-failed-text)}
+.perm-card.resolved .perm-cmd{margin-top:.3rem;padding:.3rem .5rem;font-size:.8rem;background:var(--surface-sunken);color:var(--text-muted)}
 /* First-boot live-mode nudge: a bottom-center toast. */
 .live-nudge{position:fixed;left:50%;bottom:1.25rem;transform:translateX(-50%) translateY(.5rem);z-index:82;display:flex;align-items:center;gap:.6rem;max-width:min(92vw,38rem);padding:.75rem 1rem;background:var(--surface);color:var(--text);border:var(--line) solid var(--rule);border-radius:var(--radius-lg);box-shadow:var(--shadow-md);font-size:.9375rem;line-height:1.45;opacity:0;transition:opacity .35s ease,transform .35s ease}
 .live-nudge.show{opacity:1;transform:translateX(-50%) translateY(0)}
