@@ -128,9 +128,9 @@ var registry = []Shortcut{
 		Mac: "Cmd+Q", Other: "Ctrl+Q"},
 
 	// File
-	{ID: "library.new", Label: "New tutorial", Menu: MenuFile, Group: GroupLibrary, Scope: ScopeGlobal, Handler: HandlerPage, Stub: true,
-		Mac: "Cmd+N", Other: "Ctrl+N",
-		Note: "Browsers reserve ⌘N/Ctrl+N (new window), so in plain lathe serve only the app gets it."},
+	{ID: "library.new", Label: "New tutorial…", Menu: MenuFile, Group: GroupLibrary, Scope: ScopeGlobal, Handler: HandlerPage,
+		Mac: "Cmd+N", Other: "Ctrl+N", Href: "/-/new",
+		Note: "Browsers reserve ⌘N/Ctrl+N (new window), so in plain lathe serve only the app gets it; the title bar's New tutorial button and ⌘K open the sheet there."},
 	{ID: "library.open-window", Label: "Open in new window", Menu: MenuFile, Group: GroupWindows, Scope: ScopeGlobal, Handler: HandlerPage, Stub: true,
 		Mac: "Cmd+Enter", Other: "Ctrl+Enter",
 		Note: "Not bound while a stub: Windows menu accelerators fire before the page, and the agent composer takes Enter."},

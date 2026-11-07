@@ -267,7 +267,7 @@ func TestMenuCommandsReachTheFocusedPage(t *testing.T) {
 	n.waitState(t, func(st MenuState) bool { return st.Path == "/series/part-01.md" && len(st.Enabled) == 0 })
 
 	// Unknown, stub, shell and native ids are dropped.
-	if code := postContext(t, ts, part.client, "reading.next", "agent.check", "nope", "library.new", "app.settings", "window.close"); code != http.StatusNoContent {
+	if code := postContext(t, ts, part.client, "reading.next", "agent.check", "nope", "library.open-window", "app.settings", "window.close"); code != http.StatusNoContent {
 		t.Fatalf("context = %d", code)
 	}
 	st := n.waitState(t, func(st MenuState) bool { return len(st.Enabled) > 0 })
@@ -281,7 +281,7 @@ func TestMenuCommandsReachTheFocusedPage(t *testing.T) {
 	if ev := part.next(t); ev[0] != "command" || ev[1] != `{"id":"reading.next"}` {
 		t.Errorf("event = %v", ev)
 	}
-	for _, id := range []string{"reading.prev", "library.new", "app.settings", "nope"} {
+	for _, id := range []string{"reading.prev", "library.open-window", "app.settings", "nope"} {
 		if srv.RunCommand(id) {
 			t.Errorf("RunCommand(%s) delivered", id)
 		}

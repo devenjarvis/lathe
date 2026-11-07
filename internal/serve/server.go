@@ -28,7 +28,7 @@ import (
 	"github.com/devenjarvis/lathe/internal/voice"
 )
 
-//go:embed layout.html list.html components.html check.html settings.html shortcuts.html palette.html
+//go:embed layout.html list.html components.html check.html settings.html shortcuts.html palette.html newsheet.html new.html
 var templateFS embed.FS
 
 // styles.css is the entire design system (tokens + components). It's loaded
@@ -81,6 +81,9 @@ type Server struct {
 	nativeMu sync.RWMutex
 	// settingsTmpl renders the Settings window (/-/settings, settings.go).
 	settingsTmpl *template.Template
+	// newTmpl renders the New tutorial sheet: the /-/new page and the
+	// fragment the sheet loads (new_sheet.go).
+	newTmpl *template.Template
 	// cmds tracks the pages that take desktop menu commands, and which one
 	// is focused (native_menu.go).
 	cmds commandHub
@@ -152,12 +155,15 @@ func NewServer(tutorialsDir string) *Server {
 		"shortcutsJS":   shortcutsJS,
 		// The Go to anything palette's script (index.go).
 		"paletteJS": paletteJS,
+		// The New tutorial sheet's script (new_sheet.go).
+		"newSheetJS": newSheetJS,
 	}
 	// components.html is parsed into both template sets so its shared partials
 	// ({{define "head"}}, "badge", "themeToggle") are available to each page.
-	layoutTmpl := template.Must(template.New("layout.html").Funcs(funcMap).ParseFS(templateFS, "components.html", "shortcuts.html", "palette.html", "check.html", "layout.html"))
-	listTmpl := template.Must(template.New("list.html").Funcs(funcMap).ParseFS(templateFS, "components.html", "shortcuts.html", "palette.html", "list.html"))
-	settingsTmpl := template.Must(template.New("settings.html").Funcs(funcMap).ParseFS(templateFS, "components.html", "shortcuts.html", "palette.html", "settings.html"))
+	layoutTmpl := template.Must(template.New("layout.html").Funcs(funcMap).ParseFS(templateFS, "components.html", "shortcuts.html", "palette.html", "newsheet.html", "check.html", "layout.html"))
+	listTmpl := template.Must(template.New("list.html").Funcs(funcMap).ParseFS(templateFS, "components.html", "shortcuts.html", "palette.html", "newsheet.html", "list.html"))
+	settingsTmpl := template.Must(template.New("settings.html").Funcs(funcMap).ParseFS(templateFS, "components.html", "shortcuts.html", "palette.html", "newsheet.html", "settings.html"))
+	newTmpl := template.Must(template.New("new.html").Funcs(funcMap).ParseFS(templateFS, "components.html", "shortcuts.html", "palette.html", "newsheet.html", "new.html"))
 	css, err := HighlightCSS()
 	if err != nil {
 		panic(fmt.Sprintf("lathe: failed to build syntax-highlight CSS: %v", err))
@@ -167,6 +173,7 @@ func NewServer(tutorialsDir string) *Server {
 		layoutTmpl:   layoutTmpl,
 		listTmpl:     listTmpl,
 		settingsTmpl: settingsTmpl,
+		newTmpl:      newTmpl,
 		highlightCSS: css,
 		designCSS:    template.CSS(stylesCSS),
 		jigScript:    template.JS(jig.Script()),
@@ -201,6 +208,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /-/extend/{slug}/cancel", s.handleJobCancel(jobExtend))
 	// New tutorial (agent_new.go): run /lathe on the hosted agent into a
 	// reserved slug (else a worker job, else the /lathe handoff); stop it.
+	mux.HandleFunc("GET /-/new", s.handleNewSheet)
+	mux.HandleFunc("GET /-/new/suggest", s.handleNewSuggest)
 	mux.HandleFunc("POST /-/new", s.handleNew)
 	mux.HandleFunc("POST /-/new/{slug}/cancel", s.handleJobCancel(jobNew))
 	mux.HandleFunc("GET /-/status/{slug}/{part}", s.handleStatus)

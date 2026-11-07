@@ -66,9 +66,17 @@ type newRequest struct {
 	// the agent may read it, and Lathe records it as the tutorial's
 	// workspace.
 	Workspace string `json:"workspace"`
+	// WorkspaceAuto says Workspace is the New tutorial sheet's own
+	// suggestion, not something the reader typed or picked: the server
+	// recomputes it from the topic (<code root>/<slug>), so a submit that
+	// beat the sheet's live update still gets the right folder.
+	WorkspaceAuto bool `json:"workspaceAuto"`
 	// Tools are pinned versions; when given the skill doesn't re-confirm
 	// them.
 	Tools []store.Tool `json:"tools"`
+	// Versions is the New tutorial sheet's free-text form of Tools ("zig
+	// 0.13.0, llvm 18"), used when Tools is empty.
+	Versions string `json:"versions"`
 	// Repo / RepoBranch pin the git remote the tutorial is for.
 	Repo       string `json:"repo"`
 	RepoBranch string `json:"repoBranch"`
@@ -112,6 +120,8 @@ func (s *Server) validateNew(req newRequest) (*newInputs, error) {
 		return nil, errors.New("a field is too long")
 	case strings.ContainsAny(in.Repo+in.RepoBranch, " \t\r\n\""):
 		return nil, errors.New("repo and repoBranch must not contain spaces or quotes")
+	case len(req.Versions) > maxFieldLen:
+		return nil, errors.New("a field is too long")
 	case len(req.Tools) > maxNewTools:
 		return nil, fmt.Errorf("at most %d pinned versions", maxNewTools)
 	}
@@ -121,6 +131,12 @@ func (s *Server) validateNew(req newRequest) (*newInputs, error) {
 		}
 	}
 	in.Tools = store.NormalizeTools(req.Tools)
+	if len(in.Tools) == 0 {
+		in.Tools = parseVersions(req.Versions)
+		if len(in.Tools) > maxNewTools {
+			return nil, fmt.Errorf("at most %d pinned versions", maxNewTools)
+		}
+	}
 	for _, t := range in.Tools {
 		if strings.ContainsAny(t.Name+t.Version, " \t\r\n\":") {
 			return nil, fmt.Errorf("invalid pinned version %q: names and versions are single words", t.Name+":"+t.Version)
@@ -227,13 +243,51 @@ func (s *Server) handleNew(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}
+	// The New tutorial sheet posts JSON; with scripts off it is a plain
+	// form, answered with a redirect or the /-/new page (new_sheet.go).
+	form := isFormPost(r)
 	var req newRequest
-	if !readJSONBody(w, r, maxNewBytes, &req) {
+	if form {
+		var ok bool
+		if req, ok = newFormRequest(w, r); !ok {
+			http.Error(w, "could not read the form", http.StatusBadRequest)
+			return
+		}
+	} else if !readJSONBody(w, r, maxNewBytes, &req) {
 		return
+	}
+	// reply answers a start: id is the run (agent) or the job (queued).
+	reply := func(mode, slug, id, command, notice string) {
+		if form {
+			s.newFormReply(w, r, req, mode, slug, command, notice, "", http.StatusOK)
+			return
+		}
+		switch mode {
+		case "agent":
+			writeJSON(w, map[string]string{"mode": "agent", "runId": id, "slug": slug})
+		case "queued":
+			writeQueued(w, id)
+		default:
+			if notice != "" {
+				writeHandoffNotice(w, command, notice)
+			} else {
+				writeHandoff(w, command)
+			}
+		}
+	}
+	fail := func(msg string, code int) {
+		if form {
+			s.newFormReply(w, r, req, "", "", "", "", msg, code)
+			return
+		}
+		http.Error(w, msg, code)
+	}
+	if req.WorkspaceAuto && strings.TrimSpace(req.Topic) != "" {
+		req.Workspace = newWorkspaceFor(req.Topic)
 	}
 	in, err := s.validateNew(req)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		fail(err.Error(), http.StatusBadRequest)
 		return
 	}
 	command := in.command()
@@ -243,23 +297,19 @@ func (s *Server) handleNew(w http.ResponseWriter, r *http.Request) {
 		run, slug, err := agent.startNew(s.tutorialsDir, s.shelvesPath(), in, command)
 		switch {
 		case err == nil:
-			writeJSON(w, map[string]string{"mode": "agent", "runId": run.id, "slug": slug})
+			reply("agent", slug, run.id, command, "")
 			return
 		case errors.Is(err, store.ErrSlugTaken), errors.Is(err, errJobBusy):
-			http.Error(w, "conflict: "+err.Error(), http.StatusConflict)
+			fail("conflict: "+err.Error(), http.StatusConflict)
 			return
 		}
 		notice = "The agent (" + agent.command + ") could not start: " + err.Error()
 	}
 	if s.queue.WorkerConnected() {
-		writeQueued(w, s.queue.Enqueue(queue.Job{Type: queue.JobNew, Command: command}))
+		reply("queued", "", s.queue.Enqueue(queue.Job{Type: queue.JobNew, Command: command}), command, "")
 		return
 	}
-	if notice != "" {
-		writeHandoffNotice(w, command, notice)
-		return
-	}
-	writeHandoff(w, command)
+	reply("handoff", "", "", command, notice)
 }
 
 // startNew reserves the tutorial's slug and starts the /lathe run for it in a

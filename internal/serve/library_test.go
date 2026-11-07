@@ -154,8 +154,8 @@ func TestHomeShowsPickUpThenShelfRows(t *testing.T) {
 			t.Errorf("Pick up row should not show %s", slug)
 		}
 	}
-	if !strings.Contains(pick, `/lathe <var>topic</var>`) {
-		t.Error("New tutorial cover missing the /lathe guidance")
+	if !strings.Contains(pick, `<a class="new-cover" href="/-/new" data-new-open>`) {
+		t.Error("New tutorial cover is not a link to the New tutorial sheet")
 	}
 
 	// Shelf rows in stored order, Unsorted last.
