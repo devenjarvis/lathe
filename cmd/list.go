@@ -39,8 +39,11 @@ var listCmd = &cobra.Command{
 				continue
 			}
 			parts := "single"
-			if tut.IsSeries() {
+			switch {
+			case tut.IsSeries():
 				parts = fmt.Sprintf("%d parts", len(tut.Parts))
+			case tut.Status == store.StatusWriting && len(tut.Parts) == 0:
+				parts = "-" // a reservation: the hosted agent is writing part 1
 			}
 			badge := statusBadge(tut.Status)
 			_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", tut.Slug, tut.Title, badge, parts)
@@ -63,6 +66,8 @@ func statusBadge(s store.Status) string {
 		return "⚠️ skipped"
 	case store.StatusExtending:
 		return "⏳ extending"
+	case store.StatusWriting:
+		return "⏳ writing"
 	default:
 		return string(s)
 	}

@@ -17,6 +17,9 @@ const (
 	StatusFailed     Status = "failed"
 	StatusSkipped    Status = "skipped"
 	StatusExtending  Status = "extending"
+	// StatusWriting marks a reservation: the hosted agent is writing a new
+	// tutorial into this slug and has not stored it yet (see ReserveNew).
+	StatusWriting Status = "writing"
 )
 
 type Tutorial struct {

@@ -69,7 +69,9 @@ the literal `#1C2140`. Every text token clears WCAG AA (4.5:1) on `--bg`,
 ### Color — status badges and callouts
 
 Badges are a colored dot plus a label (`--badge-<status>-text` colors the dot;
-`-bg` tints the danger button and error toast). Five rendered states;
+`-bg` tints the danger button and error toast). Six rendered states (`writing`,
+a reservation the hosted agent is writing a new tutorial into, shares
+`extending`'s teal);
 `unverified` renders no badge — the About box says "Not verified" with a
 **Verify it** link instead.
 

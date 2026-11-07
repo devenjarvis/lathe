@@ -184,7 +184,9 @@ func (h *agentHost) startJob(job, tutDir, slug, command string) (*agentRun, erro
 // launch registers a run under key and starts driving prompt in session sid.
 // after runs once the prompt ends, before the final event (see agentRun).
 // It returns the busy error for key's job when another run holds the key.
-func (h *agentHost) launch(c *acp.Client, key, job string, target jobTarget, sid, prompt, fallback string, timeout time.Duration, after func() string) (*agentRun, error) {
+// setup, when given, adjusts the run before it starts (a new tutorial's run
+// takes replies).
+func (h *agentHost) launch(c *acp.Client, key, job string, target jobTarget, sid, prompt, fallback string, timeout time.Duration, after func() string, setup ...func(*agentRun)) (*agentRun, error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if _, busy := h.active[key]; busy {
@@ -208,6 +210,9 @@ func (h *agentHost) launch(c *acp.Client, key, job string, target jobTarget, sid
 		fallback: fallback,
 		after:    after,
 		target:   target,
+	}
+	for _, fn := range setup {
+		fn(run)
 	}
 	h.runs[run.id] = run
 	h.active[key] = run.id

@@ -30,7 +30,7 @@ Repeat until the user stops you (Ctrl-C, "stop the worker", or closing the sessi
    {"id":"7","type":"verify","slug":"digital-synth-zig","part":"part-02.md","question":"…","guidance":"…","path":"…","state":"claimed"}
    ```
    - If it prints `no task`, **loop back to step 1 immediately** — that's just an idle long-poll, not an error.
-   - Otherwise parse the JSON and note `id`, `type`, `slug`, and (depending on type) `part`/`question`/`guidance`/`path`.
+   - Otherwise parse the JSON and note `id`, `type`, `slug`, and (depending on type) `part`/`question`/`guidance`/`path`/`command`.
 
 2. **Dispatch on `type`**, applying the existing protocol as the source of truth — don't duplicate or paraphrase it, *apply* it:
 
@@ -45,6 +45,11 @@ Repeat until the user stops you (Ctrl-C, "stop the worker", or closing the sessi
      ```
 
    - **`check`** → apply the **`/lathe-check`** protocol against `slug` / `part`, with `path` as the learner's workspace (copy it to a scratch dir; never change it). It records the hint ladder via `lathe check-result`, which the browser picks up. When it finishes, close the job:
+     ```bash
+     lathe work done <id>
+     ```
+
+   - **`new`** → the reader asked for a new tutorial from the web UI. Its `command` field is the full `/lathe <topic> …` invocation, with the reader's pre-answered inputs as flags (`--level`, `--voice`, `--workspace`, `--tool`, `--repo`); `slug` is empty. Apply the **`/lathe`** protocol to `command` exactly as if the user had typed it (its "Pre-answered inputs" section says which questions the flags answer — ask the rest here, in this session). It picks the slug, writes Part 1, and stores it with `lathe store`. When it finishes, close the job:
      ```bash
      lathe work done <id>
      ```
@@ -68,7 +73,7 @@ This loop is long-running and each job is independent — nothing carries over f
 ## Boundaries
 
 - **Reuse the protocols, don't reinvent them.** Each job type is just "run the matching `/lathe-*` skill, then report." All the real rules (read-only verify, the extend handshake, grounded ask answers) live in those skills and win on any conflict.
-- **Always close the job.** `verify`/`extend`/`check` → `lathe work done <id>`; `ask` → `lathe work answer <id> --answer -` (which closes it). A job left open ties up the browser until the server's reclaim timeout.
+- **Always close the job.** `verify`/`extend`/`check`/`new` → `lathe work done <id>`; `ask` → `lathe work answer <id> --answer -` (which closes it). A job left open ties up the browser until the server's reclaim timeout.
 - **Interactive session only.** Never shell out to `-p` / headless to do the work — that's the metered path this whole design avoids.
 - **Sequential or concurrent — match your harness.** Without background sub-tasks, finish and report each job before claiming the next. With them, several jobs may be in flight at once; that's fine and keeps presence fresh. Concurrency is safe: the server rejects a second verify/extend on a tutorial that's already verifying/extending, so two jobs can't collide on the same `slug`, and ask jobs are read-only.
 

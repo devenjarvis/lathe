@@ -54,6 +54,7 @@
   --badge-verifying-bg:#FFE7A3; --badge-verifying-text:#8A5300;
   --badge-failed-bg:#FBD3CB; --badge-failed-text:#B02E17;
   --badge-extending-bg:#DDEFEE; --badge-extending-text:#17706D;
+  --badge-writing-bg:#DDEFEE; --badge-writing-text:#17706D;
   --badge-skipped-bg:#F6EEDA; --badge-skipped-text:#6B6550;
 
   /* Callouts (light) — bg / border / label. Rounded tinted panels; the border
@@ -120,6 +121,7 @@
   --badge-verifying-bg:#3B3317; --badge-verifying-text:#E3B15C;
   --badge-failed-bg:#44211B; --badge-failed-text:#FF8C75;
   --badge-extending-bg:#133533; --badge-extending-text:#6FD0C9;
+  --badge-writing-bg:#133533; --badge-writing-text:#6FD0C9;
   --badge-skipped-bg:#262B4C; --badge-skipped-text:#A9A38B;
 
   --callout-note-bg:#133533; --callout-note-border:#3FA8A2; --callout-note-label:#6FD0C9;
@@ -400,11 +402,12 @@ pre samp{background:none;padding:0;color:inherit;font-family:var(--font-mono);fo
 .badge.verifying .badge-dot{background:var(--badge-verifying-text)}
 .badge.failed .badge-dot{background:var(--badge-failed-text)}
 .badge.extending .badge-dot{background:var(--badge-extending-text)}
+.badge.writing .badge-dot{background:var(--badge-writing-text)}
 .badge.skipped .badge-dot{background:transparent;box-shadow:inset 0 0 0 2px var(--badge-skipped-text)}
 .badge.failed{color:var(--badge-failed-text)}
-.badge.verifying .badge-dot,.badge.extending .badge-dot{animation:badge-pulse 1.6s ease-in-out infinite}
+.badge.verifying .badge-dot,.badge.extending .badge-dot,.badge.writing .badge-dot{animation:badge-pulse 1.6s ease-in-out infinite}
 @keyframes badge-pulse{0%,100%{opacity:1}50%{opacity:.3}}
-@media (prefers-reduced-motion:reduce){.badge.verifying .badge-dot,.badge.extending .badge-dot{animation:none}}
+@media (prefers-reduced-motion:reduce){.badge.verifying .badge-dot,.badge.extending .badge-dot,.badge.writing .badge-dot{animation:none}}
 
 /* Button — pills with a chunky outline. Variants: primary (red fill), ghost
    (outline), danger (failed tint). Modifiers: pill (kept for markup; every

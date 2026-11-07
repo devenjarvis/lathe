@@ -27,9 +27,13 @@ type mcpClient struct {
 
 func newMCPClient(t *testing.T, slug string) *mcpClient {
 	t.Helper()
+	return newMCPServerClient(t, &mcp.Server{Slug: slug, Version: "test"})
+}
+
+func newMCPServerClient(t *testing.T, srv *mcp.Server) *mcpClient {
+	t.Helper()
 	toSrvR, toSrvW := io.Pipe()
 	fromSrvR, fromSrvW := io.Pipe()
-	srv := &mcp.Server{Slug: slug, Version: "test"}
 	served := make(chan error, 1)
 	go func() {
 		served <- srv.Serve(toSrvR, fromSrvW)
@@ -131,6 +135,82 @@ func TestMCPScopedServerOffersOnlyTutorialTools(t *testing.T) {
 	want := "lathe_verify_result lathe_extend_start lathe_extend_commit lathe_tag lathe_check_result"
 	if got != want {
 		t.Errorf("scoped tools = %s, want %s", got, want)
+	}
+}
+
+func TestMCPNewSessionStoresOnlyIntoItsReservation(t *testing.T) {
+	home := t.TempDir()
+	setHome(t, home)
+	tutorials := filepath.Join(home, ".lathe", "tutorials")
+	res, _, err := store.ReserveNew(tutorials, store.NewReservation{Topic: "build a digital synth in Zig"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeTutorial(t, home, "other", store.StatusVerified, []string{"part-01.md"})
+	c := newMCPServerClient(t, &mcp.Server{Slug: res.Slug, New: true, Version: "test"})
+
+	got := strings.Join(c.tools(), " ")
+	if want := "lathe_store lathe_verify_result lathe_extend_start lathe_extend_commit lathe_tag lathe_check_result"; got != want {
+		t.Errorf("--new tools = %s, want %s", got, want)
+	}
+
+	// The source dir is named for some other slug: the store still lands in
+	// the reservation, and nowhere else.
+	src := filepath.Join(t.TempDir(), "lathe-other")
+	if err := os.MkdirAll(src, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(src, "part-01.md"), []byte("# Synth"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if text, isErr := c.call("lathe_store", map[string]any{"path": src, "slug": "other"}); !isErr || !strings.Contains(text, "scoped to") {
+		t.Errorf("store into another slug = %q (isError %v), want refused", text, isErr)
+	}
+	text := c.mustCall("lathe_store", map[string]any{"path": src, "title": "Digital Synth", "voice": "companion"})
+	if !strings.Contains(text, res.Slug) {
+		t.Errorf("store result = %q, want the reserved slug", text)
+	}
+	tut, err := store.ReadMetadata(filepath.Join(tutorials, res.Slug))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tut.Status != store.StatusUnverified || tut.Title != "Digital Synth" || len(tut.Parts) != 1 {
+		t.Errorf("stored = %+v", tut)
+	}
+	other, _ := store.ReadMetadata(filepath.Join(tutorials, "other"))
+	if other == nil || other.Status != store.StatusVerified || other.Title != "Other" {
+		t.Errorf("the other tutorial changed: %+v", other)
+	}
+
+	// A reservation that was cancelled can't be resurrected by a late store.
+	if err := os.RemoveAll(filepath.Join(tutorials, res.Slug)); err != nil {
+		t.Fatal(err)
+	}
+	if text, isErr := c.call("lathe_store", map[string]any{"path": src}); !isErr || !strings.Contains(text, "gone") {
+		t.Errorf("store after the reservation went = %q (isError %v), want refused", text, isErr)
+	}
+	if _, err := os.Stat(filepath.Join(tutorials, res.Slug)); !os.IsNotExist(err) {
+		t.Errorf("late store recreated the reservation (err %v)", err)
+	}
+}
+
+func TestMCPUnscopedStoreRefusesSlug(t *testing.T) {
+	setHome(t, t.TempDir())
+	src := filepath.Join(t.TempDir(), "synth")
+	if err := os.MkdirAll(src, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	c := newMCPClient(t, "")
+	if text, isErr := c.call("lathe_store", map[string]any{"path": src, "slug": "x"}); !isErr || !strings.Contains(text, "slug") {
+		t.Errorf("unscoped store with slug = %q (isError %v), want refused", text, isErr)
+	}
+}
+
+func TestMCPCommandNewNeedsSlug(t *testing.T) {
+	mcpNew = true
+	t.Cleanup(func() { mcpNew = false })
+	if err := mcpCmd.RunE(mcpCmd, nil); err == nil || !strings.Contains(err.Error(), "--slug") {
+		t.Errorf("lathe mcp --new without --slug = %v, want an error", err)
 	}
 }
 

@@ -269,7 +269,7 @@ Everything beyond the core fields (`slug`/`title`/`topic`/`created`/`status`) is
 
 Reader state sits beside it in small sidecars that never touch `metadata.json`: `progress.json` (your reading position), `exercises.json` (checked-off exercises), `workspace.json` (the folder where you type the code, set with `lathe start` or the agent panel) and `checks.jsonl` (one line per "Check my work" result; dropped on re-store, like `progress.json`). Which shelf a tutorial is on is reader state too, kept library-wide in `~/.lathe/shelves.json` (`{"version":1,"shelves":[{"id":"systems","name":"Systems"}],"placements":{"<slug>":"systems"}}`).
 
-Status is one of `unverified` (the default after `lathe store`; renders no badge), `verifying`, `verified`, `failed`, `skipped`, or `extending` (set while `/lathe-extend` is writing a new part). On failure, a `verify-result.json` is written alongside with the failed part, step number, and error output; the web UI renders it as a panel on the tutorial page.
+Status is one of `unverified` (the default after `lathe store`; renders no badge), `verifying`, `verified`, `failed`, `skipped`, `extending` (set while `/lathe-extend` is writing a new part), or `writing` (a new tutorial the hosted agent is writing from the **New tutorial** form; Lathe reserved its slug and removes the placeholder if the run ends without storing). On failure, a `verify-result.json` is written alongside with the failed part, step number, and error output; the web UI renders it as a panel on the tutorial page.
 
 ## Sources & provenance
 

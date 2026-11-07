@@ -45,6 +45,11 @@ type Server struct {
 	// default to it and refuse any other slug, and the tools that create state
 	// outside it (lathe_store, lathe_voice_add) are not offered.
 	Slug string
+	// New, with Slug, is a hosted new-tutorial run's server: Slug is the
+	// reservation the server made for it (status "writing"), and lathe_store
+	// is offered too, storing only into that slug whatever the source dir is
+	// called. Without Slug it has no effect.
+	New bool
 	// Version is reported as serverInfo.version.
 	Version string
 }
@@ -118,6 +123,9 @@ func toolResult(text string, isError bool) map[string]any {
 }
 
 func (s *Server) instructions() string {
+	if s.Slug != "" && s.New {
+		return fmt.Sprintf("Lathe's state-writing commands as tools, scoped to the new tutorial %q that Lathe reserved for this session. lathe_store stores into %q whatever your source directory is called. Use them instead of running the `lathe` CLI.", s.Slug, s.Slug)
+	}
 	if s.Slug != "" {
 		return fmt.Sprintf("Lathe's state-writing commands as tools, scoped to the tutorial %q. Use them instead of running the `lathe` CLI.", s.Slug)
 	}
@@ -132,17 +140,23 @@ type Tool struct {
 	InputSchema map[string]any `json:"inputSchema"`
 
 	scoped bool // acts on one tutorial, so a scoped server offers it
-	run    func(s *Server, args json.RawMessage) (string, error)
+	// reserved: a --new scoped server offers it too, and its slug argument
+	// (optional, defaulting to the reservation) is added to the schema.
+	reserved bool
+	run      func(s *Server, args json.RawMessage) (string, error)
 }
 
 // Tools lists the tools this server offers.
 func (s *Server) Tools() []Tool {
 	var out []Tool
 	for _, t := range allTools() {
-		if s.Slug != "" && !t.scoped {
+		offered := s.Slug == "" || t.scoped || (s.New && t.reserved)
+		if !offered {
 			continue
 		}
-		if s.Slug != "" {
+		if s.Slug != "" && !t.scoped {
+			t.InputSchema = withReservedSlug(t.InputSchema, s.Slug)
+		} else if s.Slug != "" {
 			t.InputSchema = withOptionalSlug(t.InputSchema, s.Slug)
 		}
 		out = append(out, t)
@@ -254,6 +268,25 @@ func withOptionalSlug(schema map[string]any, slug string) map[string]any {
 	return out
 }
 
+// withReservedSlug adds an optional slug to a tool that, unscoped, takes
+// none (lathe_store derives it from the directory name): a --new session may
+// name its reservation, and nothing else.
+func withReservedSlug(schema map[string]any, slug string) map[string]any {
+	out := map[string]any{}
+	for k, v := range schema {
+		out[k] = v
+	}
+	p := map[string]any{}
+	if props, ok := schema["properties"].(map[string]any); ok {
+		for k, v := range props {
+			p[k] = v
+		}
+	}
+	p["slug"] = str(fmt.Sprintf("the reserved tutorial's slug; this session may store only into %q, which is the default", slug))
+	out["properties"] = p
+	return out
+}
+
 type sourceArg struct {
 	URL   string `json:"url"`
 	Title string `json:"title"`
@@ -291,7 +324,8 @@ func allTools() []Tool {
 				"voice": str("writing voice the tutorial was generated in"),
 				"model": str("display label of the LLM that wrote it, e.g. \"Claude Opus 4.8\""),
 			}),
-			run: runStore,
+			reserved: true,
+			run:      runStore,
 		},
 		{
 			Name:        "lathe_verify_result",
@@ -401,8 +435,9 @@ func allTools() []Tool {
 	}
 }
 
-func runStore(_ *Server, raw json.RawMessage) (string, error) {
+func runStore(s *Server, raw json.RawMessage) (string, error) {
 	var a struct {
+		Slug       string      `json:"slug"`
 		Path       string      `json:"path"`
 		Title      string      `json:"title"`
 		Tags       []string    `json:"tags"`
@@ -422,6 +457,22 @@ func runStore(_ *Server, raw json.RawMessage) (string, error) {
 	if strings.TrimSpace(a.Path) == "" {
 		return "", errors.New("path is required")
 	}
+	// Unscoped, the directory's name is the slug, as with `lathe store`.
+	// Scoped to a reservation, the reserved slug is, and only it.
+	var into string
+	switch {
+	case s.Slug == "" && strings.TrimSpace(a.Slug) != "":
+		return "", errors.New("invalid arguments: slug is only for a session Lathe reserved a tutorial for; the directory's name is the slug")
+	case s.Slug != "":
+		dir, slug, err := s.tutorialDir(a.Slug)
+		if err != nil {
+			return "", err
+		}
+		if _, err := store.ReadMetadata(dir); err != nil {
+			return "", fmt.Errorf("the tutorial %q Lathe reserved for this session is gone (the run was stopped), so there is nothing to store into", slug)
+		}
+		into = slug
+	}
 	tools := make([]store.Tool, 0, len(a.Tools))
 	for _, t := range a.Tools {
 		tools = append(tools, store.Tool{Name: t.Name, Version: t.Version})
@@ -435,6 +486,7 @@ func runStore(_ *Server, raw json.RawMessage) (string, error) {
 		Tools:   tools,
 		Voice:   a.Voice,
 		Model:   a.Model,
+		Slug:    into,
 	})
 	if err != nil {
 		return "", err

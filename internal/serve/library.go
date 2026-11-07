@@ -151,9 +151,10 @@ func (s *Server) readShelvesForView() *store.Shelves {
 	return sh
 }
 
-// beingWritten reports whether an agent is writing a part of the tutorial now.
+// beingWritten reports whether an agent is writing the tutorial (a new one,
+// reserved by POST /-/new) or a part of it now.
 func beingWritten(t *store.Tutorial) bool {
-	return t.Status == store.StatusExtending
+	return t.Status == store.StatusExtending || t.Status == store.StatusWriting
 }
 
 // needsALook reports whether the tutorial failed verification.
@@ -332,7 +333,7 @@ func buildLibrary(tutorials []*store.Tutorial, shelves *store.Shelves, q url.Val
 
 	case viewWriting:
 		nav.Writing.Current = true
-		page.Heading, page.Empty = nav.Writing.Label, "Nothing is being written right now. When your agent writes a new part, it shows up here."
+		page.Heading, page.Empty = nav.Writing.Label, "Nothing is being written right now. When your agent writes a new tutorial or part, it shows up here."
 		page.Cards = filterCards(cards, func(c *libCard) bool { return beingWritten(c.Tutorial) })
 	case viewAttention:
 		nav.Attention.Current = true

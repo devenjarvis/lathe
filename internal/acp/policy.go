@@ -69,6 +69,26 @@ func CheckPolicy(tutorialDir, workspaceDir, scratchCopy string) *Policy {
 	}
 }
 
+// NewPolicy is for writing a new tutorial: write and run in a scratch dir
+// Lathe made for the run, read it, the workspace the tutorial is for (when
+// one is given) and the voice spec file (a custom voice; built-in voices are
+// embedded and come in the prompt). Nothing else — not the tutorials dir: the
+// tutorial reaches the store only through the scoped lathe_store tool.
+func NewPolicy(scratchDir, workspaceDir, voiceFile string) *Policy {
+	read := []string{scratchDir}
+	for _, p := range []string{workspaceDir, voiceFile} {
+		if p != "" {
+			read = append(read, p)
+		}
+	}
+	return &Policy{
+		Job:   "new",
+		Read:  read,
+		Write: []string{scratchDir},
+		Exec:  []string{scratchDir},
+	}
+}
+
 // ErrOutsidePolicy is wrapped by every rejection, so callers can tell a
 // policy refusal from an I/O error.
 var ErrOutsidePolicy = errors.New("outside this job's file policy")
