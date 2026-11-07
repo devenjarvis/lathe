@@ -16,6 +16,14 @@ import (
 // DefaultCodeRoot is where tutorial workspaces go when code_root is unset.
 const DefaultCodeRoot = "~/code"
 
+// DefaultTrashDays is how long a deleted tutorial stays in the Trash when
+// trash_days is unset.
+const DefaultTrashDays = 30
+
+// TrashDayChoices are the Trash retention settings, in days; 0 is "Never"
+// (keep until deleted by hand).
+var TrashDayChoices = []int{7, 30, 0}
+
 // Appearance values.
 const (
 	AppearanceSystem = "system"
@@ -50,6 +58,8 @@ type Settings struct {
 	NotifyVerify     bool   `json:"notify_verify"`
 	NotifyExtend     bool   `json:"notify_extend"`
 	NotifyCheck      bool   `json:"notify_check"`
+	// TrashDays is the Trash retention in days; 0 means never purge.
+	TrashDays int `json:"trash_days"`
 }
 
 // Resolve applies the defaults to c's Settings-window keys. An unknown value
@@ -67,6 +77,10 @@ func (c *Config) Resolve() Settings {
 		NotifyVerify:     true,
 		NotifyExtend:     true,
 		NotifyCheck:      true,
+		TrashDays:        DefaultTrashDays,
+	}
+	if c.TrashDays != nil && slices.Contains(TrashDayChoices, *c.TrashDays) {
+		s.TrashDays = *c.TrashDays
 	}
 	if v := strings.TrimSpace(c.Appearance); slices.Contains(Appearances, v) {
 		s.Appearance = v
@@ -152,6 +166,9 @@ func CodeRootFor(root, slug string) string {
 	}
 	return root + "/" + slug
 }
+
+// TrashDays is the Trash retention in days (0: never purge).
+func TrashDays() int { return LoadSettings().TrashDays }
 
 // KeepVerifiedCode reports whether a verify run's code snapshot is kept.
 func KeepVerifiedCode() bool { return LoadSettings().KeepVerifiedCode }

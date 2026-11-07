@@ -17,6 +17,7 @@ func TestLoadSettingsDefaults(t *testing.T) {
 		RememberPlace: true, PanelSuggestions: true, PanelWindow: false,
 		CodeRoot: config.DefaultCodeRoot, KeepVerifiedCode: true,
 		NotifyVerify: true, NotifyExtend: true, NotifyCheck: true,
+		TrashDays: config.DefaultTrashDays,
 	}
 	if got != want {
 		t.Errorf("LoadSettings() = %+v, want %+v", got, want)
@@ -110,5 +111,21 @@ func TestExpandHome(t *testing.T) {
 	}
 	if got, _ := config.ExpandHome("/abs"); got != "/abs" {
 		t.Errorf("ExpandHome(/abs) = %q", got)
+	}
+}
+
+func TestTrashDays(t *testing.T) {
+	withTempHome(t)
+	if got := config.TrashDays(); got != 30 {
+		t.Errorf("default TrashDays = %d, want 30", got)
+	}
+	for _, c := range []struct{ stored, want int }{{7, 7}, {0, 0}, {30, 30}, {14, 30}, {-1, 30}} {
+		v := c.stored
+		if err := config.UpdateConfig(func(cfg *config.Config) error { cfg.TrashDays = &v; return nil }); err != nil {
+			t.Fatal(err)
+		}
+		if got := config.TrashDays(); got != c.want {
+			t.Errorf("trash_days %d resolves to %d, want %d", c.stored, got, c.want)
+		}
 	}
 }

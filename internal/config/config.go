@@ -92,6 +92,10 @@ type Config struct {
 	// Notify picks which finished runs post a system notification (desktop
 	// app only). Nil means all of them.
 	Notify *NotifyConfig `json:"notify,omitempty"`
+	// TrashDays is how many days a deleted tutorial stays in the Trash
+	// before it is deleted for good: one of TrashDayChoices, 0 for never.
+	// Nil means DefaultTrashDays.
+	TrashDays *int `json:"trash_days,omitempty"`
 }
 
 // NotifyConfig is the per-event notification switches. Nil means on.

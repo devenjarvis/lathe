@@ -155,31 +155,6 @@ func detectParts(dir string) []string {
 	return parts
 }
 
-func Delete(slug string) error {
-	if slug == "" || slug == "." || slug == ".." || strings.ContainsAny(slug, `/\`) {
-		return fmt.Errorf("invalid slug: %q", slug)
-	}
-	tutorialsDir, err := config.TutorialsDir()
-	if err != nil {
-		return err
-	}
-	target := filepath.Join(tutorialsDir, slug)
-	if !strings.HasPrefix(target, tutorialsDir+string(filepath.Separator)) {
-		return fmt.Errorf("invalid slug: %q", slug)
-	}
-	info, err := os.Stat(target)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return fmt.Errorf("tutorial %q not found", slug)
-		}
-		return err
-	}
-	if !info.IsDir() {
-		return fmt.Errorf("not a tutorial directory: %q", slug)
-	}
-	return os.RemoveAll(target)
-}
-
 // NormalizeTags cleans a tag list: trims surrounding whitespace, lowercases,
 // drops empties, and removes duplicates while preserving first-seen order.
 // Returns nil for an all-empty input so it stays omitempty in metadata.json.
