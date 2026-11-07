@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en"{{if .Native}} data-native{{end}}>
 <head>
   {{template "head" .}}
   <title>{{.Title}} — Lathe</title>
@@ -224,7 +224,7 @@
       </details>
       <div class="agent-field">
         <label for="workspaceSetupInput">Where are you typing the code?</label>
-        <input id="workspaceSetupInput" type="text" autocomplete="off" spellcheck="false" value="{{.WorkspaceShort}}" placeholder="~/code/{{.Tutorial.Slug}}" aria-describedby="workspaceSetupHint">
+        {{if .Native}}<div class="agent-field-row">{{end}}<input id="workspaceSetupInput" type="text" autocomplete="off" spellcheck="false" value="{{.WorkspaceShort}}" placeholder="~/code/{{.Tutorial.Slug}}" aria-describedby="workspaceSetupHint">{{if .Native}}<button type="button" id="workspaceSetupPick" class="btn btn-ghost btn-sm" data-native-pick="setup">Choose folder…</button></div>{{end}}
         <p class="agent-hint" id="workspaceSetupHint">Optional. Lathe creates the folder and runs <code>git init</code> if it's empty.</p>
       </div>
       <div class="agent-setup-actions">
@@ -259,7 +259,8 @@
     <div class="agent-workspace-row">
       <span class="agent-workspace-label">Workspace</span>
       <code id="workspaceShort" title="{{.WorkspacePath}}">{{if .WorkspaceShort}}{{.WorkspaceShort}}{{else}}not set{{end}}</code>
-      <button type="button" id="workspaceChange" class="link-btn" aria-controls="workspaceForm" aria-expanded="false">{{if .WorkspacePath}}Change{{else}}Set{{end}}</button>
+      {{if .Native}}<button type="button" id="workspacePick" class="link-btn" data-native-pick="footer">Choose folder…</button>
+      {{end}}<button type="button" id="workspaceChange" class="link-btn" aria-controls="workspaceForm" aria-expanded="false">{{if .WorkspacePath}}Change{{else}}Set{{end}}</button>
     </div>
     <form id="workspaceForm" class="agent-workspace-form" hidden>
       <label for="workspaceInput" class="visually-hidden">Workspace folder</label>
@@ -403,8 +404,16 @@
     // window collapses its own copy.
     popoutBtn.addEventListener('click', function(){
       var url = location.pathname + '?agent=popout';
+      {{- if .Native}}
+      // In the desktop app window.open has nothing to open, so the shell
+      // opens an app window. On failure the panel stays where it is.
+      fetch('/-/native/window', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({path: url})})
+        .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); close(); })
+        .catch(function(){ if (window.latheAnnounce) window.latheAnnounce('Could not open a separate window'); });
+      {{- else}}
       var w = window.open(url, 'lathe-agent-' + slug, 'popup,width=480,height=820');
       if (w) { try { w.focus(); } catch (e) {} close(); }
+      {{- end}}
     });
 
     // Panel actions. Ask focuses the question box; Verify submits the page's
@@ -574,6 +583,46 @@
       saveWorkspace(v).then(function(){ showWsForm(false); wsChange.focus(); })
         .catch(function(err){ wsError.textContent = err.message; });
     });
+    {{- if .Native}}
+
+    // Desktop app: "Choose folder…" opens the system folder picker (started
+    // at the current workspace). The footer button saves the pick through the
+    // same flow as a typed path; the setup one fills the field, saved on Start.
+    // A failed save opens the typed-path form with the error (role=alert), so
+    // the reader can correct it there.
+    function pickFolder(btn, done, onError){
+      btn.disabled = true;
+      btn.setAttribute('aria-busy', 'true');
+      postJSON('/-/native/pick-folder', {slug: slug})
+        .then(function(res){
+          if (!res.path) { if (window.latheAnnounce) window.latheAnnounce('No folder chosen'); return; }
+          return done(res);
+        })
+        .catch(onError)
+        .then(function(){
+          btn.disabled = false;
+          btn.removeAttribute('aria-busy');
+          // Disabling dropped focus to the body; give it back unless an error
+          // moved it to the path field.
+          var a = document.activeElement;
+          if (!a || a === btn || a === document.body) { try { btn.focus(); } catch (e) {} }
+        });
+    }
+    var wsPick = document.getElementById('workspacePick');
+    if (wsPick) wsPick.addEventListener('click', function(){
+      pickFolder(wsPick, function(res){
+        return saveWorkspace(res.path).then(function(){ if (!wsForm.hidden) showWsForm(false); });
+      }, function(err){ showWsForm(true); wsError.textContent = err.message; });
+    });
+    var wsSetupPick = document.getElementById('workspaceSetupPick');
+    if (wsSetupPick) wsSetupPick.addEventListener('click', function(){
+      setupError.textContent = '';
+      pickFolder(wsSetupPick, function(res){
+        wsSetupInput.value = res.display || res.path;
+        if (window.latheAnnounce) window.latheAnnounce('Workspace field set to ' + wsSetupInput.value);
+      }, function(err){ setupError.textContent = err.message; });
+    });
+    {{- end}}
 
     setupForm.addEventListener('submit', function(ev){
       ev.preventDefault();
