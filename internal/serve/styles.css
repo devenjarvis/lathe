@@ -1787,3 +1787,109 @@ body.new-page{background:var(--bg)}
   body.list .header .new-open-label{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 }
 @media (hover:none) and (pointer:coarse){.new-key{display:none}}
+
+/* ---- Being written (writing.html, the writing cover, the panel's question)
+   A tutorial the hosted agent is writing: a dark navy "Writing Part 1"
+   panel with four numbered steps (done teal ✓, the active one yellow, the
+   rest outlined), and — when the agent asks something — the yellow "Needs
+   you" card with quick replies. Navy and yellow in both themes, like the
+   permission card: it is the brightest thing on the page. */
+.writing-page{max-width:72rem;margin:0 auto;padding:clamp(1rem,.5rem + 2vw,2rem) clamp(1rem,.5rem + 2.5vw,2.5rem) 4rem}
+.writing-bar{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:1.5rem}
+.writing-bar .back-link{color:var(--text)}
+.writing-bar .header-tools{display:flex;align-items:center;gap:.6rem}
+main.writing{display:flex;flex-direction:column;gap:1.5rem;max-width:none;margin:0;padding:0;font-size:1rem;line-height:1.5}
+main.writing:focus{outline:none}
+.writing-hero{background:var(--cover-4);color:var(--cover-4-ink);border:var(--line) solid var(--rule);border-radius:var(--radius-lg);padding:clamp(1.1rem,.8rem + 1.5vw,2rem)}
+.writing-kicker{display:flex;align-items:center;gap:.55rem;margin:0;font-size:.8rem;font-weight:900;letter-spacing:.08em;text-transform:uppercase;color:var(--yellow)}
+.writing-pulse{width:.65rem;height:.65rem;border-radius:9999px;background:var(--yellow);animation:badge-pulse 1.6s ease-in-out infinite}
+.writing-title{margin:.4rem 0 1.25rem;color:inherit;font-size:clamp(2rem,1.4rem + 2.6vw,3.25rem);line-height:1;letter-spacing:-.035em;overflow-wrap:anywhere}
+.writing-steps{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.6rem}
+.writing-step{display:flex;align-items:center;gap:.6rem;padding:.55rem .7rem;border:2px solid rgba(255,244,214,.28);border-radius:var(--radius-md);font-weight:800;font-size:.95rem;line-height:1.2;color:rgba(255,244,214,.72)}
+.writing-step-n{flex:none;display:inline-flex;align-items:center;justify-content:center;width:1.85rem;height:1.85rem;border-radius:9999px;border:2px solid currentColor;font-size:.9rem;font-weight:900;font-variant-numeric:tabular-nums}
+.writing-step[data-state="done"]{color:#FFF4D6;border-color:transparent;background:rgba(255,244,214,.08)}
+.writing-step[data-state="done"] .writing-step-n{background:var(--teal-fill);border-color:var(--teal-fill);color:#FFFFFF}
+.writing-step[data-state="active"]{background:var(--yellow);border-color:var(--yellow);color:#1C2140}
+.writing-step[data-state="active"] .writing-step-n{background:#1C2140;border-color:#1C2140;color:var(--yellow)}
+.writing-steps[data-stopped] .writing-step[data-state="active"]{background:transparent;border-style:dashed;border-color:rgba(255,244,214,.5);color:#FFF4D6}
+.writing-hero-foot{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem 1.5rem;margin-top:1.25rem}
+.writing-close{margin:0;max-width:40rem;font-size:1rem;line-height:1.45;color:#FFF4D6}
+.writing-stop{margin:0}
+.writing-stop-btn{background:transparent;color:#FFF4D6;border-color:#FFF4D6}
+.writing-stop-btn:hover:not(:disabled){background:rgba(255,244,214,.14);color:#FFF4D6}
+@media (max-width:760px){.writing-steps{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:420px){.writing-steps{grid-template-columns:minmax(0,1fr)}}
+@media (prefers-reduced-motion:reduce){.writing-pulse{animation:none}}
+
+.needs-card{scroll-margin:1rem;padding:1rem 1.15rem 1.1rem;background:var(--yellow);color:#1C2140;border:var(--line) solid #1C2140;border-radius:var(--radius-lg);box-shadow:5px 5px 0 #1C2140}
+.needs-card:focus{outline:none}
+.needs-card:focus-visible{outline:3px solid var(--focus);outline-offset:3px}
+.needs-card p,.needs-card li{color:inherit}
+.needs-kicker{margin:0;font-size:.75rem;font-weight:900;letter-spacing:.08em;text-transform:uppercase}
+.needs-label{margin:.15rem 0 .5rem;color:inherit;font-size:1.5rem;line-height:1.1}
+.needs-label::first-letter{text-transform:uppercase}
+.needs-question{font-size:1rem;line-height:1.5;color:inherit;max-width:var(--measure)}
+.needs-question code{background:rgba(28,33,64,.12);color:inherit}
+.needs-question:empty{display:none}
+.needs-form{margin-top:.8rem}
+.needs-replies{display:flex;flex-wrap:wrap;gap:.45rem;margin-bottom:.6rem}
+.needs-replies:empty{display:none}
+.needs-reply,.needs-card .needs-reply:hover:not(:disabled){border-color:#1C2140;background:#FFFBF0;color:#1C2140}
+.needs-card .needs-reply:hover:not(:disabled){background:#FFE7A3}
+.needs-compose{display:flex;gap:.5rem;align-items:flex-end}
+.needs-compose textarea{flex:1 1 auto;min-width:0;min-height:2.6rem;resize:vertical;padding:.5rem .7rem;font:inherit;font-size:.95rem;color:#1C2140;background:#FFFBF0;border:2px solid #1C2140;border-radius:var(--radius-md)}
+.needs-compose textarea:focus-visible{outline:3px solid var(--focus);outline-offset:1px}
+.needs-compose .btn-primary{border-color:#1C2140}
+.needs-error{margin:.5rem 0 0;font-size:.875rem;font-weight:800;color:#962512}
+.needs-error:empty{display:none}
+
+.writing-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);gap:1.5rem;align-items:start}
+@media (max-width:860px){.writing-grid{grid-template-columns:minmax(0,1fr)}}
+.writing-panel{padding:1rem 1.15rem 1.15rem;border:2px solid var(--rule);border-radius:var(--radius-lg);background:var(--surface)}
+.writing-panel h2{margin:0 0 .65rem;font-size:1.3rem;line-height:1.15}
+.writing-source-list{list-style:decimal;margin:0;padding-left:1.4rem;font-size:.95rem}
+.writing-source-list li{margin:.35rem 0;padding-left:.15rem}
+.writing-source-list li::marker{color:var(--teal);font-weight:850}
+.writing-source-list a{font-weight:750;color:var(--link);overflow-wrap:anywhere}
+.writing-source-url{display:block;font-size:.78rem;color:var(--text-faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.writing-empty{margin:0;color:var(--text-subtle);font-size:.95rem}
+.writing-draft-title{font-weight:700;color:var(--text-subtle)}
+.writing-sections{list-style:none;display:flex;flex-wrap:wrap;gap:.35rem;margin:0 0 .85rem;padding:0;counter-reset:sec}
+.writing-sections:empty{display:none}
+.writing-sections li{counter-increment:sec;display:inline-flex;align-items:center;gap:.35rem;padding:.15rem .6rem .15rem .2rem;border-radius:var(--radius-pill);background:var(--surface-sunken);font-size:.8125rem;font-weight:750;color:var(--text)}
+.writing-sections li::before{content:counter(sec);display:inline-flex;align-items:center;justify-content:center;width:1.3rem;height:1.3rem;border-radius:9999px;background:var(--red);color:var(--on-red);font-size:.72rem;font-weight:900}
+.writing-sections li:last-child{background:var(--accent-soft)}
+.writing-draft-body{max-height:36rem;overflow-y:auto;padding:.9rem 1rem;border:2px dashed var(--border-strong);border-radius:var(--radius-md);background:var(--bg);font-size:.95rem;line-height:1.6;color:var(--text-muted)}
+
+/* The writing cover (list.html "writingCover"): the same dark panel as a
+   book on the shelf. Steps are four segments with the active step's name
+   under them; "Needs you: …" is a yellow link above the stretched one. */
+.tutorial.writing-cover{--cover:var(--cover-4);--cover-ink:var(--cover-4-ink);background:var(--cover-4)}
+.tutorial.writing-cover::before{border-bottom:none}
+.writing-cover .meta{color:var(--yellow);opacity:1;text-transform:uppercase;letter-spacing:.07em;font-size:.75rem;font-weight:900;display:flex;align-items:center;gap:.45rem}
+.writing-cover .writing-pulse{width:.55rem;height:.55rem}
+.writing-cover-steps{grid-row:3/5;grid-column:1;align-self:start;padding:.2rem 1.2rem 0;color:var(--cover-4-ink)}
+.writing-segs{display:flex;gap:4px;margin:0;padding:0;list-style:none}
+.writing-seg{flex:1 1 0;height:.45rem;border-radius:9999px;background:rgba(255,244,214,.22)}
+.writing-seg[data-state="done"]{background:var(--teal-fill)}
+.writing-seg[data-state="active"]{background:var(--yellow)}
+.writing-cover-step{margin:.5rem 0 0;font-size:.875rem;font-weight:800;color:#FFF4D6}
+.writing-cover-step-n{color:rgba(255,244,214,.7);font-weight:700}
+.writing-cover .tutorial-actions{color:#FFF4D6}
+.writing-needs{position:relative;z-index:1;flex:1 1 auto;min-width:0;padding:.3rem .65rem;border-radius:var(--radius-md);background:var(--yellow);color:#1C2140;border:2px solid #1C2140;font-size:.85rem;font-weight:900;line-height:1.25;text-decoration:none}
+.writing-needs:hover{color:#1C2140;background:#FFE7A3}
+.writing-needs:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+.writing-cover-state{font-size:.85rem;font-weight:800;color:rgba(255,244,214,.8)}
+
+/* The panel's question card (layout.html, a new tutorial's job card). */
+.ask-card{align-self:stretch;padding:.8rem .95rem .9rem;background:var(--yellow);color:#1C2140;border:var(--line) solid #1C2140;border-radius:var(--radius-md);box-shadow:4px 4px 0 #1C2140}
+.ask-card p{color:inherit}
+.ask-card:focus{outline:none}
+.ask-card:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+.ask-card .needs-question{font-size:.92rem;margin:.3rem 0 .6rem}
+.ask-card .needs-reply{min-height:2.1rem}
+.ask-card.resolved{background:transparent;color:var(--text);border:2px dashed var(--border-strong);box-shadow:none;padding:.5rem .75rem}
+.ask-card.resolved .perm-kicker{color:var(--text-subtle)}
+.ask-card-answer{margin:.2rem 0 0;font-weight:750}
+.needs-card strong,.needs-card b,.needs-card h1,.needs-card h2,.needs-card h3,.ask-card strong,.ask-card b{color:inherit}
+.needs-card a,.ask-card a,.ask-card .job-card-link{color:#1C2140;text-decoration-color:#1C2140}

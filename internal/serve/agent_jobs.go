@@ -267,6 +267,12 @@ func (s *Server) handleJobCancel(job string) http.HandlerFunc {
 		case <-time.After(15 * time.Second):
 		case <-r.Context().Done():
 		}
+		if isFormPost(r) {
+			// The progress page's Stop writing, with scripts off: back to
+			// the library (the reservation is gone).
+			http.Redirect(w, r, "/", http.StatusSeeOther)
+			return
+		}
 		w.WriteHeader(http.StatusNoContent)
 	}
 }

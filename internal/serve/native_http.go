@@ -291,6 +291,9 @@ type jobOutcome struct {
 	// than that is not this job's (the worker path, where no after hook
 	// tells).
 	since time.Time
+	// title names the tutorial when it may be gone from disk (a new
+	// tutorial whose run ended without storing it).
+	title string
 }
 
 // notifyJob posts the system notification for a finished job, when a desktop
@@ -320,6 +323,9 @@ func (s *Server) notifyJob(o jobOutcome) {
 // gone.
 func jobNotice(o jobOutcome) (title, body string, ok bool) {
 	tut, err := store.ReadMetadata(o.tutDir)
+	if o.job == jobNew {
+		return newNotice(o, tut, err)
+	}
 	if err != nil {
 		return "", "", false
 	}
@@ -394,6 +400,24 @@ func jobNotice(o jobOutcome) (title, body string, ok bool) {
 	return "", "", false
 }
 
+// newNotice words a new tutorial's notification: "Part 1 is ready: <title>"
+// once the agent stored it, else that it stopped (the reservation is gone by
+// then, so the title comes from the run).
+func newNotice(o jobOutcome, tut *store.Tutorial, readErr error) (string, string, bool) {
+	if readErr == nil && tut.Status != store.StatusWriting && len(tut.Parts) > 0 {
+		return "Part 1 is ready: " + tutorialName(tut), "Open it in Lathe to start reading.", true
+	}
+	name := strings.TrimSpace(o.title)
+	if name == "" {
+		name = filepath.Base(o.tutDir)
+	}
+	body := o.note
+	if body == "" {
+		body = "It stopped before storing the tutorial."
+	}
+	return "Writing stopped: " + name, body, true
+}
+
 // verifyFailure is a one-line "where and why" for a failed verify, in the
 // failure callout's terms.
 func verifyFailure(tutDir string, vr *store.VerifyResult) string {
@@ -426,7 +450,7 @@ func (s *Server) runFinished(run *agentRun, final runEvent, cancelled bool) {
 	}
 	s.maybeAutoVerify(run, final)
 	switch run.job {
-	case jobVerify, jobExtend, jobCheck:
+	case jobVerify, jobExtend, jobCheck, jobNew:
 	default:
 		return
 	}
@@ -434,6 +458,7 @@ func (s *Server) runFinished(run *agentRun, final runEvent, cancelled bool) {
 		job:     run.job,
 		tutDir:  run.target.tutDir,
 		part:    run.target.part,
+		title:   run.target.title,
 		stopped: final.Type != "done" || final.Message != "",
 		note:    final.Message,
 	})

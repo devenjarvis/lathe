@@ -376,7 +376,7 @@ func (h *agentHost) startNew(tutorialsDir, shelvesPath string, in *newInputs, co
 
 	shelves, _ := store.ListShelves(tutorialsDir)
 	prompt := newPrompt(slug, scratch, workspace, in, command, shelves)
-	run, err := h.launch(c, jobKey(slug), jobNew, jobTarget{tutDir: tutDir}, sid, prompt, command, jobRunTimeout, func() string {
+	run, err := h.launch(c, jobKey(slug), jobNew, jobTarget{tutDir: tutDir, draft: filepath.Join(scratch, slug), scratch: scratch, title: tut.Title}, sid, prompt, command, jobRunTimeout, func() string {
 		c.SetPolicy(sid, nil)
 		note := settleNew(tutDir, shelvesPath, in.Shelf)
 		_ = os.RemoveAll(scratch)
@@ -438,9 +438,34 @@ func (r *agentRun) wantsReply() bool {
 // returns false when the run was cancelled, the agent exited (agentDone), or
 // nobody answered in time.
 func (r *agentRun) waitReply(agentDone <-chan struct{}) (string, bool) {
+	ev := runEvent{Type: "input", Message: "The agent is waiting for your reply."}
+	// The label and quick replies the agent reported for this question
+	// (lathe_progress, just before it ended its turn), if any.
+	if r.target.tutDir != "" {
+		if w, err := store.ReadWriting(r.target.tutDir); err == nil && w != nil && w.Ask != nil {
+			r.mu.Lock()
+			fresh := w.Ask.At.After(r.repliedAt)
+			r.mu.Unlock()
+			if fresh {
+				ev.Title, ev.Replies = w.Ask.Label, w.Ask.Replies
+			}
+		}
+	}
 	r.mu.Lock()
 	r.waiting = true
-	r.appendLocked(runEvent{Type: "input", Message: "The agent is waiting for your reply."})
+	text := r.text.String()
+	if r.blockStart <= len(text) {
+		r.asked = strings.TrimSpace(text[r.blockStart:])
+	}
+	ev.Text = r.asked
+	r.mu.Unlock()
+	if ev.Text != "" {
+		if html, err := RenderMarkdown([]byte(ev.Text)); err == nil {
+			ev.HTML = string(html)
+		}
+	}
+	r.mu.Lock()
+	r.appendLocked(ev)
 	r.mu.Unlock()
 	defer func() {
 		r.mu.Lock()
@@ -477,6 +502,8 @@ func (r *agentRun) reply(text string) bool {
 	}
 	r.waiting = false
 	r.turnStart = r.text.Len()
+	r.asked = ""
+	r.repliedAt = time.Now()
 	r.appendLocked(runEvent{Type: "reply", Text: text})
 	return true
 }
@@ -541,6 +568,7 @@ func newPrompt(slug, scratch, workspace string, in *newInputs, command string, s
 		b.WriteString("- Pick its shelf as the skill's \"Pick a shelf\" step says, after storing: an existing shelf from the list below when one fits, else a new one. Record it with the lathe_shelf_set tool (it defaults to this tutorial; pass create: true for a new shelf).\n")
 	}
 	b.WriteString("- The reader sees your plan live: keep a short plan (pin versions, research, write, check jigs, store) and update it as you go.\n")
+	b.WriteString("- The reader's progress page shows four steps (Pin versions → Research → Write Part 1 → Put it on your shelf), the sources you have read and your draft as it grows. Report each step and each source with the lathe_progress tool (see \"Report progress\" in the skill), and call it with ask and replies right before you end your turn on a question.\n")
 	b.WriteString("- Finish with a short summary for the reader (markdown): what Part 1 builds and the tutorial's slug.\n\n")
 
 	b.WriteString("Pre-answered inputs:\n")

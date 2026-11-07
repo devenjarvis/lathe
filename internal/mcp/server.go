@@ -177,7 +177,10 @@ type Tool struct {
 	// reserved: a --new scoped server offers it too, and its slug argument
 	// (optional, defaulting to the reservation) is added to the schema.
 	reserved bool
-	run      func(s *Server, args json.RawMessage) (string, error)
+	// newOnly: offered only by a --new scoped server (a hosted new-tutorial
+	// run's progress reports), with an optional slug defaulting to it.
+	newOnly bool
+	run     func(s *Server, args json.RawMessage) (string, error)
 }
 
 // Tools lists the tools this server offers.
@@ -192,7 +195,7 @@ func (s *Server) Tools() []Tool {
 		}
 		switch {
 		case s.Propose != "" || s.Slug == "" || t.anywhere:
-		case t.scoped:
+		case t.scoped || t.newOnly:
 			t.InputSchema = withOptionalSlug(t.InputSchema, s.Slug)
 		case t.reserved:
 			t.InputSchema = withReservedSlug(t.InputSchema, s.Slug)
@@ -209,6 +212,8 @@ func (s *Server) offers(t Tool) bool {
 		return t.anywhere || t.propose == s.Propose
 	case t.propose != "":
 		return false
+	case t.newOnly:
+		return s.Slug != "" && s.New
 	case s.Slug == "" || t.anywhere:
 		return true
 	}
@@ -523,6 +528,23 @@ func allTools() []Tool {
 			run:     runShelfSplitPropose,
 		},
 		{
+			Name:        "lathe_progress",
+			Title:       "Report progress on the new tutorial",
+			Description: "Tell the reader where you are while you write the new tutorial Lathe reserved (same as `lathe writing-step`). Call it as each step starts — versions, research, write, shelve — and with each source as you read it. Right before you end your turn on a question, call it with ask (a 2–4 word label such as \"confirm versions\") and up to 4 short quick replies; any later call clears the question.",
+			InputSchema: obj([]string{"slug"}, map[string]any{
+				"slug": slugProp,
+				"step": map[string]any{
+					"type": "string", "enum": []string{store.WritingVersions, store.WritingResearch, store.WritingWrite, store.WritingShelve},
+					"description": "the step you are starting: versions (pin the repo and versions), research, write (Part 1), shelve (check jigs and store)",
+				},
+				"sources": sourcesProp,
+				"ask":     str("a short label for the question you are about to ask, e.g. \"confirm versions\" (shown as \"Needs you: confirm versions\")"),
+				"replies": strList("up to 4 short quick replies the reader can send with one click, e.g. \"Sounds right\"; end one with … to let them type the rest"),
+			}),
+			newOnly: true,
+			run:     runProgress,
+		},
+		{
 			Name:        "lathe_voice_add",
 			Title:       "Add a custom voice",
 			Description: "Save a custom writing voice (same as `lathe voice add <name> --file`). Built-in voice names are reserved.",
@@ -807,4 +829,37 @@ func runShelfSplitPropose(s *Server, raw json.RawMessage) (string, error) {
 		return "", err
 	}
 	return store.ProposeSplit(dir, shelf, a.Groups)
+}
+
+func runProgress(s *Server, raw json.RawMessage) (string, error) {
+	var a struct {
+		Slug    string      `json:"slug"`
+		Step    string      `json:"step"`
+		Sources []sourceArg `json:"sources"`
+		Ask     string      `json:"ask"`
+		Replies []string    `json:"replies"`
+	}
+	if err := decode(raw, &a); err != nil {
+		return "", err
+	}
+	dir, slug, err := s.tutorialDir(a.Slug)
+	if err != nil {
+		return "", err
+	}
+	w, err := store.RecordWriting(dir, store.WritingUpdate{Step: a.Step, Sources: toSources(a.Sources), Ask: a.Ask, Replies: a.Replies})
+	if err != nil {
+		return "", err
+	}
+	msg := fmt.Sprintf("Recorded for %s: step %s, %d source(s).", slug, orNone(w.Step), len(w.Sources))
+	if w.Ask != nil {
+		msg += " The reader sees \"Needs you: " + w.Ask.Label + "\"; now end your turn with the question."
+	}
+	return msg, nil
+}
+
+func orNone(s string) string {
+	if s == "" {
+		return "(none yet)"
+	}
+	return s
 }

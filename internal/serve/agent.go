@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -88,6 +89,13 @@ type jobTarget struct {
 	parts  int    // how many parts the tutorial had when the job started (extend: did it add one?)
 	voice  string // the reserved voice name (a New voice run only)
 	shelf  string // the shelf a split suggestion is for (shelf-split only)
+	// draft and scratch (a new tutorial only): the dir the agent writes
+	// part-01.md into, inside the run's scratch dir, for the progress page.
+	draft   string
+	scratch string
+	// title is the tutorial's title when the run started (a new tutorial:
+	// its reservation is gone once a run that never stored it ends).
+	title string
 }
 
 func newAgentHost(command string, start agentStarter) *agentHost {
@@ -316,6 +324,17 @@ type agentStatus struct {
 	// Isolation says whether the agent's file access goes through Lathe's
 	// per-job policy (only while the agent is running).
 	Isolation *acp.Isolation `json:"isolation,omitempty"`
+	// Writing lists the new tutorials being written now, so the agent
+	// panel on any page shows their job cards (and their questions).
+	Writing []newJobInfo `json:"writing,omitempty"`
+}
+
+// newJobInfo is a running new-tutorial job, for the panel.
+type newJobInfo struct {
+	ID      string `json:"id"`
+	Slug    string `json:"slug"`
+	Title   string `json:"title"`
+	Started int64  `json:"started"`
 }
 
 func (h *agentHost) status() agentStatus {
@@ -332,6 +351,12 @@ func (h *agentHost) status() agentStatus {
 	if newest != nil {
 		st.Working = newest.job
 	}
+	for _, id := range h.active {
+		if r, ok := h.runs[id]; ok && r.job == jobNew {
+			st.Writing = append(st.Writing, newJobInfo{ID: r.id, Slug: filepath.Base(r.target.tutDir), Title: r.target.title, Started: r.started.UnixMilli()})
+		}
+	}
+	sort.Slice(st.Writing, func(i, j int) bool { return st.Writing[i].Started < st.Writing[j].Started })
 	if h.client != nil {
 		st.Model = h.client.Model()
 	}
@@ -577,7 +602,9 @@ type runEvent struct {
 	ID      string                 `json:"id,omitempty"`
 	Title   string                 `json:"title,omitempty"`
 	Options []acp.PermissionOption `json:"options,omitempty"`
-	Choice  string                 `json:"choice,omitempty"`
+	// input: the quick replies the agent offered with its question
+	Replies []string `json:"replies,omitempty"`
+	Choice  string   `json:"choice,omitempty"`
 	// Input is the exact command (or path) a permission prompt is about,
 	// from the tool call's rawInput, when the agent sent one.
 	Input string `json:"input,omitempty"`
@@ -636,6 +663,12 @@ type agentRun struct {
 	textRev  int // bumped on every text append
 	// waiting is set while drive waits for a reply (POST /-/acp/{id}/reply).
 	waiting bool
+	// blockStart is where the current message block starts in text; asked
+	// is the block a run waiting for a reply ended its turn on (the agent's
+	// question), and repliedAt when the reader last answered one.
+	blockStart int
+	asked      string
+	repliedAt  time.Time
 	// turnStart is where the current turn's text begins in text (moved on
 	// every reply), so a page can show the agent's latest message alone.
 	turnStart int
@@ -776,6 +809,7 @@ func (r *agentRun) Update(u acp.SessionUpdate) {
 				sep = "\n"
 			}
 			t = sep + t
+			r.blockStart = r.text.Len() + len(sep)
 		}
 		r.newBlock = false
 		r.text.WriteString(t)

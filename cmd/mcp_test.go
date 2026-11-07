@@ -150,7 +150,7 @@ func TestMCPNewSessionStoresOnlyIntoItsReservation(t *testing.T) {
 	c := newMCPServerClient(t, &mcp.Server{Slug: res.Slug, New: true, Version: "test"})
 
 	got := strings.Join(c.tools(), " ")
-	if want := "lathe_store lathe_verify_result lathe_extend_start lathe_extend_commit lathe_tag lathe_check_result lathe_shelf_list lathe_shelf_set"; got != want {
+	if want := "lathe_store lathe_verify_result lathe_extend_start lathe_extend_commit lathe_tag lathe_check_result lathe_shelf_list lathe_shelf_set lathe_progress"; got != want {
 		t.Errorf("--new tools = %s, want %s", got, want)
 	}
 
@@ -191,6 +191,49 @@ func TestMCPNewSessionStoresOnlyIntoItsReservation(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(tutorials, res.Slug)); !os.IsNotExist(err) {
 		t.Errorf("late store recreated the reservation (err %v)", err)
+	}
+}
+
+func TestMCPProgressReportsIntoTheReservation(t *testing.T) {
+	home := t.TempDir()
+	setHome(t, home)
+	tutorials := filepath.Join(home, ".lathe", "tutorials")
+	res, dir, err := store.ReserveNew(tutorials, store.NewReservation{Topic: "a Game Boy emulator in Rust"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeTutorial(t, home, "other", store.StatusVerified, []string{"part-01.md"})
+	c := newMCPServerClient(t, &mcp.Server{Slug: res.Slug, New: true, Version: "test"})
+
+	c.mustCall("lathe_progress", map[string]any{"step": "versions"})
+	text := c.mustCall("lathe_progress", map[string]any{"ask": "confirm versions", "replies": []string{"Sounds right", "Other versions…"}})
+	if !strings.Contains(text, "Needs you: confirm versions") {
+		t.Errorf("ask result = %q", text)
+	}
+	w, _ := store.ReadWriting(dir)
+	if w == nil || w.Step != "versions" || w.Ask == nil || len(w.Ask.Replies) != 2 {
+		t.Fatalf("after the ask: %+v", w)
+	}
+	c.mustCall("lathe_progress", map[string]any{"step": "research", "sources": []map[string]string{{"url": "https://gbdev.io/pandocs/", "title": "Pan Docs"}}})
+	w, _ = store.ReadWriting(dir)
+	if w.Step != "research" || w.Ask != nil || len(w.Sources) != 1 || w.Sources[0].Title != "Pan Docs" {
+		t.Errorf("after research: %+v", w)
+	}
+	for _, args := range []map[string]any{
+		{"slug": "other", "step": "write"},
+		{"step": "proofread"},
+		{"replies": []string{"yes"}},
+	} {
+		if text, isErr := c.call("lathe_progress", args); !isErr {
+			t.Errorf("lathe_progress %v = %q, want refused", args, text)
+		}
+	}
+
+	// Only a --new session offers it.
+	for _, srv := range []*mcp.Server{{}, {Slug: res.Slug}} {
+		if got := strings.Join(newMCPServerClient(t, srv).tools(), " "); strings.Contains(got, "lathe_progress") {
+			t.Errorf("server %+v offers lathe_progress: %s", srv, got)
+		}
 	}
 }
 

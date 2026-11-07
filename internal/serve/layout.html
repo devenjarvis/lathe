@@ -2035,6 +2035,11 @@
       } else {
         setState('none', 'Not started', 'No agent yet: the buttons hand you a command to paste.');
       }
+      // New tutorials being written (any tutorial, not just this one) are
+      // job cards here too, so the agent's questions reach the reader.
+      if (a && a.writing && window.latheAttachJob) {
+        a.writing.forEach(function(j){ window.latheAttachJob('new', j.id, {started: j.started, slug: j.slug, title: j.title}); });
+      }
       clearTimeout(timer);
       timer = setTimeout(refresh, next);
     }
@@ -2077,7 +2082,10 @@
       verify: {name: 'Verify tutorial', running: 'Verifying the tutorial', where: 'In a scratch folder Lathe made, not your folder'},
       extend: {name: extendLabel ? extendLabel.textContent : 'Write the next part', running: 'Writing the next part', where: 'In this tutorial’s folder'},
       check: {name: 'Check my work' + (partNumber ? ' · Part ' + partNumber : ''), running: 'Checking your work', where: 'In the scratch copy, not your folder', shared: true},
-      ask: {name: 'Your question', where: 'In this tutorial’s folder, read only'}
+      ask: {name: 'Your question', where: 'In this tutorial’s folder, read only'},
+      // A new tutorial (POST /-/new): any page's panel shows it, so it never
+      // hides this tutorial's own forms (shared).
+      new: {name: 'New tutorial', running: 'Writing Part 1', where: 'In a scratch folder Lathe made', shared: true}
     };
     if (!log) return;
 
@@ -2273,6 +2281,92 @@
       card.setAttribute('data-choice', picked ? (picked.getAttribute('data-kind') || '') : 'none');
       if (hadFocus) { try { card.focus(); } catch (e) {} }
     }
+    // ---- The agent's question (a new tutorial): the yellow card again -------
+    // What it asks, its quick replies (a reply ending in … fills the box
+    // instead, so the reader types the rest) and a free-text reply, sent to
+    // POST /-/acp/{id}/reply. The reply event resolves it.
+    function askCard(runId, ev, o){
+      var old = log.querySelector('.ask-card[data-run-id="' + String(runId) + '"]:not(.resolved)');
+      if (old) old.remove();
+      var card = el('div', 'ask-card');
+      card.setAttribute('role', 'group');
+      card.setAttribute('data-run-id', String(runId));
+      card.tabIndex = -1;
+      var kid = 'ask-' + runId + '-' + Date.now();
+      var kicker = el('p', 'perm-kicker', 'New tutorial · needs you');
+      kicker.id = kid;
+      card.setAttribute('aria-labelledby', kid);
+      card.appendChild(kicker);
+      if (ev.title) card.appendChild(el('p', 'perm-ask', ev.title.charAt(0).toUpperCase() + ev.title.slice(1)));
+      var q = el('div', 'needs-question ask-rich');
+      if (ev.html) q.innerHTML = ev.html; else q.textContent = ev.text || 'Your agent is waiting for your reply.';
+      card.appendChild(q);
+      var formEl = el('form', 'needs-form');
+      var row = el('div', 'needs-replies');
+      var box = el('div', 'needs-compose');
+      var ta = el('textarea');
+      ta.rows = 2;
+      ta.placeholder = 'Or type your own reply…';
+      ta.setAttribute('aria-label', 'Your reply');
+      var sendBtn = btn('btn btn-primary btn-sm', 'Send');
+      sendBtn.type = 'submit';
+      box.appendChild(ta);
+      box.appendChild(sendBtn);
+      var err = el('p', 'needs-error');
+      err.setAttribute('role', 'alert');
+      var buttons = [sendBtn];
+      function send(text){
+        text = String(text || '').trim();
+        if (!text || card.classList.contains('resolved')) return;
+        buttons.forEach(function(b){ b.disabled = true; });
+        err.textContent = '';
+        post('/-/acp/' + encodeURIComponent(runId) + '/reply', {text: text})
+          .then(function(r){ if (!r.ok) return r.text().then(function(t){ throw new Error((t || ('HTTP ' + r.status)).trim()); }); })
+          .catch(function(e){
+            buttons.forEach(function(b){ b.disabled = false; });
+            err.textContent = 'Could not send your reply: ' + (e && e.message ? e.message : 'request failed');
+          });
+      }
+      (ev.replies || []).forEach(function(r){
+        var b = btn('btn btn-sm needs-reply', r);
+        b.addEventListener('click', function(){
+          if (/(…|\.\.\.)$/.test(r)) { ta.value = r.replace(/(…|\.\.\.)$/, '').trim() + ' '; ta.focus(); return; }
+          send(r);
+        });
+        row.appendChild(b);
+        buttons.push(b);
+      });
+      formEl.appendChild(row);
+      formEl.appendChild(box);
+      formEl.appendChild(err);
+      formEl.addEventListener('submit', function(e){ e.preventDefault(); send(ta.value); });
+      ta.addEventListener('keydown', function(e){
+        if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(ta.value); }
+      });
+      card.appendChild(formEl);
+      if (o && o.slug) {
+        var more = el('a', 'job-card-link', 'Open the progress page');
+        more.href = '/' + encodeURIComponent(o.slug) + '/#needs';
+        card.appendChild(more);
+      }
+      log.appendChild(card);
+      setTimeout(function(){
+        if (card.classList.contains('resolved')) return;
+        reveal(card, row.firstChild || ta);
+        if (window.latheAnnounce) window.latheAnnounce('Your agent needs you' + (ev.title ? ': ' + ev.title : ''));
+      }, 150);
+      return card;
+    }
+    function askAnswered(runId, text){
+      var card = log.querySelector('.ask-card[data-run-id="' + String(runId) + '"]:not(.resolved)');
+      if (!card) return;
+      var hadFocus = card.contains(document.activeElement);
+      card.querySelectorAll('.needs-form, .perm-ask, a.job-card-link').forEach(function(n){ n.remove(); });
+      card.querySelector('.perm-kicker').textContent = 'You replied';
+      card.appendChild(el('p', 'ask-card-answer', text || ''));
+      card.classList.add('resolved');
+      if (hadFocus) { try { card.focus(); } catch (e) {} }
+    }
     window.lathePermissionCard = permissionCard;
     window.lathePermissionResolved = permissionResolved;
 
@@ -2283,7 +2377,8 @@
       var card = null;
       for (var i = order.length - 1; i >= 0; i--) {
         var c = document.getElementById('job-' + order[i]);
-        if (!c) continue;
+        // A new tutorial is another tutorial's job: not this one's line.
+        if (!c || c.getAttribute('data-job') === 'new') continue;
         if (c.getAttribute('data-state') === 'running') { card = c; break; }
         if (!card) card = c;
       }
@@ -2388,6 +2483,7 @@
 
       var c = newCard(job, runId, 'running');
       var card = c.card, title = c.title, time = c.time;
+      var newSlug = job === 'new' ? String(opts.slug || '') : '';
       var spin = el('span', 'status-spinner');
       spin.setAttribute('aria-hidden', 'true');
       title.appendChild(spin);
@@ -2434,6 +2530,14 @@
       details.appendChild(noSteps);
       details.appendChild(stepList);
       actions.appendChild(stop);
+      if (newSlug) {
+        // The tutorial's title under the kicker, and its progress page.
+        summary.hidden = false;
+        summary.textContent = opts.title || newSlug;
+        var progressLink = el('a', 'job-card-link', 'See progress');
+        progressLink.href = '/' + encodeURIComponent(newSlug) + '/';
+        actions.appendChild(progressLink);
+      }
       actions.appendChild(detailsBtn);
       [segs, plan, tail, summary, actions, extra, details].forEach(function(n){ card.appendChild(n); });
       pinIfNear(function(){ log.appendChild(card); });
@@ -2601,6 +2705,21 @@
               show('No new part', 'The agent didn’t add one' + took + '.' + msg, 'stopped');
             }
           });
+        } else if (job === 'new') {
+          var tname = opts.title || newSlug;
+          show('The agent finished', tname, 'done');
+          getJSON('/-/new/' + encodeURIComponent(newSlug) + '/progress?draft=0').then(function(d){
+            if (d && d.state === 'stored') {
+              show('Part 1 is ready', (d.title || tname) + '.' + took.replace(/^ in/, ' Written in'), 'done');
+              actions.querySelectorAll('a.job-card-link').forEach(function(a){ a.remove(); });
+              var read = el('a', 'job-card-link job-card-next', 'Read Part 1 →');
+              read.href = d.href || '/' + encodeURIComponent(newSlug) + '/';
+              actions.insertBefore(read, detailsBtn);
+            } else {
+              actions.querySelectorAll('a.job-card-link').forEach(function(a){ a.remove(); });
+              show('Not stored', (base.message || 'It ended before storing the tutorial, so nothing was saved.'), 'stopped');
+            }
+          });
         } else if (job === 'check') {
           show('Checked', tookS, 'done');
           getJSON('/-/check/' + encodeURIComponent(slug) + '/' + encodeURIComponent(part)).then(function(d){
@@ -2663,6 +2782,18 @@
               syncLine();
             }
             permissionResolved(runId, ev);
+          } else if (ev.type === 'input') {
+            titleText.textContent = 'Needs you' + (ev.title ? ': ' + ev.title : '');
+            card.setAttribute('data-waiting', '');
+            card.setAttribute('data-line', J.name + ': needs you');
+            syncLine();
+            askCard(runId, ev, {slug: newSlug, title: opts.title});
+          } else if (ev.type === 'reply') {
+            card.removeAttribute('data-waiting');
+            titleText.textContent = J.running;
+            card.setAttribute('data-line', J.running);
+            syncLine();
+            askAnswered(runId, ev.text);
           }
           else if (ev.type === 'html') {
             report.hidden = false;
