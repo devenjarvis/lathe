@@ -181,6 +181,10 @@ func (s *Server) Handler() http.Handler {
 	// `lathe verify-cancel`).
 	mux.HandleFunc("POST /-/verify/{slug}/cancel", s.handleJobCancel(jobVerify))
 	mux.HandleFunc("POST /-/extend/{slug}/cancel", s.handleJobCancel(jobExtend))
+	// New tutorial (agent_new.go): run /lathe on the hosted agent into a
+	// reserved slug (else a worker job, else the /lathe handoff); stop it.
+	mux.HandleFunc("POST /-/new", s.handleNew)
+	mux.HandleFunc("POST /-/new/{slug}/cancel", s.handleJobCancel(jobNew))
 	mux.HandleFunc("GET /-/status/{slug}/{part}", s.handleStatus)
 	// "Check my work": start a check of the reader's code against a part, and
 	// read the newest result back.
@@ -195,6 +199,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /-/acp/{id}/events", s.handleAgentEvents)
 	mux.HandleFunc("POST /-/acp/{id}/permission", s.handleAgentPermission)
 	mux.HandleFunc("POST /-/acp/{id}/cancel", s.handleAgentCancel)
+	mux.HandleFunc("POST /-/acp/{id}/reply", s.handleAgentReply)
 	mux.HandleFunc("GET /-/work/{id}", s.handleWorkGet)
 	mux.HandleFunc("POST /-/work/{id}/answer", s.handleWorkAnswer)
 	mux.HandleFunc("POST /-/work/{id}/done", s.handleWorkDone)
@@ -344,6 +349,14 @@ func (s *Server) handleTutorial(w http.ResponseWriter, r *http.Request) {
 	// index.md. Prefer a valid saved-progress part when one is saved, otherwise keep
 	// the historical first-part redirect. The index.md fallback is only for
 	// legacy tutorials that were never split into parts.
+	if tut.Status == store.StatusWriting && len(tut.Parts) == 0 {
+		// A reservation (agent_new.go): nothing to read yet. Check back
+		// every few seconds; once stored, this redirects to Part 1.
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.Header().Set("Refresh", "5")
+		_, _ = fmt.Fprintf(w, "%s is still being written by your agent.\nThis page opens Part 1 once it is stored.\n", tut.Title)
+		return
+	}
 	if len(tut.Parts) > 0 {
 		part := tut.Parts[0]
 		if tut.Progress != nil && isKnownPart(tut, tut.Progress.Part) && config.LoadSettings().RememberPlace {

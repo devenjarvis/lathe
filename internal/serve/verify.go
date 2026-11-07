@@ -32,7 +32,7 @@ func (s *Server) handleVerify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if tut.Status == store.StatusExtending || tut.Status == store.StatusVerifying {
+	if tut.Status == store.StatusExtending || tut.Status == store.StatusVerifying || tut.Status == store.StatusWriting {
 		http.Error(w, "conflict: tutorial is already extending or verifying", http.StatusConflict)
 		return
 	}

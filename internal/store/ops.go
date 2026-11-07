@@ -77,6 +77,9 @@ func RecordVerify(tutDir string, rec VerifyRecord) error {
 		if tut.Status == StatusExtending {
 			return fmt.Errorf("cannot verify %q while it is extending", slug)
 		}
+		if tut.Status == StatusWriting {
+			return fmt.Errorf("cannot verify %q while it is still being written", slug)
+		}
 		tut.Status = StatusVerifying
 		return WriteMetadata(tutDir, tut)
 	}
@@ -114,7 +117,7 @@ func ExtendStart(tutDir string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("read metadata for %q: %w", slug, err)
 	}
-	if tut.Status == StatusExtending || tut.Status == StatusVerifying {
+	if tut.Status == StatusExtending || tut.Status == StatusVerifying || tut.Status == StatusWriting {
 		return "", fmt.Errorf("already extending or verifying: status is %q", tut.Status)
 	}
 	pending := extend.NextPartFilename(tut.Parts)
