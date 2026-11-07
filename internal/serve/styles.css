@@ -324,6 +324,44 @@ pre samp{background:none;padding:0;color:inherit;font-family:var(--font-mono);fo
 .jig-error-msg{margin:0 0 .6rem;color:var(--text)}
 .jig-error pre{margin:0}
 
+/* Check my work (check.html). The bar sits at the end of a part's Checkpoint
+   section; the result is a jig-framed card (not a catalog jig: the reader's
+   agent writes it, not the author). The hint ladder is nested <details>, each
+   rung indented under the last, the reveal set apart with a dashed rule. */
+.check-work{margin:1.75rem 0 2rem;max-width:var(--measure)}
+.check-work-bar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.75rem 1.25rem;padding:1rem 1.15rem;border:2px solid var(--rule);border-radius:var(--radius-lg);background:var(--accent-soft)}
+.check-work-text{flex:1 1 18rem;min-width:0}
+.check-work-title{font-family:var(--font-display);font-variation-settings:var(--casual);font-size:1.15rem;font-weight:850;line-height:1.3;margin:0 0 .2rem}
+.check-work-lead{margin:0;font-size:.95rem;line-height:1.5;color:var(--text-muted)}
+.check-ws{overflow-wrap:anywhere}
+.check-form{display:flex;flex-wrap:wrap;gap:.5rem;margin:0}
+.check-error:empty{display:none}
+.check-error{margin:.6rem 0 0;color:var(--badge-failed-text);font-weight:650}
+.check-work .jig{margin:1.25rem 0 0}
+.check-when{margin-left:auto;font-size:.8125rem;font-weight:700}
+.jig-check[data-check-status="pass"] .jig-head{background:var(--badge-verified-bg);color:var(--badge-verified-text)}
+.jig-check[data-check-status="fail"] .jig-head{background:var(--badge-failed-bg);color:var(--badge-failed-text)}
+.check-confidence{margin:0 0 .9rem;padding:.6rem .85rem;border:2px dashed var(--callout-unverified-border);border-radius:var(--radius-md);background:var(--callout-unverified-bg);font-size:.95rem}
+.check-summary{margin:0 0 .9rem;font-weight:650}
+.check-onpart{margin:0 0 .9rem}
+.check-findings{margin:0;padding-left:1.4rem}
+.check-finding{margin:0 0 1rem}
+.check-finding:last-child{margin-bottom:0}
+.check-file{margin:0 0 .25rem;font-size:.875rem}
+.check-rung > :first-child{margin-top:0}
+.check-rung > :last-child{margin-bottom:0}
+.check-more{margin:.5rem 0 0;padding-left:.9rem;border-left:3px solid var(--rule)}
+.check-more > summary{cursor:pointer;font-weight:800;width:max-content;max-width:100%}
+.check-more[open] > summary{margin-bottom:.35rem}
+.check-reveal{border-left-style:dashed}
+.check-reveal > summary{color:var(--accent)}
+.check-divergences{margin-top:1.1rem;padding-top:.9rem;border-top:2px solid var(--rule)}
+.check-divergences-title{font-weight:850;margin:0}
+.check-divergences-lead{margin:0 0 .5rem;color:var(--text-subtle);font-size:.95rem}
+.check-divergences ul{margin:0;padding-left:1.3rem}
+.check-divergences li > p{margin:.2rem 0}
+.check-later{font-size:.95rem;color:var(--text-subtle)}
+
 /* Guess first. Fallback: a lettered list and a <details> answer. Enhanced
    (guess.js): pressable choices, a Lock it in step, an in-place verdict. */
 .jig-guess{max-width:var(--measure)}

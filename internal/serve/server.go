@@ -27,7 +27,7 @@ import (
 	"github.com/devenjarvis/lathe/internal/voice"
 )
 
-//go:embed layout.html list.html components.html
+//go:embed layout.html list.html components.html check.html
 var templateFS embed.FS
 
 // styles.css is the entire design system (tokens + components). It's loaded
@@ -119,7 +119,7 @@ func NewServer(tutorialsDir string) *Server {
 	}
 	// components.html is parsed into both template sets so its shared partials
 	// ({{define "head"}}, "badge", "themeToggle") are available to each page.
-	layoutTmpl := template.Must(template.New("layout.html").Funcs(funcMap).ParseFS(templateFS, "components.html", "layout.html"))
+	layoutTmpl := template.Must(template.New("layout.html").Funcs(funcMap).ParseFS(templateFS, "components.html", "check.html", "layout.html"))
 	listTmpl := template.Must(template.New("list.html").Funcs(funcMap).ParseFS(templateFS, "components.html", "list.html"))
 	css, err := HighlightCSS()
 	if err != nil {
@@ -152,6 +152,10 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /-/verify/{slug}/cancel", s.handleJobCancel(jobVerify))
 	mux.HandleFunc("POST /-/extend/{slug}/cancel", s.handleJobCancel(jobExtend))
 	mux.HandleFunc("GET /-/status/{slug}/{part}", s.handleStatus)
+	// "Check my work": start a check of the reader's code against a part, and
+	// read the newest result back.
+	mux.HandleFunc("POST /-/check/{slug}/{part}", s.handleCheck)
+	mux.HandleFunc("GET /-/check/{slug}/{part}", s.handleCheckGet)
 	// Worker bridge (all loopback). The worker long-polls /-/work to claim a job,
 	// reports an ask answer via .../answer or a verify/extend completion via
 	// .../done, and the browser polls GET /-/work/{id} for an ask answer.
@@ -622,6 +626,12 @@ func (s *Server) renderPart(w http.ResponseWriter, tut *store.Tutorial, tutDir, 
 		}
 	}
 
+	// "Check my work" goes at the end of the part's Checkpoint section. It is
+	// added after jigScriptFor has looked at the content: the block is not a
+	// jig and needs no jig runtime.
+	jigScript := jigScriptFor(content, s.jigScript)
+	content = withCheckSection(content, s.renderPartial("checkSection", s.checkViewFor(tut, tutDir, part)))
+
 	workspacePath, workspaceShort := workspaceDisplay(tutDir)
 	var agentName string
 	if h := s.hostedAgent(); h != nil {
@@ -652,7 +662,7 @@ func (s *Server) renderPart(w http.ResponseWriter, tut *store.Tutorial, tutDir, 
 		"Content":           template.HTML(content),
 		"CSS":               s.designCSS,
 		"HighlightCSS":      s.highlightCSS,
-		"JigScript":         jigScriptFor(content, s.jigScript),
+		"JigScript":         jigScript,
 		"PrevPart":          prevPart,
 		"NextPart":          nextPart,
 		"PrevTitle":         prevTitle,

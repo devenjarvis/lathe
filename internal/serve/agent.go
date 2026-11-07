@@ -289,7 +289,8 @@ type agentStatus struct {
 	Name string `json:"name"`
 	// Model is the model the agent reported for its last session, if any.
 	Model string `json:"model,omitempty"`
-	// Working names the job running now ("ask", "verify" or "extend"), or is
+	// Working names the job running now ("ask", "verify", "extend" or
+	// "check"), or is
 	// empty while the agent waits.
 	Working string `json:"working,omitempty"`
 	// State is "starting", "ready" or "down".
@@ -546,7 +547,7 @@ type runEvent struct {
 // implements acp.SessionHandler.
 type agentRun struct {
 	id       string
-	job      string // "ask", "verify" or "extend"
+	job      string // "ask", "verify", "extend" or "check"
 	ctx      context.Context
 	cancel   context.CancelFunc
 	started  time.Time
@@ -726,6 +727,8 @@ func (r *agentRun) verb() string {
 		return "verify the tutorial"
 	case jobExtend:
 		return "write the part"
+	case jobCheck:
+		return "check your work"
 	}
 	return "answer"
 }
@@ -736,6 +739,8 @@ func (r *agentRun) doing() string {
 		return "verifying"
 	case jobExtend:
 		return "writing the part"
+	case jobCheck:
+		return "checking your work"
 	}
 	return "answering"
 }

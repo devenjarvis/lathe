@@ -1,6 +1,6 @@
 // Package mcp is Lathe's Model Context Protocol server: the skills' write
 // commands (`lathe store`, `verify-result`, `extend-start`/`extend-commit`,
-// `tag`, `voice add`) served as typed tools over stdio.
+// `check-result`, `tag`, `voice add`) served as typed tools over stdio.
 //
 // `lathe serve --agent` passes it to the hosted agent in ACP session/new (as
 // `lathe mcp --slug <slug>`), so an agent working for Lathe records results
@@ -346,6 +346,48 @@ func allTools() []Tool {
 			run:    runTag,
 		},
 		{
+			Name:        "lathe_check_result",
+			Title:       "Record a Check my work result",
+			Description: "Record the result of checking a learner's own code against a part (same as `lathe check-result`). Hints form a ladder: nudge (required), then pointer, where, and reveal; only reveal may contain the reference code, and the reader sees it only when they ask.",
+			InputSchema: obj([]string{"slug", "part", "status"}, map[string]any{
+				"slug": slugProp,
+				"part": str("the part checked, e.g. part-02.md"),
+				"status": map[string]any{
+					"type": "string", "enum": []string{"pass", "fail", "skipped"},
+					"description": "pass (the checkpoint behaves as the part says), fail, or skipped (the checkpoint could not be run here)",
+				},
+				"confidence": map[string]any{
+					"type": "string", "enum": []string{"reference", "text"},
+					"description": "reference when the code snapshot's diff for the part guided the check, text when only the part's text did; defaults from whether a snapshot exists",
+				},
+				"summary": str("one or two sentences for the top of the result"),
+				"on_part": str("the part the learner's code matches best, when it is not part (they are ahead or behind)"),
+				"findings": map[string]any{
+					"type":        "array",
+					"description": "what is wrong, one hint ladder per problem; required when status is fail",
+					"items": obj([]string{"nudge"}, map[string]any{
+						"file":    str("the learner's file, relative to their workspace"),
+						"nudge":   str("rung 1: what to look at again, without saying what is wrong"),
+						"pointer": str("rung 2: the step or side-note of the part that covers it"),
+						"where":   str("rung 3: the file and roughly where in it"),
+						"reveal":  str("rung 4: the reference code (markdown), shown only on request"),
+					}),
+				},
+				"divergences": map[string]any{
+					"type":        "array",
+					"description": "where passing code differs from the reference: choices, not mistakes",
+					"items": obj([]string{"note"}, map[string]any{
+						"file":       str("the learner's file"),
+						"note":       str("what differs, framed as a choice"),
+						"later_part": str("a later part that relies on the reference shape, if any"),
+					}),
+				},
+				"checked_at": str("RFC3339 timestamp; defaults to now"),
+			}),
+			scoped: true,
+			run:    runCheckResult,
+		},
+		{
 			Name:        "lathe_voice_add",
 			Title:       "Add a custom voice",
 			Description: "Save a custom writing voice (same as `lathe voice add <name> --file`). Built-in voice names are reserved.",
@@ -496,6 +538,25 @@ func runTag(s *Server, raw json.RawMessage) (string, error) {
 		return fmt.Sprintf("Cleared tags for %q.", slug), nil
 	}
 	return fmt.Sprintf("Tags for %q: %s", slug, strings.Join(tags, ", ")), nil
+}
+
+func runCheckResult(s *Server, raw json.RawMessage) (string, error) {
+	var a struct {
+		Slug string `json:"slug"`
+		store.CheckResult
+	}
+	if err := decode(raw, &a); err != nil {
+		return "", err
+	}
+	dir, slug, err := s.tutorialDir(a.Slug)
+	if err != nil {
+		return "", err
+	}
+	res := a.CheckResult
+	if err := store.RecordCheck(dir, &res); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("Recorded check of %s for %q: %s.", res.Part, slug, res.Status), nil
 }
 
 func runVoiceAdd(_ *Server, raw json.RawMessage) (string, error) {

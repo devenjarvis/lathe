@@ -243,6 +243,7 @@
     <div id="askLog" role="log" aria-live="polite" aria-label="Agent session"></div>
     <div class="agent-actions" role="group" aria-label="Agent actions">
       <button type="button" class="btn btn-ghost btn-sm" data-agent-action="ask">Ask about this part</button>
+      <button type="button" class="btn btn-ghost btn-sm" data-agent-action="check" hidden>Check my work</button>
       <button type="button" class="btn btn-ghost btn-sm" data-agent-action="verify">Verify tutorial</button>
       <button type="button" class="btn btn-ghost btn-sm" data-agent-action="extend">Add a part</button>
     </div>
@@ -410,6 +411,8 @@
     // own verify form (its progress shows in the article, as from the button
     // there); Add a part goes to the extend form on the last part.
     panel.querySelectorAll('[data-agent-action]').forEach(function(b){
+      // "Check my work" exists only on a part with a Checkpoint section.
+      if (b.getAttribute('data-agent-action') === 'check') b.hidden = !document.getElementById('checkWork');
       b.addEventListener('click', function(){
         var action = b.getAttribute('data-agent-action');
         if (action === 'ask') {
@@ -417,7 +420,9 @@
           return;
         }
         if (!docked()) close();
-        if (action === 'verify') {
+        if (action === 'check') {
+          if (window.latheCheckWork) window.latheCheckWork();
+        } else if (action === 'verify') {
           var vf = document.getElementById('verifyForm');
           var region = document.getElementById('verifyRegion');
           if (vf && typeof vf.requestSubmit === 'function') vf.requestSubmit();
@@ -550,6 +555,7 @@
         panel.setAttribute('data-workspace', ws.path);
         var did = ws.created ? (ws.gitInit ? ', created it and ran git init' : ', created it') : (ws.gitInit ? ', ran git init' : '');
         if (window.latheAnnounce) window.latheAnnounce('Workspace set to ' + ws.display + did);
+        document.dispatchEvent(new CustomEvent('lathe-workspace', {detail: ws}));
         return ws;
       });
     }
@@ -594,7 +600,8 @@
         .then(syncStart);
     });
 
-    window.latheAgentPanel = {open: open, close: close, showSetup: showSetup};
+    window.latheAgentPanel = {open: open, close: close, showSetup: showSetup,
+      editWorkspace: function(){ open(); showWsForm(true); }};
 
     // Arriving from "Add a part" on an earlier part: focus the guidance box.
     if (location.hash === '#extendRegion') {
@@ -1699,7 +1706,7 @@
         : i.state === 'soft' ? 'soft isolation' : 'isolation untested';
       iso.title = i.detail || '';
     }
-    var WORKING = {ask: 'Answering a question', verify: 'Verifying the tutorial', extend: 'Writing a part'};
+    var WORKING = {ask: 'Answering a question', verify: 'Verifying the tutorial', extend: 'Writing a part', check: 'Checking your work'};
     function setState(state, text, title){
       status.setAttribute('data-state', state);
       statusText.textContent = text;
@@ -1761,7 +1768,9 @@
   (function(){
     var LABELS = {
       verify: {running: 'Your agent is verifying this tutorial', done: 'Verification run finished', slot: 'verifyLive'},
-      extend: {running: 'Your agent is writing the next part', done: 'The agent finished writing', slot: 'extendLive'}
+      extend: {running: 'Your agent is writing the next part', done: 'The agent finished writing', slot: 'extendLive'},
+      // A check runs beside verify/extend, so it doesn't hide their forms.
+      check: {running: 'Your agent is checking your work', done: 'Check finished', slot: 'checkLive', shared: true}
     };
     function el(tag, cls, text){
       var n = document.createElement(tag);
@@ -1787,7 +1796,7 @@
       slot.innerHTML = '';
       // One hosted job per tutorial: hide the verify/extend forms while it
       // runs (the server would answer 409), whatever status the regions show.
-      document.documentElement.setAttribute('data-agent-job', job);
+      if (!labels.shared) document.documentElement.setAttribute('data-agent-job', job);
 
       var panel = el('section', 'agent-job');
       panel.setAttribute('data-job', job);
@@ -1917,7 +1926,7 @@
       }
       function finish(state, text, message){
         panel.setAttribute('data-state', state);
-        document.documentElement.removeAttribute('data-agent-job');
+        if (!labels.shared) document.documentElement.removeAttribute('data-agent-job');
         spin.remove();
         titleText.textContent = text;
         if (message) note.textContent = message;
@@ -1932,6 +1941,7 @@
         });
         if (window.lathePollNow) window.lathePollNow();
         if (window.latheRefreshWorker) window.latheRefreshWorker();
+        document.dispatchEvent(new CustomEvent('lathe-job-finished', {detail: {job: job, runId: String(runId), state: state}}));
       }
 
       var es = new EventSource('/-/acp/' + encodeURIComponent(runId) + '/events');
@@ -1992,6 +2002,159 @@
         }
       };
     };
+  })();
+</script>
+<script>
+  // "Check my work" (check.html): POST /-/check/{slug}/{part} answers like
+  // Verify — mode "agent" (progress streams into #checkLive via
+  // latheAttachJob), "queued" (a /lathe-work worker took it) or "handoff" (a
+  // /lathe-check command to paste). Whichever ran it, the result lands in the
+  // tutorial's checks.jsonl; GET /-/check/{slug}/{part} returns it rendered,
+  // and this swaps it in. Without scripts the newest result still renders
+  // server-side and the hint ladder is plain <details>.
+  (function(){
+    var root = document.getElementById('checkWork');
+    if (!root) return;
+    var slug = root.getAttribute('data-slug'), part = root.getAttribute('data-part');
+    var url = '/-/check/' + encodeURIComponent(slug) + '/' + encodeURIComponent(part);
+    var form = root.querySelector('.check-form');
+    var submit = root.querySelector('.check-submit');
+    var err = root.querySelector('.check-error');
+    var handoff = root.querySelector('.check-handoff');
+    var slot = root.querySelector('.check-result-slot');
+    var timer = null;
+
+    function setBusy(busy){
+      submit.disabled = !!busy;
+      root.setAttribute('data-busy', busy ? '1' : '');
+    }
+    function stopPolling(){ if (timer) { clearInterval(timer); timer = null; } }
+    // refresh swaps in the newest result when it differs from the one shown.
+    function refresh(){
+      return fetch(url, {headers: {'Accept': 'application/json'}})
+        .then(function(r){ return r.ok ? r.json() : null; })
+        .then(function(d){
+          if (!d) return null;
+          if ((d.checkedAt || '') !== (root.getAttribute('data-checked-at') || '')) {
+            root.setAttribute('data-checked-at', d.checkedAt || '');
+            slot.innerHTML = d.html || '';
+            if (d.checkedAt) submit.textContent = 'Check again';
+            if (window.latheAnnounce && d.checkedAt) window.latheAnnounce('Check result is ready');
+          }
+          return d;
+        })
+        .catch(function(){ return null; });
+    }
+    // A queued or pasted check reports only through checks.jsonl, so poll
+    // for a newer result (for up to half an hour).
+    function pollForNew(){
+      var seen = root.getAttribute('data-checked-at') || '';
+      var tries = 0;
+      stopPolling();
+      timer = setInterval(function(){
+        if (document.hidden) return;
+        if (++tries > 450) { stopPolling(); setBusy(false); return; }
+        refresh().then(function(d){
+          if (d && d.checkedAt && d.checkedAt !== seen) {
+            stopPolling();
+            handoff.innerHTML = '';
+            setBusy(false);
+          }
+        });
+      }, 4000);
+    }
+    function note(text){
+      handoff.innerHTML = '';
+      var p = document.createElement('div');
+      p.className = 'handoff-panel queued-panel';
+      var t = document.createElement('p');
+      t.className = 'handoff-note';
+      t.textContent = text;
+      p.appendChild(t);
+      handoff.appendChild(p);
+    }
+    function showHandoff(command, lead){
+      handoff.innerHTML = '';
+      var p = document.createElement('div');
+      p.className = 'handoff-panel';
+      var t = document.createElement('p');
+      t.className = 'handoff-note';
+      t.textContent = lead;
+      p.appendChild(t);
+      var pre = document.createElement('pre');
+      pre.className = 'handoff-cmd';
+      pre.textContent = command;
+      p.appendChild(pre);
+      var copy = document.createElement('button');
+      copy.type = 'button';
+      copy.className = 'btn btn-sm';
+      copy.textContent = 'Copy';
+      copy.addEventListener('click', function(){
+        try { navigator.clipboard.writeText(command).then(function(){ window.latheFlashLabel(copy, 'Copied'); }); } catch (e) {}
+      });
+      p.appendChild(copy);
+      handoff.appendChild(p);
+    }
+
+    form.addEventListener('submit', function(e){
+      e.preventDefault();
+      err.textContent = '';
+      setBusy(true);
+      fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'})
+        .then(function(r){
+          if (!r.ok) return r.text().then(function(t){ throw new Error((t || ('HTTP ' + r.status)).trim()); });
+          return r.json();
+        })
+        .then(function(data){
+          if (data.mode === 'agent') {
+            handoff.innerHTML = '';
+            if (window.latheAttachJob) window.latheAttachJob('check', data.runId);
+          } else if (data.mode === 'queued') {
+            note('Your connected agent is checking your work. The result shows up here.');
+            pollForNew();
+          } else {
+            var lead = 'To check your work, paste this into your coding agent. The result shows up here once it is recorded.';
+            showHandoff(data.command || '', data.notice ? data.notice + ' ' + lead : lead);
+            pollForNew();
+            submit.disabled = false;
+          }
+        })
+        .catch(function(e2){
+          err.textContent = e2.message;
+          setBusy(false);
+        });
+    });
+
+    var setWs = root.querySelector('[data-check-workspace]');
+    if (setWs) setWs.addEventListener('click', function(){
+      if (window.latheAgentPanel && window.latheAgentPanel.editWorkspace) window.latheAgentPanel.editWorkspace();
+    });
+    document.addEventListener('lathe-workspace', function(e){
+      if (setWs) setWs.remove();
+      setWs = null;
+      root.setAttribute('data-has-workspace', '1');
+      var lead = root.querySelector('.check-work-lead');
+      if (lead && e.detail) {
+        lead.textContent = 'Your agent runs this checkpoint on a copy of ';
+        var c = document.createElement('code');
+        c.className = 'check-ws';
+        c.textContent = e.detail.display;
+        lead.appendChild(c);
+        lead.appendChild(document.createTextNode(" and points at what's off, one hint at a time. Your files aren't changed."));
+      }
+      err.textContent = '';
+    });
+    document.addEventListener('lathe-job-finished', function(e){
+      if (!e.detail || e.detail.job !== 'check') return;
+      refresh().then(function(){ setBusy(false); });
+    });
+    window.latheCheckWork = function(){
+      root.scrollIntoView({block: 'center'});
+      if (typeof form.requestSubmit === 'function' && !submit.disabled) form.requestSubmit();
+    };
+    // A page loaded mid-check reattaches to its progress.
+    var runId = root.getAttribute('data-run-id');
+    if (runId && window.latheAttachJob) { setBusy(true); window.latheAttachJob('check', runId); }
   })();
 </script>
 <script>

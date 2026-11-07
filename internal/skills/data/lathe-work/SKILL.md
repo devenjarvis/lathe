@@ -5,7 +5,7 @@ description: Run the Lathe worker loop so the web UI's Ask / Verify / Add-a-part
 
 # Lathe — Worker Loop
 
-Start a long-running loop that lets the `lathe serve` web UI drive Ask, Verify, and Add-a-part **directly in this session**. With this loop running, the browser buttons enqueue a job and you pick it up here — no copy-paste of a `/lathe-*` command. Triggered by `/lathe-work`.
+Start a long-running loop that lets the `lathe serve` web UI drive Ask, Verify, Add-a-part, and Check my work **directly in this session**. With this loop running, the browser buttons enqueue a job and you pick it up here — no copy-paste of a `/lathe-*` command. Triggered by `/lathe-work`.
 
 This is just **long-poll → do the model work → report → repeat**, so it works in *any* supported coding agent. The strict boundary still holds: **the binary never drives a model.** All model work runs here, in your normal interactive session — never via `-p` / headless. Verify runs the tutorial's code under exactly the same trust model as `/lathe-verify` does today (a fresh `mktemp -d`, your normal permissions).
 
@@ -27,10 +27,10 @@ Repeat until the user stops you (Ctrl-C, "stop the worker", or closing the sessi
    ```
    This long-polls (~50s) and prints **either** `no task` **or** a single JSON object like:
    ```json
-   {"id":"7","type":"verify","slug":"digital-synth-zig","part":"part-02.md","question":"…","guidance":"…","state":"claimed"}
+   {"id":"7","type":"verify","slug":"digital-synth-zig","part":"part-02.md","question":"…","guidance":"…","path":"…","state":"claimed"}
    ```
    - If it prints `no task`, **loop back to step 1 immediately** — that's just an idle long-poll, not an error.
-   - Otherwise parse the JSON and note `id`, `type`, `slug`, and (depending on type) `part`/`question`/`guidance`.
+   - Otherwise parse the JSON and note `id`, `type`, `slug`, and (depending on type) `part`/`question`/`guidance`/`path`.
 
 2. **Dispatch on `type`**, applying the existing protocol as the source of truth — don't duplicate or paraphrase it, *apply* it:
 
@@ -40,6 +40,11 @@ Repeat until the user stops you (Ctrl-C, "stop the worker", or closing the sessi
      ```
 
    - **`extend`** → apply the **`/lathe-extend`** protocol against `slug`, passing `guidance` (when present) as the guidance for where the new part should go. It does the full reserve → write → `lathe extend-commit` handshake. When it finishes, close the job:
+     ```bash
+     lathe work done <id>
+     ```
+
+   - **`check`** → apply the **`/lathe-check`** protocol against `slug` / `part`, with `path` as the learner's workspace (copy it to a scratch dir; never change it). It records the hint ladder via `lathe check-result`, which the browser picks up. When it finishes, close the job:
      ```bash
      lathe work done <id>
      ```
@@ -63,7 +68,7 @@ This loop is long-running and each job is independent — nothing carries over f
 ## Boundaries
 
 - **Reuse the protocols, don't reinvent them.** Each job type is just "run the matching `/lathe-*` skill, then report." All the real rules (read-only verify, the extend handshake, grounded ask answers) live in those skills and win on any conflict.
-- **Always close the job.** `verify`/`extend` → `lathe work done <id>`; `ask` → `lathe work answer <id> --answer -` (which closes it). A job left open ties up the browser until the server's reclaim timeout.
+- **Always close the job.** `verify`/`extend`/`check` → `lathe work done <id>`; `ask` → `lathe work answer <id> --answer -` (which closes it). A job left open ties up the browser until the server's reclaim timeout.
 - **Interactive session only.** Never shell out to `-p` / headless to do the work — that's the metered path this whole design avoids.
 - **Sequential or concurrent — match your harness.** Without background sub-tasks, finish and report each job before claiming the next. With them, several jobs may be in flight at once; that's fine and keeps presence fresh. Concurrency is safe: the server rejects a second verify/extend on a tutorial that's already verifying/extending, so two jobs can't collide on the same `slug`, and ask jobs are read-only.
 

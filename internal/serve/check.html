@@ -1,0 +1,70 @@
+{{/* "Check my work" — placed at the end of a part's "## Checkpoint" section
+     (withCheckSection in check.go). The button asks the reader's agent to run
+     the checkpoint on a scratch copy of their workspace; the newest result
+     renders below it as a jig-framed block. See internal/serve/check.go. */}}
+{{define "checkSection"}}
+<section class="check-work" id="checkWork" aria-labelledby="checkWorkTitle"
+  data-slug="{{.Slug}}" data-part="{{.Part}}"
+  data-checked-at="{{with .Result}}{{.CheckedAt}}{{end}}"
+  data-run-id="{{.RunID}}" data-has-workspace="{{if .HasWorkspace}}1{{end}}">
+  <div class="check-work-bar">
+    <div class="check-work-text">
+      <p class="check-work-title" id="checkWorkTitle">Check my work</p>
+      <p class="check-work-lead">
+        {{- if .HasWorkspace}}Your agent runs this checkpoint on a copy of <code class="check-ws">{{.Workspace}}</code> and points at what's off, one hint at a time. Your files aren't changed.
+        {{- else}}Tell Lathe where you're typing this tutorial's code, and your agent can run this checkpoint on a copy of it and point at what's off, one hint at a time.{{end}}
+      </p>
+    </div>
+    <form class="check-form" method="POST" action="/-/check/{{.Slug}}/{{.Part}}">
+      {{if not .HasWorkspace}}<button type="button" class="btn btn-ghost check-set-ws" data-check-workspace>Set your workspace</button>{{end}}
+      <button type="submit" class="btn btn-primary check-submit"{{if .RunID}} disabled{{end}}>{{if .Result}}Check again{{else}}Check my work{{end}}</button>
+    </form>
+  </div>
+  <p class="check-error" aria-live="polite"></p>
+  <div class="check-handoff"></div>
+  <div id="checkLive" class="agent-job-slot check-live"></div>
+  <div class="check-result-slot" aria-live="polite">{{template "checkResult" .}}</div>
+</section>
+{{end}}
+
+{{/* checkResult — the newest check of the part. The hint ladder is nested
+     <details>, so each rung opens only on request and it all works with
+     scripts off; the reference code is the last rung. */}}
+{{define "checkResult"}}{{with .Result}}
+<figure class="jig jig-check" data-check-status="{{.Status}}" aria-labelledby="checkResultTitle">
+  <figcaption class="jig-head"><span class="jig-kind">Check</span> <span class="jig-title" id="checkResultTitle">
+    {{- if eq .Status "pass"}}Your checkpoint passes{{else if eq .Status "fail"}}Not quite yet{{else}}Couldn't run the checkpoint here{{end -}}
+  </span>{{if $.When}} <span class="check-when">{{$.When}}</span>{{end}}</figcaption>
+  <div class="jig-body">
+    {{if eq .Confidence "text"}}<p class="check-confidence"><strong>Lower confidence.</strong> No verified code covers this part yet, so this was checked against the part's text only. <a href="#verifyRegion">Verify the tutorial</a> first for a sharper check.</p>{{end}}
+    {{if .Summary}}<p class="check-summary">{{.Summary}}</p>{{end}}
+    {{if $.OnPartNumber}}<p class="check-onpart">Your code looks like it's at <a href="/{{$.Slug}}/{{.OnPart}}">Part {{$.OnPartNumber}}: {{$.OnPartTitle}}</a>, so it was compared with that part too.</p>{{end}}
+    {{if $.Findings}}
+    <ol class="check-findings">
+      {{range $.Findings}}
+      <li class="check-finding">
+        {{if .File}}<p class="check-file"><code>{{.File}}</code></p>{{end}}
+        <div class="check-rung" data-rung="1">{{.Nudge}}</div>
+        {{if .HasPointer}}<details class="check-more"><summary>Another hint</summary><div class="check-rung" data-rung="2">{{.Pointer}}</div>{{end}}
+        {{if .HasWhere}}<details class="check-more"><summary>Show me where</summary><div class="check-rung" data-rung="3">{{.Where}}</div>{{end}}
+        {{if .HasReveal}}<details class="check-more check-reveal"><summary>Reveal the reference code</summary><div class="check-rung" data-rung="4">{{.Reveal}}</div></details>{{end}}
+        {{if .HasWhere}}</details>{{end}}
+        {{if .HasPointer}}</details>{{end}}
+      </li>
+      {{end}}
+    </ol>
+    {{end}}
+    {{if $.Divergences}}
+    <div class="check-divergences">
+      <p class="check-divergences-title">Where your code differs from the reference</p>
+      <p class="check-divergences-lead">These are choices, not mistakes.</p>
+      <ul>
+        {{range $.Divergences}}
+        <li>{{if .File}}<code>{{.File}}</code>: {{end}}{{.Note}}{{if .LaterNum}}<p class="check-later">Heads up: <a href="/{{$.Slug}}/{{.LaterPart}}">Part {{.LaterNum}}</a> builds on the reference version, so you may need to adapt it there.</p>{{end}}</li>
+        {{end}}
+      </ul>
+    </div>
+    {{end}}
+  </div>
+</figure>
+{{end}}{{end}}
