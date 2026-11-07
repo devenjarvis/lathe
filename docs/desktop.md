@@ -24,6 +24,7 @@ The desktop app is the reader and the hosted agent in their own window. It is th
   - `Notify`: a system notification when Verify, Extend or Check my work finishes, whether the run was on the hosted agent or a `/lathe-work` worker. Runs you cancel and Ask answers don't notify. Notifications are queued and never block a job; where the OS can't post one (an unbundled binary on macOS, no D-Bus on Linux) it becomes a log line.
   - `OpenWindow`: the agent panel's pop-out (`/{slug}/{part}?agent=popout` only).
   - `OpenURL`: links to other sites open in the system browser (http, https and mailto only), so the window never navigates away from Lathe.
+- **Menu bar and shortcuts** (`internal/desktop/menu.go`, laid out by `menu_plan.go` from the registry in `internal/shortcuts`). Menus: Lathe, File, Edit (macOS only: the webview needs its key equivalents for copy and paste), View, Tutorial, Agent, Window. Every window uses the application menu (`UseApplicationMenu`), so the keys work in pop-outs and Settings on Windows and Linux too. In the app the page binds none of the menu's keys; a click (or its accelerator) on a page command calls `serve.Server.RunCommand`, which sends it down the focused page's `GET /-/native/commands` stream, and the page runs it. Pages post `POST /-/native/context` on load and on focus with the commands they can run, and the shell enables or disables the items from that (no Tutorial items on Home, no Next part on the last part). Shell commands (About, Settings… → a `/-/settings` window) are handled in the shell. Commands that aren't built yet (New tutorial, Open in new window, Go to anything, Bigger/Smaller text, Check for updates, Ask about selection, Show workspace) are listed disabled and bind no accelerator, so their keys keep their system or browser meaning. Plain `lathe serve` has no menu: `shortcuts.js` binds the same combos in the page.
 - **Single instance.** A second launch focuses the first window. On Linux this uses a D-Bus name, and is skipped with a log line when there is no session bus.
 - **Agent discovery from a Dock launch** (`internal/loginenv`). The app starts with launchd's minimal PATH, so before resolving the agent it runs the login shell once (`$SHELL -i -l`, with a 5-second limit), merges its PATH, and puts the `agent_path` dirs from `~/.lathe/config.json` first. The README's Install section explains `agent_path` to users.
 
@@ -81,6 +82,13 @@ Run these on a real machine before a release that changes the app.
 1. Build with `go build -tags desktop,production .`, then run `lathe` in a desktop session (GNOME or KDE).
 2. Check the same items as macOS 3–10. Notifications go through `org.freedesktop.Notifications`.
 3. Over SSH with no `DISPLAY`/`WAYLAND_DISPLAY`, `lathe` prints help, plus one stderr line saying why.
+
+**Menu bar (every OS)**
+
+1. On Home, the Tutorial and Agent items (except Agent settings…) are disabled; on a part they enable, and Next part is disabled on the last part.
+2. Each wired item works from the menu and from its key: Next/Previous part (⌘] ⌘[ / Ctrl+] Ctrl+[), Verify (⇧⌘V, macOS only), Write next part (⇧⌘N / Ctrl+Shift+N), Show panel (⌘J / Ctrl+J), Check my work (⇧⌘K / Ctrl+Shift+K, on a part with a Checkpoint), Pop out (⌥⌘J / Ctrl+Shift+J), Home (⇧⌘H / Alt+Home), Settings… (⌘, / Ctrl+,), Light/Dark.
+3. A key runs its command once (not twice), including while typing in the agent composer, and copy/paste still work in the composer (macOS Edit menu).
+4. In a pop-out window the Agent keys act on the pop-out.
 
 ## Maintainer setup (signing and notarization)
 

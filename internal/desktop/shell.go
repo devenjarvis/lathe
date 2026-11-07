@@ -24,10 +24,31 @@ type shell struct {
 
 	mu      sync.Mutex
 	main    *application.WebviewWindow
+	menu    *menuBar
 	picking sync.Mutex // one folder dialog at a time
 }
 
-var _ serve.Native = (*shell)(nil)
+var (
+	_ serve.Native     = (*shell)(nil)
+	_ serve.NativeMenu = (*shell)(nil)
+)
+
+func (s *shell) setMenu(m *menuBar) {
+	s.mu.Lock()
+	s.menu = m
+	s.mu.Unlock()
+}
+
+// SetMenuState enables and disables the menu bar's page items for the
+// focused page (see menuBar). It never blocks.
+func (s *shell) SetMenuState(st serve.MenuState) {
+	s.mu.Lock()
+	m := s.menu
+	s.mu.Unlock()
+	if m != nil {
+		m.setState(st)
+	}
+}
 
 func (s *shell) setMain(w *application.WebviewWindow) {
 	s.mu.Lock()
@@ -130,6 +151,39 @@ func (s *shell) OpenWindow(path, title string) error {
 		MinHeight:        popMinHeight,
 		BackgroundColour: paper,
 		Linux:            application.LinuxWindow{Icon: appIcon},
+		// The menu bar carries the shortcuts on Windows and Linux too, where
+		// it is per window (the page binds none of the menu's keys).
+		UseApplicationMenu: true,
+	})
+	return nil
+}
+
+// openSettings shows the Settings window at href ("/-/settings", or a tab
+// such as "/-/settings#agent"), reusing the one already open.
+func (s *shell) openSettings(href string) error {
+	path, err := windowPath(href)
+	if err != nil {
+		return err
+	}
+	if w, ok := s.app.Window.GetByName("settings"); ok {
+		w.SetURL(path)
+		w.Restore()
+		w.Show()
+		w.Focus()
+		return nil
+	}
+	s.app.Window.NewWithOptions(application.WebviewWindowOptions{
+		Name:               "settings",
+		Title:              "Settings",
+		URL:                path,
+		Width:              settingsWidth,
+		Height:             settingsHeight,
+		MinWidth:           settingsMinWidth,
+		MinHeight:          settingsMinHeight,
+		BackgroundColour:   paper,
+		InitialPosition:    application.WindowCentered,
+		Linux:              application.LinuxWindow{Icon: appIcon},
+		UseApplicationMenu: true,
 	})
 	return nil
 }
