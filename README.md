@@ -98,6 +98,10 @@ When Verify, a new part or Check my work finishes, the app sends a system notifi
 
 <img src="docs/img/table-of-contents.png" alt="Table of contents in a Lathe tutorial" width="800">
 
+#### Code you type in, on green-bar printout paper
+
+<img src="docs/img/code-listing.png" alt="A code listing in a Lathe tutorial, on green-bar paper" width="800">
+
 #### Side-notes throughout that prompt you to think more deeply
 
 <img src="docs/img/tutorial-content.png" alt="Example content of a Lathe tutorial, with side-notes" width="800">
