@@ -158,7 +158,7 @@ func (s *Server) handleVoiceDefault(w http.ResponseWriter, r *http.Request) {
 }
 
 // setDefaultVoice records name as the default through the locked
-// read-modify-write the Settings window uses, so it can't drop a setting
+// read-modify-write the Settings page uses, so it can't drop a setting
 // another window saved at the same moment.
 func setDefaultVoice(name string) error {
 	return config.UpdateConfig(func(c *config.Config) error {

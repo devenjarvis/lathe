@@ -62,7 +62,7 @@ type Config struct {
 	// editing config.json; internal/loginenv applies it.
 	AgentPath []string `json:"agent_path,omitempty"`
 
-	// The Settings window's keys (see settings.go for the defaults each one
+	// The Settings page's keys (see settings.go for the defaults each one
 	// resolves to). Booleans that default to on are pointers, so a missing
 	// key and an explicit false stay distinct.
 

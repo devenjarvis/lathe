@@ -9,7 +9,7 @@ import (
 	"sync"
 )
 
-// The Settings window (lathe serve's /-/settings) reads and writes the keys
+// The Settings page (lathe serve's /-/settings) reads and writes the keys
 // below through LoadSettings and UpdateConfig. Every key has a default, so a
 // missing or unreadable config.json still yields a complete Settings.
 

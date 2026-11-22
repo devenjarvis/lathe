@@ -1316,7 +1316,7 @@ body.list .header > .header-tools{flex:0 0 auto;align-items:center;gap:.5rem}
 .settings-link:hover{background:var(--accent-soft);color:var(--text)}
 .agent-hint .settings-link{display:inline;padding:0;min-height:0;border:none;background:none;color:var(--link);text-decoration:underline;text-underline-offset:2px}
 
-/* ---- Settings window (settings.html, /-/settings) ------------------------
+/* ---- Settings page (settings.html, /-/settings) ------------------------
    A yellow title bar holding the tab bar, then one panel per tab. Without
    scripts every panel shows and the tabs are jump links. */
 body.settings{min-height:100vh}
@@ -1991,7 +1991,7 @@ main.writing:focus{outline:none}
 @media print{.selection-bar,.listing-menu,.rt-toast,.ws-menu-wrap{display:none!important}}
 
 /* ---- First-launch setup (welcome.html, /-/welcome) -------------------------
-   The Settings window's yellow title bar with a three-step stepper under the
+   The Settings page's yellow title bar with a three-step stepper under the
    title, then one step per page in a narrow column. Home's empty state
    offers it with .welcome-callout until it is done or skipped. */
 body.welcome{min-height:100vh}
