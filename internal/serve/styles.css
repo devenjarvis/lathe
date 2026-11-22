@@ -1292,7 +1292,9 @@ html[data-native] body.list h1{font-size:2.5rem;line-height:1}
 .trash-actions{display:flex;gap:.5rem;flex:none}
 .trash-actions form{margin:0}
 .trash-empty > summary{list-style:none;cursor:pointer}
-.settings-trash-link{margin-top:.9rem}
+.settings-trash-row{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem 1rem;margin-top:.75rem}
+.settings-trash-label{font-size:.95rem;font-weight:750;color:var(--text-muted)}
+.settings-group > .settings-trash-link{margin:1.1rem 0 0}
 .trash-empty > summary::-webkit-details-marker{display:none}
 
 /* The bottom toast: "Moved “…” to Trash · Undo ⌘Z". */
@@ -1320,6 +1322,10 @@ html:not(.js-toast) .toast-key{display:none}
 
 /* The list masthead's tools: the Settings link beside the theme toggle. */
 body.list .header > .header-tools{flex:0 0 auto;align-items:center;gap:.5rem}
+/* One height for every button in the row, whatever sits inside it (the
+   ⌘K key, the + disc), so their tops and bottoms line up. */
+.header-tools > :is(.new-open,.palette-open,.settings-link){height:2.5rem;min-height:0}
+.header-tools > .theme-toggle{width:2.5rem;height:2.5rem}
 .settings-link{display:inline-flex;align-items:center;font-size:.875rem;font-weight:800;color:var(--text);text-decoration:none;background:var(--surface);border:2px solid var(--rule);border-radius:var(--radius-pill);padding:.35rem .85rem;min-height:2.25rem}
 .settings-link:hover{background:var(--accent-soft);color:var(--text)}
 .agent-hint .settings-link{display:inline;padding:0;min-height:0;border:none;background:none;color:var(--link);text-decoration:underline;text-underline-offset:2px}

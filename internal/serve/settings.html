@@ -311,12 +311,15 @@
   </div>
   <fieldset class="settings-group settings-seg-group">
     <legend>Trash</legend>
-    <p class="agent-hint" id="trashHint">Deleted tutorials wait in the Trash, so you can put them back. Delete them for good after:</p>
+    <p class="agent-hint">Deleted tutorials wait in the Trash, so you can put them back.</p>
+    <div class="settings-trash-row">
+    <span class="settings-trash-label" id="trashHint">Delete them for good after</span>
     <div class="settings-seg" aria-describedby="trashHint">
       {{- $td := .Settings.TrashDays}}
       {{- range .TrashChoices}}
       <label><input type="radio" name="trash_days" value="{{.Value}}" data-setting="trash_days" data-setting-int{{if eq (print $td) .Value}} checked{{end}}><span>{{.Label}}</span></label>
       {{- end}}
+    </div>
     </div>
     <p class="settings-inline settings-trash-link"><a class="btn btn-ghost btn-sm" href="/?view=trash">Show Trash{{with .TrashCount}} · {{.}}{{end}}</a></p>
   </fieldset>
