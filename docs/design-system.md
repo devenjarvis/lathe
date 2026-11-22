@@ -65,6 +65,7 @@ the literal `#1C2140`. Every text token clears WCAG AA (4.5:1) on `--bg`,
 | `--cmd-bg` / `--cmd-text` | `#1C2140` / `#FFF4D6` | `#0B0E21` / `#FFF4D6` | command panel |
 | `--code-bg` / `--code-band` | `#FFFFFF` / `#E2F0DF` | `#1D2240` / `#17291F` | code listing / the tutorial side of Compare |
 | `--cover-1..4` | red, teal, yellow, navy | same, navy darkened | bookshelf covers |
+| `--print-key` | `#1C2140` | `#F2EAD3` | key block of the linocut prints (cream on the navy writing hero in both themes) |
 
 ### Color — status badges and callouts
 
@@ -239,6 +240,32 @@ introduce every block, so a caption in the source would be a second place to say
 what that prose says and the reader would hear both. The renderer names the
 artifact's kind; the author's prose names the particular thing. Reopen it with a
 tutorial that needs a caption the intro prose cannot carry.
+
+### Linocut prints
+
+The app icon is a two-colour linocut of a turned spindle. The reader borrows
+it, sparingly, for empty and waiting states, so the art reads as hand printed
+rather than drawn. `internal/serve/printgen.go` (`go generate ./internal/serve`)
+draws the prints from the icon's code: rough ink edges, mottled density,
+starved specks and slightly misregistered passes. Its output is deterministic.
+
+Each print is two PNGs in `internal/serve/static/`. `print-<name>-colour.png`
+holds the yellow and red passes in their own inks, the same in both themes.
+`print-<name>-key.png` is the navy key block as an alpha mask; `.print::after`
+fills it with `--print-key`. At night the key prints cream, so the block reads
+as cream printed on navy paper. Use the partial
+`{{template "print" "spindle"}}` (or `"turning"`); it is `aria-hidden`, so the
+text beside it must say everything.
+
+| Print | Where | Notes |
+|---|---|---|
+| `spindle` | empty Home, empty All grid, first-launch welcome (step 1), the agent panel's "Bring your agent" | still; width set by `--print-w` |
+| `turning` | the "Being written" hero | eight frames in a strip; `steps()` turns the spindle and sweeps the carve marks round. Still under `prefers-reduced-motion` and once the run stops (`data-live="false"`). Hidden under 760px |
+| `grain` | `.badge-stamp` (the verified header badge), the Home wordmark | a tiling mask of ink specks laid over flat type |
+
+Keep them accents: never on covers, never in reading content, never more than
+one print in view. The prints together must stay under 150 KB
+(`TestPrintAssets`).
 
 ## Light / dark behavior
 

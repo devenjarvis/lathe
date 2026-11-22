@@ -44,6 +44,8 @@
   /* Code: commands are a navy panel in both themes; written code is a plain
      listing; inline code on a pale yellow chip. */
   --cmd-bg:#1C2140; --cmd-text:#FFF4D6;
+  /* The key block of the linocut prints (.print): navy ink on paper. */
+  --print-key:#1C2140;
   --code-bg:#FFFFFF; --code-band:#E2F0DF; --code-text:#1C2140;
   --inline-code-bg:#FFE7A3;
 
@@ -112,6 +114,7 @@
   --accent-soft:#3B3317;
   --focus:#7FB2FF;
   --cmd-bg:#0B0E21; --cmd-text:#FFF4D6;
+  --print-key:#F2EAD3;
   --code-bg:#1D2240; --code-band:#17291F; --code-text:#F2EAD3;
   --inline-code-bg:#3B3317;
 
@@ -776,6 +779,7 @@ body.list .header > .header-tools:has(> .update-notice){flex-wrap:wrap;flex-shri
 
 /* Setup view: "Bring your agent". */
 .agent-setup{flex:1;overflow-y:auto;padding:1.1rem 1.1rem .9rem;display:flex;flex-direction:column;gap:1rem}
+.agent-setup .print{--print-w:15rem;margin:.25rem 0 -.25rem}
 .agent-setup h3{margin:0;font-size:1.15rem;font-weight:900;font-variation-settings:var(--casual)}
 .agent-setup > p{margin:0;font-size:.95rem;line-height:1.55;color:var(--text-muted)}
 .agent-setup form{display:flex;flex-direction:column;gap:1rem}
@@ -983,7 +987,7 @@ html[data-agent-popout] #agentPopout,html[data-agent-popout] #askClose,html[data
 body.list{max-width:88rem;margin:0 auto;padding:clamp(1.75rem,1rem + 3vw,4rem) clamp(1rem,.5rem + 2.5vw,2.5rem) 4rem}
 body.list .header{display:flex;justify-content:space-between;align-items:flex-end;gap:1rem 2rem;flex-wrap:wrap;margin-bottom:2rem}
 body.list .header > div{min-width:0;display:flex;align-items:flex-end;gap:1rem 2rem;flex-wrap:wrap;flex:1 1 auto}
-body.list h1{font-size:clamp(3rem,2rem + 4.5vw,5.25rem);font-weight:1000;margin:0;line-height:.88;letter-spacing:-.05em}
+body.list h1{font-size:clamp(3rem,2rem + 4.5vw,5.25rem);font-weight:1000;margin:0;line-height:.88;letter-spacing:-.05em;-webkit-mask:url('/_static/print-grain.png') 0 0/128px 128px repeat;mask:url('/_static/print-grain.png') 0 0/128px 128px repeat}
 /* In the app the window is already titled Lathe: a smaller wordmark and
    less air above it put the library first. */
 html[data-native] body.list{padding-top:1.25rem}
@@ -1839,6 +1843,12 @@ body.new-page{background:var(--bg)}
 main.writing{display:flex;flex-direction:column;gap:1.5rem;max-width:none;margin:0;padding:0;font-size:1rem;line-height:1.5}
 main.writing:focus{outline:none}
 .writing-hero{background:var(--cover-4);color:var(--cover-4-ink);border:var(--line) solid var(--rule);border-radius:var(--radius-lg);padding:clamp(1.1rem,.8rem + 1.5vw,2rem)}
+.writing-hero{--print-key:var(--cover-4-ink)}
+.writing-hero-top{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem 2rem}
+.writing-hero-top > div{min-width:0}
+.writing-hero-top .print{--print-w:13.5rem;margin:-.25rem 0 1rem}
+.writing[data-live="false"] .print-turning::after{animation:none}
+@media (max-width:760px){.writing-hero-top .print{display:none}}
 .writing-kicker{display:flex;align-items:center;gap:.55rem;margin:0;font-size:.8rem;font-weight:900;letter-spacing:.08em;text-transform:uppercase;color:var(--yellow)}
 .writing-pulse{width:.65rem;height:.65rem;border-radius:9999px;background:var(--yellow);animation:badge-pulse 1.6s ease-in-out infinite}
 .writing-title{margin:.4rem 0 1.25rem;color:inherit;font-size:clamp(2rem,1.4rem + 2.6vw,3.25rem);line-height:1;letter-spacing:-.035em;overflow-wrap:anywhere}
@@ -2002,6 +2012,29 @@ main.writing:focus{outline:none}
   .ws-menu-wrap + .agent-toggle{margin-left:auto}
   .selection-bar-btn[data-sel="simpler"]{white-space:normal;text-align:left}
 }
+/* ---- Linocut prints (printgen.go) -----------------------------------------
+   Hand-printed accents from the app icon's code: the turned spindle on a
+   carved block. ::before is the yellow and red passes in their own inks;
+   ::after is the key block, an alpha mask filled with --print-key: navy on
+   paper, cream at night, so the block reads as cream printed on navy paper.
+   Accents only, for empty and waiting states: covers stay clean. */
+.print{position:relative;display:block;width:var(--print-w,22.5rem);max-width:100%;aspect-ratio:12/5;flex:none}
+.print::before,.print::after{content:"";position:absolute;inset:0}
+.print::before{background:url('/_static/print-spindle-colour.png') 0 0/100% 100% no-repeat}
+.print::after{background:var(--print-key);-webkit-mask:url('/_static/print-spindle-key.png') 0 0/100% 100% no-repeat;mask:url('/_static/print-spindle-key.png') 0 0/100% 100% no-repeat}
+/* The turning print is a strip of eight frames; steps() shows one at a time. */
+.print-turning::before{background-image:url('/_static/print-turning-colour.png')}
+.print-turning::after{-webkit-mask-image:url('/_static/print-turning-key.png');mask-image:url('/_static/print-turning-key.png');-webkit-mask-size:100% 800%;mask-size:100% 800%;animation:print-turn 1.2s steps(8,jump-none) infinite}
+@keyframes print-turn{from{-webkit-mask-position:0 0;mask-position:0 0}to{-webkit-mask-position:0 100%;mask-position:0 100%}}
+@media (prefers-reduced-motion:reduce){.print-turning::after{animation:none}}
+/* Starved ink: print-grain.png knocks specks out of flat type. */
+.badge.badge-stamp{white-space:nowrap;gap:.4rem;padding:.12rem .55rem .08rem;border:2px solid currentColor;border-radius:.3rem;color:var(--badge-verified-text);font-size:.8rem;font-weight:900;letter-spacing:.07em;text-transform:uppercase;transform:rotate(-2deg);-webkit-mask:url('/_static/print-grain.png') 0 0/128px 128px repeat;mask:url('/_static/print-grain.png') 0 0/128px 128px repeat}
+.badge-stamp .badge-dot{display:none}
+.badge-stamp::before{content:"✓";font-size:.95rem;line-height:1}
+.empty-print{display:flex;align-items:center;flex-wrap:wrap;gap:1rem 1.75rem;margin-top:.5rem}
+.empty-print .print{--print-w:17rem}
+.empty-print .shelf-empty{flex:1 1 16rem}
+.empty .print{--print-w:17rem;margin:-.5rem 0 1.25rem}
 @media print{.selection-bar,.listing-menu,.rt-toast,.ws-menu-wrap{display:none!important}}
 
 /* ---- First-launch setup (welcome.html, /-/welcome) -------------------------
@@ -2023,6 +2056,7 @@ body.welcome{min-height:100vh}
 .welcome-step.is-done .welcome-step-n{background:#1C2140;color:var(--yellow)}
 .welcome-main{max-width:40rem;margin:0 auto;padding:clamp(1.5rem,1rem + 1.5vw,2.5rem) clamp(.85rem,.5rem + 1.5vw,2rem) 4rem}
 .welcome-main:focus{outline:none}
+.welcome-panel > .print{--print-w:20rem;margin:0 0 1.5rem}
 .welcome-kicker{margin:0 0 .3rem;font-size:.75rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--teal)}
 .welcome-panel h2{font-size:clamp(1.6rem,1.3rem + 1vw,2.1rem);margin:0 0 .5rem;letter-spacing:-.02em}
 .welcome-form{margin:0}

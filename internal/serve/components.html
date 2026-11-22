@@ -114,6 +114,10 @@
      renders nothing — the calm default — matching the terminal statusBadge in
      cmd/list.go. The outer class="badge <status>" is a CSS + test hook; the
      dot color comes from the per-status .badge-dot rules in styles.css. */}}
+{{/* print — a decorative linocut print (styles.css .print); . is the print's
+     name: "spindle" (still) or "turning" (animated). */}}
+{{define "print"}}<span class="print print-{{.}}" aria-hidden="true"></span>{{end}}
+
 {{define "badge"}}
 {{- if eq . "verified"}}<span class="badge verified"><span class="badge-dot"></span>Verified</span>
 {{- else if eq . "verifying"}}<span class="badge verifying"><span class="badge-dot"></span>Verifying…</span>
@@ -277,7 +281,7 @@
      is read once; unverified and failed add a jump link to the verify panel at
      the end of the article, where the action lives. */}}
 {{define "statusHeader"}}
-{{- if .VerifiedDate}}<span class="badge {{.Tutorial.Status}}"><span class="badge-dot"></span><span class="verified-date">{{if eq .Tutorial.Status "skipped"}}Skipped{{else}}Verified{{end}} {{.VerifiedDate}}</span></span>
+{{- if .VerifiedDate}}<span class="badge {{.Tutorial.Status}}{{if eq .Tutorial.Status "verified"}} badge-stamp{{end}}"><span class="badge-dot"></span><span class="verified-date">{{if eq .Tutorial.Status "skipped"}}Skipped{{else}}Verified{{end}} {{.VerifiedDate}}</span></span>
 {{- else if eq .Tutorial.Status "unverified"}}<span class="status-none">Not verified</span> <a class="status-jump" href="#verifyRegion">Verify it</a>
 {{- else}}{{template "badge" .Tutorial.Status}}{{if eq .Tutorial.Status "failed"}} <a class="status-jump" href="#verifyRegion">See what failed</a>{{end}}
 {{- end}}

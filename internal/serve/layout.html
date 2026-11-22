@@ -254,6 +254,7 @@
     </form>
   </div>
   <section id="agentSetup" class="agent-setup" aria-labelledby="agentSetupTitle"{{if .AgentName}} hidden{{end}}>
+    {{template "print" "spindle"}}
     <h3 id="agentSetupTitle">Bring your agent</h3>
     <p>Lathe runs your coding agent here, in a normal interactive session. Lathe never calls a model itself, so your agent's own sign-in and plan apply.</p>
     <p class="agent-hint">More in {{template "settingsLink" "agent"}}</p>
