@@ -8,10 +8,11 @@ name: Release
 #   1. macos (macos-latest, Apple Silicon) -- build/darwin/package.sh builds the
 #      `-tags desktop` binary for arm64 and amd64 (cgo, WebKit), lipos them into
 #      one universal binary, wraps it in Lathe.app (Info.plist from
-#      build/darwin/, .icns from internal/desktop/appicon.png), signs it with a
-#      Developer ID cert + hardened runtime, notarizes it with
-#      `notarytool submit --wait`, staples the ticket and zips it as
-#      Lathe_<version>_macos_universal.zip. Uploaded as a workflow artifact.
+#      build/darwin/, .icns from internal/desktop/appicon.png), signs it and
+#      zips it as Lathe_<version>_macos_universal.zip. Uploaded as a workflow
+#      artifact. Without signing secrets the app is ad-hoc signed and not
+#      notarized; with them it is signed with a Developer ID cert + hardened
+#      runtime, notarized with `notarytool submit --wait` and stapled.
 #   2. release (ubuntu) -- GoReleaser (OSS) cross-compiles everything that needs
 #      no cgo: the CLI-only linux/darwin tarballs (what install.sh fetches) and
 #      the Windows desktop zips. It attaches the Lathe.app zip from job 1 via
@@ -19,7 +20,8 @@ name: Release
 #      every asset, and publishes the GitHub Release with the changelog.
 #   3. homebrew (ubuntu) -- renders the cask with build/homebrew/cask.sh
 #      (`app "Lathe.app"` + `binary` linked from inside the bundle) and commits
-#      it to devenjarvis/homebrew-tap. Not GoReleaser's homebrew_casks because
+#      it to devenjarvis/homebrew-tap. The cask strips the quarantine flag on
+#      install, so the ad-hoc signed app opens. Not GoReleaser's homebrew_casks because
 #      the `app` stanza and app bundles are GoReleaser Pro-only. Skipped for
 #      prerelease tags (vX.Y.Z-rc.1) and outside the upstream repo.
 #
@@ -29,11 +31,13 @@ name: Release
 # work). Doing the Mac part as a plain script keeps it runnable on any Mac
 # (`VERSION=0.0.0 build/darwin/package.sh`) and lets CI exercise it on PRs.
 #
-# Signing rule: a tag push on devenjarvis/lathe REQUIRES the five MACOS_*
-# secrets -- package.sh fails the release if any is missing or signing /
-# notarization fails. Everywhere else (forks, workflow_dispatch dry runs
-# without secrets) a missing set is a warning and the app is only ad-hoc
-# signed. A partial set is always an error.
+# Signing rule: releases are ad-hoc signed until the repo variable
+# MACOS_REQUIRE_SIGNING is "true" (Settings -> Secrets and variables ->
+# Actions -> Variables). With it set, a tag push on devenjarvis/lathe REQUIRES
+# the five MACOS_* secrets, and package.sh fails the release if any is missing
+# or signing / notarization fails. Without it, a missing set is a warning. A
+# partial set is always an error. When you turn signing on, also drop the
+# quarantine postflight from build/homebrew/cask.sh.
 #
 # Dry run: Actions -> Release -> Run workflow (workflow_dispatch) runs jobs 1
 # and 2 with `goreleaser release --snapshot --skip=publish` and uploads dist/
@@ -69,7 +73,7 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: Build, sign and notarize Lathe.app
+      - name: Build and sign Lathe.app
         run: |
           if [ "$GITHUB_REF_TYPE" = tag ]; then
             VERSION="${GITHUB_REF_NAME#v}"
@@ -80,7 +84,7 @@ jobs:
           build/darwin/package.sh
         env:
           OUT_DIR: dist-macos
-          REQUIRE_SIGNING: ${{ github.event_name == 'push' && github.repository == 'devenjarvis/lathe' }}
+          REQUIRE_SIGNING: ${{ github.event_name == 'push' && github.repository == 'devenjarvis/lathe' && vars.MACOS_REQUIRE_SIGNING == 'true' }}
           MACOS_SIGN_P12: ${{ secrets.MACOS_SIGN_P12 }}
           MACOS_SIGN_PASSWORD: ${{ secrets.MACOS_SIGN_PASSWORD }}
           MACOS_NOTARY_KEY: ${{ secrets.MACOS_NOTARY_KEY }}
