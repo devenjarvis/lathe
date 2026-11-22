@@ -41,7 +41,7 @@
         {{template "newCover"}}
         {{range .PickUp}}{{template "cover" .}}{{end}}
       </div>
-      {{if not .Total}}<p class="shelf-empty">Nothing here yet. Once your agent stores a tutorial it lands on the Unsorted shelf, and anything you start reading comes back to this row.</p>{{end}}
+      {{if not .Total}}<div class="empty-print">{{template "print" "spindle"}}<p class="shelf-empty">Nothing here yet. Once your agent stores a tutorial it lands on the Unsorted shelf, and anything you start reading comes back to this row.</p></div>{{end}}
     </section>
     {{range .Rows}}
     <section class="shelf" aria-labelledby="shelf-{{.Shelf.ID}}">
@@ -122,7 +122,7 @@
     {{else if .Total}}
     <p class="shelf-empty">{{.Empty}}</p>
     {{else}}
-    <div class="empty"><strong>No tutorials yet</strong>Run <code>/lathe</code> with a topic in your coding agent, for example <code>/lathe build a digital synth in Zig</code>. It appears here when it's stored.</div>
+    <div class="empty">{{template "print" "spindle"}}<strong>No tutorials yet</strong>Run <code>/lathe</code> with a topic in your coding agent, for example <code>/lathe build a digital synth in Zig</code>. It appears here when it's stored.</div>
     {{end}}
   {{end}}
   </div>

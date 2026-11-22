@@ -43,7 +43,12 @@ var stylesCSS string
 //go:embed static/favicon.svg
 //go:embed static/fonts/recursive.woff2
 //go:embed static/fonts/KaTeX_*.woff2
+//go:embed static/print-*.png
 var staticFS embed.FS
+
+// The linocut prints (static/print-*.png) are drawn by printgen.go.
+//
+//go:generate go run printgen.go
 
 type Server struct {
 	tutorialsDir string
@@ -324,6 +329,16 @@ func init() {
 		name := e.Name()
 		if strings.HasPrefix(name, "KaTeX_") && strings.HasSuffix(name, ".woff2") {
 			staticAssets[name] = "font/woff2"
+		}
+	}
+	prints, err := staticFS.ReadDir("static")
+	if err != nil {
+		panic(fmt.Sprintf("lathe: embedded static dir unreadable: %v", err))
+	}
+	for _, e := range prints {
+		name := e.Name()
+		if strings.HasPrefix(name, "print-") && strings.HasSuffix(name, ".png") {
+			staticAssets[name] = "image/png"
 		}
 	}
 }

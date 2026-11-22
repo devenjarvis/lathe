@@ -21,8 +21,13 @@
 </header>
 <main id="writingMain" class="writing" tabindex="-1" data-slug="{{.Slug}}"{{with .Run}} data-run-id="{{.ID}}" data-run-started="{{.Started}}"{{end}} data-live="{{.Live}}">
   <section class="writing-hero" aria-labelledby="writingTitle">
-    <p class="writing-kicker"><span class="writing-pulse" aria-hidden="true"></span>Writing Part 1</p>
-    <h1 class="writing-title" id="writingTitle">{{.Title}}</h1>
+    <div class="writing-hero-top">
+      <div>
+        <p class="writing-kicker"><span class="writing-pulse" aria-hidden="true"></span>Writing Part 1</p>
+        <h1 class="writing-title" id="writingTitle">{{.Title}}</h1>
+      </div>
+      {{template "print" "turning"}}
+    </div>
     <ol class="writing-steps" id="writingSteps" aria-label="Progress">
       {{- range .Steps}}
       <li class="writing-step" data-state="{{.State}}"{{if eq .State "active"}} aria-current="step"{{end}}><span class="writing-step-n" aria-hidden="true">{{if eq .State "done"}}✓{{else}}{{.N}}{{end}}</span><span class="writing-step-label">{{.Label}}</span><span class="visually-hidden">{{if eq .State "done"}} (done){{else if eq .State "active"}} (now){{end}}</span></li>
@@ -179,6 +184,7 @@
       if (d.state === 'stored') { location.replace(d.href || '/' + encodeURIComponent(slug) + '/'); return false; }
       if (d.state === 'gone') {
         needs.hidden = true;
+        main.setAttribute('data-live', 'false');
         steps.setAttribute('data-stopped', '');
         close.textContent = 'Writing stopped before Part 1 was stored, so nothing was saved.';
         if (stop) stop.innerHTML = '<a class="btn btn-sm writing-stop-btn" href="/">Back to the library</a>';

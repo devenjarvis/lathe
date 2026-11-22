@@ -90,6 +90,7 @@ internal/
     components.html               shared {{define}} partials (head, badge, themeToggle, liveNudge — the last carries its own <script>, included on both pages)
     styles.css                    the design system (tokens + components), embedded & injected inline
     static/mermaid.min.js         embedded diagram renderer; static/fonts/*.woff2 latin-subset fonts
+    printgen.go, static/print-*.png   linocut prints for empty/waiting states and the verified stamp (`go generate ./internal/serve`; //go:build ignore, from the app icon's generator); the "print" partial in components.html
   extend/
     extend.go                     NextPartFilename helper (no model work — that's the skill)
   skills/data/                    generated, tracked, embeddable copy of .claude/skills (parity-gated by `mage skills`)
