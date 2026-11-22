@@ -12,7 +12,7 @@ The desktop app is the reader and the hosted agent in their own window. It is th
 
 **No JavaScript bridge.** The page reaches the shell only through same-origin POST endpoints (`/-/native/…`) that 404 without a shell. The templates only learn whether a shell is present (`.Native`, `data-native` on `<html>`), so the reader keeps one code path and `lathe serve` renders exactly what it did before.
 
-**Platforms.** macOS ships a signed, notarized, universal `Lathe.app` (built on a macOS runner with cgo). Windows ships the desktop build as a console-subsystem `lathe.exe` (pure Go, cross-compiled), which hides its own console when double-clicked. Linux release binaries stay CLI-only; the Linux app is build-from-source (`libgtk-4-dev libwebkitgtk-6.0-dev`). Wails' experimental cgo-free Linux backend (`-tags purego`, which loads GTK4/WebKitGTK 6.0 at runtime) could later let one Linux release binary be both. That's a follow-up, not part of this change.
+**Platforms.** macOS ships a universal `Lathe.app` (built on a macOS runner with cgo). Until Developer ID signing is enabled (see "Maintainer setup" below) it is ad-hoc signed and not notarized: the Homebrew cask strips the quarantine flag on install, and a downloaded zip needs System Settings › Privacy & Security › Open Anyway once. `mage app` builds a host-arch `Lathe.app` into `/Applications` (or `$APP_DIR`) for local use. Windows ships the desktop build as a console-subsystem `lathe.exe` (pure Go, cross-compiled), which hides its own console when double-clicked. Linux release binaries stay CLI-only; the Linux app is build-from-source (`libgtk-4-dev libwebkitgtk-6.0-dev`). Wails' experimental cgo-free Linux backend (`-tags purego`, which loads GTK4/WebKitGTK 6.0 at runtime) could later let one Linux release binary be both. That's a follow-up, not part of this change.
 
 ## How it fits together
 
@@ -33,7 +33,7 @@ The desktop app is the reader and the hosted agent in their own window. It is th
 
 - **First-launch setup** (`internal/serve/welcome.go`, `welcome.html`, #148). In the app, opening Home (`GET /` with no query) while the library is empty and config `onboarded` is unset redirects to `/-/welcome`, so a first launch opens there: 1) pick your agent (the same `agentChoices` partial as Settings › Agent, with install help and Copy buttons), 2) choose where code folders go (`code_root`, `~/code` by default; **Choose folder…** uses `PickFolder` via `POST /-/native/pick-folder {"for":"code-root"}`), 3) **Make your first tutorial** (the New tutorial sheet over Home, at `/#new`) or **Skip** (Home). Finishing or skipping (also **Skip setup** on steps 1–2) sets `onboarded`. Plain `lathe serve` never redirects (a tab from `lathe open` or a script should get the page it asked for); its Home empty state shows a "New to Lathe? Set up Lathe" callout instead until `onboarded` is set. Both reopen it from Settings › Agent (**Run setup again**) and the Lathe menu's **Welcome to Lathe…** (also in ⌘K). Every step is a plain form post, so it works with scripts off; without scripts the last step goes to the `/-/new` page.
 - **Single instance.** A second launch focuses the first window. On Linux this uses a D-Bus name, and is skipped with a log line when there is no session bus.
-- **Agent discovery from a Dock launch** (`internal/loginenv`). The app starts with launchd's minimal PATH, so before resolving the agent it runs the login shell once (`$SHELL -i -l`, with a 5-second limit), merges its PATH, and puts the `agent_path` dirs from `~/.lathe/config.json` first. The README's Install section explains `agent_path` to users.
+- **Agent discovery from a Dock launch** (`internal/loginenv`). The app starts with launchd's minimal PATH, so before resolving the agent it runs the login shell once (`$SHELL -i -l`, with a 5-second limit), merges its PATH, and puts the `agent_path` dirs from `~/.lathe/config.json` first. The README's Troubleshooting section explains `agent_path` to users.
 
 ## Verified in CI and on Linux
 
@@ -52,9 +52,9 @@ The desktop app is the reader and the hosted agent in their own window. It is th
 
 Run these on a real machine before a release that changes the app.
 
-**macOS (signed `Lathe.app`)**
+**macOS (`Lathe.app`)**
 
-1. It launches from Finder and from the Dock, with no Gatekeeper prompt (`spctl --assess -vv /Applications/Lathe.app`).
+1. It launches from Finder and from the Dock. Installed with the cask, it opens with no Gatekeeper prompt (`xattr -l /Applications/Lathe.app` shows no `com.apple.quarantine`). Once signing is enabled, `spctl --assess -vv /Applications/Lathe.app` also accepts it.
 2. On first launch only the window opens, with no notification prompt. The first finished Verify, Extend or Check asks for notification permission, then shows the notification.
 3. **Choose folder…** opens the picker as a sheet, can create a folder, and Cancel leaves the workspace unchanged.
 4. **Pop out** opens a 480×820 window; clicking it again focuses that window.
@@ -124,6 +124,8 @@ Run these on a real machine before a release that changes the app.
 
 ## Maintainer setup (signing and notarization)
 
+Signing is off today: releases are ad-hoc signed. To turn it on, add the secrets below, set the repo variable `MACOS_REQUIRE_SIGNING` to `true` (Settings › Secrets and variables › Actions › Variables), and remove the quarantine `postflight_steps` from `build/homebrew/cask.sh`.
+
 Repo secrets used by `.github/workflows/release.yml`:
 
 | Secret | What it is |
@@ -146,7 +148,7 @@ Repo secrets used by `.github/workflows/release.yml`:
    - `base64 -i AuthKey_XXXX.p8 | pbcopy` gives you `MACOS_NOTARY_KEY`.
 3. **First dry run.** Before the first tag, run Actions → Release → Run workflow on `main`. It signs, notarizes and staples for real, then uploads the artifacts without publishing anything.
 
-A tag pushed on `devenjarvis/lathe` fails if any signing secret is missing or signing fails. Forks and manual runs without secrets ad-hoc sign the app and log a warning.
+With `MACOS_REQUIRE_SIGNING` set, a tag pushed on `devenjarvis/lathe` fails if any signing secret is missing or signing fails. Without it, and on forks and manual runs, a missing set ad-hoc signs the app and logs a warning. A partial set of secrets always fails.
 
 ## Known gaps / follow-ups
 

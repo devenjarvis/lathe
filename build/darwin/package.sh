@@ -15,6 +15,10 @@
 #   COMMIT, DATE       stamped into internal/buildinfo (default: git HEAD, now)
 #   OUT_DIR            output directory (default: dist-macos)
 #   ICON               1024x1024 PNG (default: internal/desktop/appicon.png)
+#   ARCHES             GOARCH values to build (default: "arm64 amd64"); with one
+#                      arch the app is thin, not universal
+#   INSTALL_DIR        if set, copy Lathe.app there (replacing an existing one)
+#                      instead of writing the zip; `mage app` uses this
 #   REQUIRE_SIGNING    "true" makes missing signing/notary secrets an error
 #                      instead of a warning (release.yml sets it for tag pushes
 #                      on the upstream repo)
@@ -61,6 +65,8 @@ DATE=${DATE:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}
 OUT_DIR=${OUT_DIR:-dist-macos}
 ICON=${ICON:-internal/desktop/appicon.png}
 REQUIRE_SIGNING=${REQUIRE_SIGNING:-false}
+ARCHES=${ARCHES:-arm64 amd64}
+INSTALL_DIR=${INSTALL_DIR:-}
 
 # CFBundleShortVersionString/CFBundleVersion must be numeric: 1.2.0-rc.1 -> 1.2.0.
 SHORT_VERSION=$(printf '%s' "$VERSION" | sed -E 's/^([0-9]+(\.[0-9]+){0,2}).*/\1/')
@@ -103,16 +109,19 @@ trap cleanup EXIT
 
 # --- build both arches and merge -------------------------------------------
 ldflags="-s -w -X $BUILDINFO.Version=$VERSION -X $BUILDINFO.Commit=$COMMIT -X $BUILDINFO.Date=$DATE"
-for arch in arm64 amd64; do
+built=()
+for arch in $ARCHES; do
 	log "go build -tags desktop,production (darwin/$arch)"
 	# The Go linker ignores MACOSX_DEPLOYMENT_TARGET and links for 11.0, so
 	# pass the minimum to ld too, or LC_BUILD_VERSION says 11.0.
 	CGO_ENABLED=1 GOOS=darwin GOARCH=$arch MACOSX_DEPLOYMENT_TARGET=$MIN_MACOS \
 		CGO_LDFLAGS="${CGO_LDFLAGS:-} -mmacosx-version-min=$MIN_MACOS" \
 		go build -tags desktop,production -ldflags "$ldflags" -o "$work/$BIN-$arch" .
+	built+=("$work/$BIN-$arch")
 done
-lipo -create -output "$work/$BIN" "$work/$BIN-arm64" "$work/$BIN-amd64"
-log "universal binary: $(lipo -archs "$work/$BIN")"
+[ "${#built[@]}" -gt 0 ] || die "ARCHES is empty"
+lipo -create -output "$work/$BIN" "${built[@]}"
+log "binary arches: $(lipo -archs "$work/$BIN")"
 
 # --- assemble the bundle ----------------------------------------------------
 app="$work/$APP_NAME.app"
@@ -166,8 +175,19 @@ codesign --verify --strict --verbose=2 "$app"
 
 # --- smoke test: the bundled binary still works as the CLI -------------------
 "$app/Contents/MacOS/$BIN" --version
-if arch -x86_64 /usr/bin/true 2>/dev/null; then
+if lipo -archs "$app/Contents/MacOS/$BIN" | grep -q x86_64 && arch -x86_64 /usr/bin/true 2>/dev/null; then
 	arch -x86_64 "$app/Contents/MacOS/$BIN" --version
+fi
+
+# A local install skips notarization: a bundle built on this Mac carries no
+# quarantine flag, so Gatekeeper never checks it. ditto merges into an existing
+# bundle, so the old one goes first.
+if [ -n "$INSTALL_DIR" ]; then
+	mkdir -p "$INSTALL_DIR"
+	rm -rf "${INSTALL_DIR:?}/$APP_NAME.app"
+	ditto "$app" "$INSTALL_DIR/$APP_NAME.app"
+	log "installed $INSTALL_DIR/$APP_NAME.app"
+	exit 0
 fi
 
 # --- notarize + staple ------------------------------------------------------
