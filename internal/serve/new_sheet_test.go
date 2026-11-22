@@ -218,8 +218,8 @@ func TestEveryPageOpensTheSheet(t *testing.T) {
 	if !strings.Contains(home, `<a class="new-open" href="/-/new" data-new-open`) {
 		t.Error("Home's title bar lacks the New tutorial button")
 	}
-	if !strings.Contains(get(t, ts, "/digital-synth-zig/part-01.md"), `<a class="new-open" href="/-/new" data-new-open`) {
-		t.Error("the reading page's title bar lacks the New tutorial button")
+	if strings.Contains(get(t, ts, "/digital-synth-zig/part-01.md"), `<a class="new-open" href="/-/new" data-new-open`) {
+		t.Error("the reading page's title bar still shows New tutorial; ⌘N and the File menu open it there")
 	}
 	// Settings › Shortcuts lists it now that it is built.
 	if !strings.Contains(get(t, ts, "/-/settings"), "<dt>New tutorial…</dt>") {

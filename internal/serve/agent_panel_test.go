@@ -241,7 +241,7 @@ func TestPagePanelStates(t *testing.T) {
 	page := get()
 	for _, want := range []string{
 		`id="agentPanel"`, `id="agentToggle"`, `data-last-part="part-02.md"`, `data-agent-name=""`,
-		`<span class="agent-toggle-label" id="agentToggleName">Agent</span><kbd class="agent-kbd agent-toggle-key" data-kbd aria-hidden="true">⌘J</kbd>`,
+		`<span class="agent-toggle-label">Ask</span><kbd class="agent-kbd agent-toggle-key" data-kbd aria-hidden="true">⌘J</kbd>`,
 		`<span id="agentChipName">Pick an agent</span>`,
 		`<span class="agent-menu-label" id="agentPickLabel">Pick an agent</span>`,
 		`id="agentRestart" class="agent-menu-item" role="menuitem" tabindex="-1" data-menu="restart" hidden>`,
@@ -256,7 +256,7 @@ func TestPagePanelStates(t *testing.T) {
 	page = get()
 	for _, want := range []string{
 		`data-agent-name="Claude Code"`,
-		`<span class="agent-toggle-label" id="agentToggleName">Claude Code</span>`,
+		`title="Ask Claude Code"`, `<span class="agent-toggle-label">Ask</span>`,
 		`<span id="agentChipName">Claude Code</span>`,
 		`<span class="agent-menu-label" id="agentPickLabel">Switch agent</span>`,
 		`id="agentRestart" class="agent-menu-item" role="menuitem" tabindex="-1" data-menu="restart">Restart agent</button>`,

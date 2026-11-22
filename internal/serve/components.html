@@ -77,13 +77,9 @@
         var next = dir === 0 ? 'default' : P.sizes[Math.max(0, Math.min(P.sizes.length - 1, i + dir))];
         if (next !== P.text_size) save({text_size: next}).catch(function(){});
       }
+      // Settings is a page of this window, in the app as in a browser.
       function openSettings(tab){
         var path = '/-/settings' + (tab ? '#' + tab : '');
-        {{- if .Native}}
-        fetch('/-/native/window', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({path: path})})
-          .catch(function(){ location.href = path; });
-        return;
-        {{- end}}
         if (location.pathname === '/-/settings') {
           if (tab) location.hash = tab;
         } else {
@@ -98,15 +94,6 @@
       };
       // ⌘, and ⌘+ / ⌘− / ⌘0 are in the shortcut registry (internal/shortcuts,
       // shortcuts.js), which calls openSettings and step.
-      // Settings links ([data-settings-link]) open the Settings window in the
-      // desktop app instead of navigating this one.
-      document.addEventListener('click', function(ev){
-        if (ev.defaultPrevented || ev.button !== 0 || !root.hasAttribute('data-native')) return;
-        var a = ev.target.closest && ev.target.closest('a[data-settings-link]');
-        if (!a) return;
-        ev.preventDefault();
-        openSettings((a.getAttribute('href') || '').split('#')[1] || '');
-      });
     })();
   </script>
   <style>{{.CSS}}{{.HighlightCSS}}</style>
@@ -114,9 +101,8 @@
   <style id="lathePrefs">html{font-size:{{$p.FontSize}}}:root{--measure:{{$p.Measure}}}</style>
 {{end}}
 
-{{/* settingsLink — a link to the Settings window (or one of its tabs, with
-     "#agent" etc. as the argument). The desktop app opens it in its own
-     window (see the head script). */}}
+{{/* settingsLink — a link to the Settings page (or one of its tabs, with
+     "#agent" etc. as the argument). */}}
 {{define "settingsLink"}}<a class="settings-link" href="/-/settings{{if .}}#{{.}}{{end}}" data-settings-link>{{if eq . "agent"}}Agent settings…{{else}}Settings{{end}}</a>{{end}}
 
 {{/* badge — renders a quiet status marker: a colored dot + a muted serif label
@@ -134,11 +120,12 @@
 {{- end}}
 {{end}}
 
-{{/* themeToggle — the dark-mode button. JS attaches to every [data-theme-toggle]
-     element, so the sidebar, bottom dock, and list-page copies all stay in
-     sync. The empty .label is filled in by JS ("Dark mode" / "Light mode"). */}}
+{{/* themeToggle — the dark-mode button, a ☀/☾ icon. JS attaches to every
+     [data-theme-toggle] element, so the sidebar, bottom dock, and list-page
+     copies all stay in sync. The visually hidden .label is filled in by JS
+     ("Dark mode" / "Light mode"). */}}
 {{define "themeToggle"}}
-  <button type="button" class="theme-toggle" data-theme-toggle aria-label="Toggle dark mode">
+  <button type="button" class="theme-toggle" data-theme-toggle aria-label="Toggle dark mode" title="Switch between light and dark">
     <span class="icon icon-light">☀</span><span class="icon icon-dark">☾</span>
     <span class="label"></span>
   </button>

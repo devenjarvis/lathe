@@ -5,14 +5,14 @@
   <title>Settings — Lathe</title>
 </head>
 <body class="settings">
-{{/* The Settings window (settings.go). Each tab is a <section> with the tab's
+{{/* The Settings page (settings.go). Each tab is a <section> with the tab's
      id, so /-/settings#agent deep-links to it. Without scripts every section
      shows, one under the other, and the tab bar jumps between them; the
      script below turns them into tabs. Controls save as they change. */}}
 <a class="skip-link" href="#settingsMain">Skip to settings</a>
 <header class="settings-bar">
   <div class="settings-bar-row">
-    <a class="back-link settings-back" href="/"><span aria-hidden="true">←</span> Library</a>
+    <a class="back-link settings-back" id="settingsBack" href="/"><span aria-hidden="true">←</span> Back</a>
     <h1 class="settings-title">Settings</h1>
     <p class="settings-saved" id="settingsSaved" role="status" aria-live="polite"></p>
   </div>
@@ -491,6 +491,21 @@
     return window.lathePrefs.save(patch).then(function(st){ flash('Saved'); return st; })
       .catch(function(err){ flash('Not saved: ' + err.message); throw err; });
   }
+
+  // ---- Back ---------------------------------------------------------------
+  // Settings opens in place of the page that asked for it, so Back returns
+  // there. Without a page of Lathe's own to return to it goes Home.
+  (function(){
+    var back = document.getElementById('settingsBack');
+    var from = null;
+    try { from = document.referrer ? new URL(document.referrer) : null; } catch (e) {}
+    if (!back || !from || from.origin !== location.origin || from.pathname === location.pathname) return;
+    back.addEventListener('click', function(ev){
+      if (ev.defaultPrevented || ev.button !== 0 || ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey) return;
+      ev.preventDefault();
+      history.back();
+    });
+  })();
 
   // ---- Tabs ---------------------------------------------------------------
   var tabs = Array.prototype.slice.call(document.querySelectorAll('[role="tab"]'));

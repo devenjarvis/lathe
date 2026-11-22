@@ -58,11 +58,11 @@
        so, and pressing it saves again (it reads "Place not saved" after a
        failed background save). Shown by the progress script after a save. */}}
   <button type="button" id="placeSaved" class="place-saved" data-progress-save hidden>Place saved</button>
-  {{/* The masthead toggle: "<Agent name> ⌘J". The key hint is visual; the
-       global shortcut is the shortcut registry's (#132). */}}
+  {{/* The masthead toggle: "Ask ⌘J", with the agent's name in the tooltip
+       and the panel. The key hint is visual; the global shortcut is the
+       shortcut registry's (#132). */}}
   {{template "workspaceMenu" .}}
-  <button type="button" id="agentToggle" class="agent-toggle" hidden aria-controls="agentPanel" aria-expanded="false" data-state="{{if .AgentName}}starting{{else}}none{{end}}"><span class="agent-dot" aria-hidden="true"></span><span class="agent-toggle-label" id="agentToggleName">{{if .AgentName}}{{.AgentName}}{{else}}Agent{{end}}</span><kbd class="agent-kbd agent-toggle-key" data-kbd aria-hidden="true">⌘J</kbd></button>
-  {{template "newButton"}}
+  <button type="button" id="agentToggle" class="agent-toggle" hidden aria-controls="agentPanel" aria-expanded="false" title="Ask {{if .AgentName}}{{.AgentName}}{{else}}your agent{{end}}" data-state="{{if .AgentName}}starting{{else}}none{{end}}"><span class="agent-dot" aria-hidden="true"></span><span class="agent-toggle-label">Ask</span><kbd class="agent-kbd agent-toggle-key" data-kbd aria-hidden="true">⌘J</kbd></button>
   {{template "paletteButton" .}}
   {{template "themeToggle" .}}
 </header>
@@ -905,8 +905,8 @@
           document.getElementById('agentChipName').textContent = name;
           document.getElementById('agentPickLabel').textContent = 'Switch agent';
           document.getElementById('agentRestart').hidden = false;
-          var tn = document.getElementById('agentToggleName');
-          if (tn) tn.textContent = name;
+          var tg = document.getElementById('agentToggle');
+          if (tg) tg.title = 'Ask ' + name;
           showSetup(false);
           if (window.latheRefreshWorker) window.latheRefreshWorker();
           if (window.latheAnnounce) window.latheAnnounce(name + ' is starting');

@@ -11,7 +11,7 @@ fixed jobs:
 - **Yellow means "you are here"**: the masthead, the current part, the current
   section, selected things.
 
-Code you write sits on **green-bar printout paper** with tractor-feed holes.
+Code you write sits in a plain white listing (navy at night).
 Dark mode is the same book read off the screen at night: deep navy, cream text,
 and the yellow kept as the bright accent.
 
@@ -63,7 +63,7 @@ the literal `#1C2140`. Every text token clears WCAG AA (4.5:1) on `--bg`,
 | `--yellow` | `#F5C33B` | `#F5C33B` | "you are here": masthead, current, selected |
 | `--accent-soft` | `#FFE7A3` | `#3B3317` | hovers, pale highlights |
 | `--cmd-bg` / `--cmd-text` | `#1C2140` / `#FFF4D6` | `#0B0E21` / `#FFF4D6` | command panel |
-| `--code-bg` / `--code-band` | `#FFFFFF` / `#E2F0DF` | `#1D2240` / `#17291F` | green-bar listing |
+| `--code-bg` / `--code-band` | `#FFFFFF` / `#E2F0DF` | `#1D2240` / `#17291F` | code listing / the tutorial side of Compare |
 | `--cover-1..4` | red, teal, yellow, navy | same, navy darkened | bookshelf covers |
 
 ### Color — status badges and callouts
@@ -181,9 +181,8 @@ Each block kind looks like what the reader does with it:
   panel in both themes (with the dark syntax palette), Copy on the label row.
 - **Expected output** (`.tutorial-block-output`) — "you should see": teal label
   pill, dashed teal outline, no fill. A reference, not an instruction.
-- **Code** (`.tutorial-block-code`) — "write this": the listing on green-bar
-  paper, bands every three lines, tractor-feed holes down both edges (all CSS
-  backgrounds on the `<pre>`, scrolling with the content).
+- **Code** (`.tutorial-block-code`) — "write this": a plain listing on
+  `--code-bg` under a quiet label, nothing behind the code to read past.
 
 Step discs, the series TOC and the exercises are real sequences, so they carry
 numbers. The current part (series TOC, part menu), the current section (wide

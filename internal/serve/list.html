@@ -1057,6 +1057,7 @@
 {{/* trashView — the Trash (. is the libraryPage), from Settings › Library ›
      Show Trash and the sidebar. */}}
 {{define "trashView"}}
+  <div class="trash-view">
     <div class="view-head">
       <div class="view-title">
         <h2>Trash <span class="shelf-count">{{.Count}}</span></h2>
@@ -1093,6 +1094,7 @@
     {{else}}
     <p class="shelf-empty">The Trash is empty. Tutorials you move to the Trash wait here, so you can put them back.</p>
     {{end}}
+  </div>
 {{end}}
 
 {{/* toast — the bottom notice (. is the libraryPage; .Toast set by a

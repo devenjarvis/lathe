@@ -259,3 +259,17 @@ func TestTrashCommand(t *testing.T) {
 		}
 	}
 }
+
+// Settings is a page in the window that asked for it, not a window of its
+// own, so the page runs both commands (shortcuts.js) and the shell has none.
+func TestSettingsIsAPageCommand(t *testing.T) {
+	for id, href := range map[string]string{"app.settings": "/-/settings", "agent.settings": "/-/settings#agent"} {
+		s, ok := ByID(id)
+		if !ok {
+			t.Fatalf("%s missing", id)
+		}
+		if s.Handler != HandlerPage || s.Href != href {
+			t.Errorf("%s = handler %q href %q, want page %q", id, s.Handler, s.Href, href)
+		}
+	}
+}

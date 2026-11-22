@@ -45,7 +45,6 @@
      green-bar paper; inline code on a pale yellow chip. */
   --cmd-bg:#1C2140; --cmd-text:#FFF4D6;
   --code-bg:#FFFFFF; --code-band:#E2F0DF; --code-text:#1C2140;
-  --code-feed:#EFE6CF; --code-feed-line:#B9AE90;
   --inline-code-bg:#FFE7A3;
 
   /* Status (light) — dot / text color is -text; -bg tints the danger button
@@ -114,7 +113,6 @@
   --focus:#7FB2FF;
   --cmd-bg:#0B0E21; --cmd-text:#FFF4D6;
   --code-bg:#1D2240; --code-band:#17291F; --code-text:#F2EAD3;
-  --code-feed:#262B4C; --code-feed-line:#4A4F78;
   --inline-code-bg:#3B3317;
 
   --badge-verified-bg:#1E2E1D; --badge-verified-text:#8CC788;
@@ -250,8 +248,7 @@ pre[data-overflow="true"]{box-shadow:inset -18px 0 14px -12px rgba(28,33,64,.25)
    Each kind reads as what the reader does with it:
    - command: "type this" — red label pill, navy panel, Copy on the label row;
    - output:  "you should see" — teal label pill, dashed teal outline, no fill;
-   - code:    "write this" — the listing on green-bar printout paper, with
-              tractor-feed holes down both edges. */
+   - code:    "write this" — a plain listing under a quiet label. */
 .tutorial-block{margin:1.6rem 0;position:relative}
 .tutorial-block pre{margin:.45rem 0 0}
 .tutorial-block .tutorial-block-label{display:inline-block;font-size:.8125rem;font-weight:800;line-height:1.5;margin:0;padding:.15rem .8rem;border-radius:var(--radius-pill);background:var(--surface-sunken);color:var(--text);vertical-align:middle}
@@ -264,19 +261,6 @@ pre[data-overflow="true"]{box-shadow:inset -18px 0 14px -12px rgba(28,33,64,.25)
 .tutorial-block-command .copy-command{position:absolute;top:-.3rem;right:0;margin:0}
 .tutorial-block-output .tutorial-block-label{background:var(--teal-fill);color:var(--on-teal)}
 .tutorial-block-output pre,.tutorial-block-output pre.chroma,[data-theme="dark"] .tutorial-block-output pre.chroma{background:transparent;border:2px dashed var(--teal)}
-.tutorial-block-code pre,.tutorial-block-code pre.chroma,[data-theme="dark"] .tutorial-block-code pre.chroma{
-  padding-inline:2.3rem;
-  background-color:var(--code-bg);
-  background-image:
-    radial-gradient(circle at center,var(--bg) 0 4px,transparent 4.6px),
-    radial-gradient(circle at center,var(--bg) 0 4px,transparent 4.6px),
-    linear-gradient(90deg,var(--code-feed) 0 1.35rem,transparent 1.35rem calc(100% - 1.35rem),var(--code-feed) calc(100% - 1.35rem)),
-    repeating-linear-gradient(180deg,var(--code-band) 0 4.95em,transparent 4.95em 9.9em);
-  background-size:1.35rem 1.4rem,1.35rem 1.4rem,100% 100%,100% 100%;
-  background-position:left top .3rem,right top .3rem,0 0,0 1rem;
-  background-repeat:repeat-y,repeat-y,no-repeat,no-repeat;
-  background-attachment:local;
-}
 pre samp{background:none;padding:0;color:inherit;font-family:var(--font-mono);font-size:1em;white-space:pre;overflow-wrap:normal;word-wrap:normal}
 
 /* Callouts (emitted by renderer.go as <aside class="callout callout-TYPE">).
@@ -426,7 +410,8 @@ pre samp{background:none;padding:0;color:inherit;font-family:var(--font-mono);fo
 .btn-sm{font-size:.85rem;padding:.35rem .85rem;min-height:2.1rem}
 
 /* Theme-toggle button (shared) */
-.theme-toggle{background:var(--surface);border:2px solid var(--rule);color:var(--text);font-family:var(--font-sans);font-size:.875rem;font-weight:800;padding:.35rem .85rem;min-height:2.25rem;border-radius:var(--radius-pill);cursor:pointer;display:inline-flex;align-items:center;gap:.4rem;transition:background var(--transition)}
+.theme-toggle{background:var(--surface);border:2px solid var(--rule);color:var(--text);font-family:var(--font-sans);font-size:.875rem;font-weight:800;padding:0;width:2.25rem;height:2.25rem;border-radius:50%;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;flex:none;transition:background var(--transition)}
+.theme-toggle .label{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 .theme-toggle:hover{background:var(--accent-soft)}
 .theme-toggle .icon{font-size:1rem;line-height:1}
 [data-theme="dark"] .theme-toggle .icon-light,[data-theme="light"] .theme-toggle .icon-dark,:root:not([data-theme]) .theme-toggle .icon-dark{display:none}
@@ -525,7 +510,7 @@ pre samp{background:none;padding:0;color:inherit;font-family:var(--font-mono);fo
    navy ink and a heavy bottom rule. */
 #topBar{display:flex;position:sticky;top:0;background:var(--yellow);color:var(--on-yellow);border-bottom:var(--line) solid #1C2140;padding:.55rem clamp(.75rem,.5rem + 1vw,1.5rem);min-height:3.4rem;z-index:50;align-items:center;gap:.75rem}
 #topBar .topbar-rule{display:none}
-#topBar .theme-toggle{margin-left:auto;flex-shrink:0;background:var(--bg);color:var(--text);border-color:#1C2140}
+#topBar .theme-toggle{margin-left:auto;width:2.4rem;height:2.4rem;background:var(--bg);color:var(--text);border-color:#1C2140}
 #topBar :focus-visible{outline-color:#1C2140}
 .progress-button{color:var(--text);border-color:var(--rule)}
 #hamburger{display:none;align-items:center;justify-content:center;background:transparent;border:2px solid currentColor;color:inherit;font:inherit;cursor:pointer;width:2.5rem;height:2.5rem;border-radius:var(--radius-pill);line-height:1;font-size:1.2rem;flex-shrink:0}
@@ -669,8 +654,7 @@ pre samp{background:none;padding:0;color:inherit;font-family:var(--font-mono);fo
 
 /* Bottom action dock (narrow only) */
 #bottomDock{display:none;position:fixed;left:0;right:0;bottom:0;background:var(--yellow);color:var(--on-yellow);border-top:var(--line) solid #1C2140;padding:.55rem .85rem calc(.55rem + env(safe-area-inset-bottom));z-index:50;justify-content:space-between;align-items:center;gap:.6rem}
-#bottomDock .theme-toggle{min-height:2.75rem;padding-inline:.8rem;background:var(--bg);color:var(--text);border-color:#1C2140}
-#bottomDock .theme-toggle .label{display:none}
+#bottomDock .theme-toggle{width:2.75rem;height:2.75rem;background:var(--bg);color:var(--text);border-color:#1C2140}
 #bottomDock .btn{min-height:2.75rem}
 #bottomDock .progress-button{background:var(--bg);border-color:#1C2140}
 
@@ -995,6 +979,12 @@ body.list{max-width:88rem;margin:0 auto;padding:clamp(1.75rem,1rem + 3vw,4rem) c
 body.list .header{display:flex;justify-content:space-between;align-items:flex-end;gap:1rem 2rem;flex-wrap:wrap;margin-bottom:2rem}
 body.list .header > div{min-width:0;display:flex;align-items:flex-end;gap:1rem 2rem;flex-wrap:wrap;flex:1 1 auto}
 body.list h1{font-size:clamp(3rem,2rem + 4.5vw,5.25rem);font-weight:1000;margin:0;line-height:.88;letter-spacing:-.05em}
+/* In the app the window is already titled Lathe: a smaller wordmark and
+   less air above it put the library first. */
+html[data-native] body.list{padding-top:1.25rem}
+html[data-native] body.list .header{align-items:center;margin-bottom:1.25rem}
+html[data-native] body.list .header > div{align-items:baseline}
+html[data-native] body.list h1{font-size:2.5rem;line-height:1}
 .subtitle{color:var(--text-muted);margin:0 0 .35rem;font-size:1.05rem;font-weight:600;max-width:24rem}
 .tutorial-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(15.5rem,1fr));gap:1.25rem}
 .tutorial{--cover:var(--cover-1);--cover-ink:var(--cover-1-ink);position:relative;isolation:isolate;display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto 1fr auto auto auto;min-height:19rem;border:var(--line) solid var(--rule);border-radius:var(--radius-lg);background:var(--bg);overflow:hidden;transition:transform 150ms ease-out,box-shadow 150ms ease-out}
@@ -1108,6 +1098,7 @@ body.list h1{font-size:clamp(3rem,2rem + 4.5vw,5.25rem);font-weight:1000;margin:
 .view-head{margin-bottom:1.25rem}
 .shelf-head h2,.view-head h2{margin:0;font-size:1.6rem;line-height:1.1;letter-spacing:-.02em}
 .view-head h2{font-size:clamp(1.8rem,1.4rem + 1.4vw,2.4rem)}
+.view-head h2 .shelf-count{vertical-align:middle}
 .shelf-count{display:inline-block;vertical-align:.2em;margin-left:.3rem;padding:.05rem .55rem;border-radius:var(--radius-pill);background:var(--surface-sunken);color:var(--text-subtle);font-family:var(--font-sans);font-variation-settings:normal;font-size:.8125rem;font-weight:800;letter-spacing:0;font-variant-numeric:tabular-nums}
 .see-all{font-weight:850;color:var(--link);text-decoration:none;white-space:nowrap}
 .see-all:hover{text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:3px}
@@ -1280,7 +1271,11 @@ body.list h1{font-size:clamp(3rem,2rem + 4.5vw,5.25rem);font-weight:1000;margin:
 
 /* The Trash. */
 .nav-attention .nav-link[href="/?view=trash"]:not([aria-current]) .nav-count{color:var(--text-subtle)}
-.trash-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.75rem;max-width:52rem}
+/* The heading row, its note and the list share one width, so Empty Trash…
+   sits over the list's right edge. */
+.trash-view{max-width:52rem}
+.trash-view .shelf-desc{max-width:none}
+.trash-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.75rem}
 .trash-item{display:flex;align-items:center;justify-content:space-between;gap:.75rem 1.25rem;flex-wrap:wrap;padding:.9rem 1.1rem;background:var(--surface);border:var(--line) solid var(--rule);border-radius:var(--radius-lg)}
 .trash-info{display:flex;flex-direction:column;gap:.2rem;min-width:0;flex:1 1 18rem}
 .trash-title{font-family:var(--font-display);font-variation-settings:var(--casual);font-size:1.2rem;font-weight:900;letter-spacing:-.015em;overflow-wrap:anywhere}
@@ -1329,12 +1324,16 @@ body.settings{min-height:100vh}
 .settings-bar :focus-visible{outline-color:#1C2140}
 .settings-bar-row{display:flex;align-items:center;gap:.75rem 1rem;flex-wrap:wrap;min-height:2.6rem}
 .settings-title{font-size:1.35rem;font-weight:950;margin:0;line-height:1.1;color:inherit;letter-spacing:-.02em}
-html[data-native] .settings-back{display:none}
 .settings-back:hover{background:rgba(255,255,255,.45)}
 .settings-saved{margin:0 0 0 auto;font-size:.875rem;font-weight:800;color:#1C2140}
-.settings-tabs{margin-top:.5rem;overflow-x:auto;scrollbar-width:none}
+/* The row overlaps the bar's bottom border so the selected tab covers it.
+   The overlap is the row's margin, not the tabs', so the scroll box is
+   exactly as tall as the tabs and never scrolls (or shows a second edge)
+   vertically. */
+.settings-tabs{margin:.5rem 0 calc(-1 * var(--line));overflow-x:auto;overflow-y:hidden;scrollbar-width:none}
+.settings-tabs::-webkit-scrollbar{display:none}
 .settings-tabs [role="tablist"]{display:flex;gap:.25rem;min-width:max-content}
-.settings-tabs a{display:block;padding:.5rem 1rem .55rem;font-size:.95rem;font-weight:800;color:#1C2140;text-decoration:none;border:var(--line) solid transparent;border-bottom:none;border-radius:var(--radius-md) var(--radius-md) 0 0;margin-bottom:calc(-1 * var(--line))}
+.settings-tabs a{display:block;padding:.5rem 1rem .55rem;font-size:.95rem;font-weight:800;color:#1C2140;text-decoration:none;border:var(--line) solid transparent;border-bottom:none;border-radius:var(--radius-md) var(--radius-md) 0 0}
 .settings-tabs a:hover{background:rgba(255,255,255,.45)}
 .settings-tabs a[aria-selected="true"]{background:var(--bg);color:var(--text);border-color:#1C2140;font-variation-settings:var(--casual);font-weight:900}
 .settings-noscript{max-width:46rem;margin:1rem auto 0;padding:0 clamp(.85rem,.5rem + 1.5vw,2rem);color:var(--text-subtle)}
@@ -1719,7 +1718,6 @@ html.file-drop-target-active[data-drop-hint]::after{content:attr(data-drop-hint)
 .new-open{display:inline-flex;align-items:center;gap:.4rem;flex-shrink:0;font:inherit;font-size:.875rem;font-weight:850;color:var(--on-red);text-decoration:none;background:var(--red);border:2px solid var(--rule);border-radius:var(--radius-pill);padding:.3rem .85rem .3rem .45rem;min-height:2.25rem;cursor:pointer;white-space:nowrap}
 .new-open:hover{background:var(--red-hover);color:var(--on-red)}
 .new-open:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
-#topBar .new-open,.settings-bar .new-open{border-color:#1C2140}
 .new-open-plus{display:inline-flex;align-items:center;justify-content:center;width:1.35rem;height:1.35rem;border-radius:50%;background:var(--on-red);color:var(--red);font-size:1.05rem;font-weight:950;line-height:1}
 .new-sheet{position:fixed;inset:0 0 auto;margin:0 auto;width:min(44rem,calc(100vw - 2rem));max-height:calc(100dvh - 1.5rem);padding:0;display:none;flex-direction:column;color:var(--text);background:var(--bg);border:var(--line) solid var(--rule);border-top:none;border-radius:0 0 var(--radius-lg) var(--radius-lg);box-shadow:var(--shadow-md),6px 6px 0 var(--rule);overflow:hidden}
 .new-sheet[open]{display:flex;animation:new-sheet-drop 180ms ease-out}
@@ -1806,8 +1804,6 @@ body.new-page{background:var(--bg)}
   .new-key{display:none}
   .new-actions{width:100%}
   .new-actions .btn{flex:1}
-  #topBar .new-open{padding:.3rem .45rem}
-  #topBar .new-open-label{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 }
 @media (max-width:499px){
   body.list .header > .header-tools{flex:1 1 100%;flex-wrap:wrap;gap:.4rem}

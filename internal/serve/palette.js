@@ -145,9 +145,9 @@
     var composer = document.getElementById('askInput');
     if (!panel || !composer || !document.getElementById('askForm')) return null;
     var toggle = document.getElementById('agentToggle');
-    var nameEl = document.getElementById('agentToggleName');
-    var name = nameEl ? nameEl.textContent.trim() : '';
-    if (!name || name === 'Agent' || (toggle && toggle.getAttribute('data-state') === 'none')) name = 'your agent';
+    var el = document.getElementById('agentPanel');
+    var name = (el && el.getAttribute('data-agent-name')) || '';
+    if (!name || (toggle && toggle.getAttribute('data-state') === 'none')) name = 'your agent';
     return {name: name, panel: panel, composer: composer};
   }
 
