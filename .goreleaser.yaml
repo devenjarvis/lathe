@@ -6,7 +6,8 @@
 #     no desktop tag) -- the assets install.sh downloads.
 #   - windows, amd64 + arm64: the desktop build (`-tags desktop`, pure Go,
 #     WebView2) as zips.
-# Lathe.app (macOS, `-tags desktop`, cgo, signed + notarized) is built by
+# Lathe.app (macOS, `-tags desktop`, cgo; ad-hoc signed until Developer ID
+# signing is enabled, see release.yml) is built by
 # build/darwin/package.sh in release.yml's macOS job and handed to this run as
 # a prebuilt zip in $MACOS_APP_DIR (default ./dist-macos; release.yml puts it
 # outside the checkout so GoReleaser's clean-tree check passes). The
