@@ -418,7 +418,7 @@ pre samp{background:none;padding:0;color:inherit;font-family:var(--font-mono);fo
 .theme-toggle{background:var(--surface);border:2px solid var(--rule);color:var(--text);font-family:var(--font-sans);font-size:.875rem;font-weight:800;padding:0;width:2.25rem;height:2.25rem;border-radius:50%;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;flex:none;transition:background var(--transition)}
 .theme-toggle .label{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 .theme-toggle:hover{background:var(--accent-soft)}
-.theme-toggle .icon{font-size:1rem;line-height:1}
+.theme-toggle .icon{display:block;width:1rem;height:1rem;flex:none}
 [data-theme="dark"] .theme-toggle .icon-light,[data-theme="light"] .theme-toggle .icon-dark,:root:not([data-theme]) .theme-toggle .icon-dark{display:none}
 
 /* Article header — the "before you start" box. The tutorial's name on top in
