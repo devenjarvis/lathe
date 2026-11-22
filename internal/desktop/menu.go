@@ -115,10 +115,6 @@ func (mb *menuBar) run(sc shortcuts.Shortcut) {
 				// It waits on the network: not on the UI thread.
 				go u.checkNow()
 			}
-		case "app.settings", "agent.settings":
-			if err := mb.sh.openSettings(sc.Href); err != nil {
-				mb.sh.logf("could not open Settings: %v", err)
-			}
 		}
 	case shortcuts.HandlerPage:
 		if mb.srv.RunCommand(sc.ID) {

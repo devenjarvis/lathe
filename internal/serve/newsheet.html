@@ -69,7 +69,7 @@
     <fieldset class="new-field new-voices">
       <div class="new-legend-row">
         <legend class="new-label">Voice</legend>
-        <a class="new-manage" href="/-/settings#voices" data-settings-link>Manage voices…</a>
+        <a class="new-manage" href="/-/settings#voices">Manage voices…</a>
       </div>
       <div class="new-voice-list">
         {{range .Voices}}
@@ -117,7 +117,7 @@
     <p class="new-agent" id="newAgent">
       {{- if eq .Agent.Mode "agent"}}<span class="agent-dot" aria-hidden="true"></span> <strong>{{.Agent.Name}}</strong> writes Part 1{{with .Agent.Model}} · {{.}}{{end}} · It may ask a question or two
       {{- else if eq .Agent.Mode "worker"}}<span class="agent-dot" aria-hidden="true"></span> Your <code>/lathe-work</code> session writes Part 1 · It may ask a question or two
-      {{- else}}No agent is set up, so you get a <code>/lathe</code> command to paste into your coding agent. <a href="/-/settings#agent" data-settings-link>Set up an agent…</a>{{end -}}
+      {{- else}}No agent is set up, so you get a <code>/lathe</code> command to paste into your coding agent. <a href="/-/settings#agent">Set up an agent…</a>{{end -}}
     </p>
     <div class="new-actions">
       {{if .Page}}<a class="btn btn-ghost" href="/">Cancel</a>{{else}}<button type="button" class="btn btn-ghost" data-new-close>Cancel</button>{{end}}

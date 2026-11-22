@@ -76,9 +76,9 @@ const (
 	// them directly, and a desktop menu click reaches the focused page
 	// through the server (GET /-/native/commands).
 	HandlerPage Handler = "page"
-	// HandlerShell commands are the desktop shell's own (About, the
-	// Settings window). In a plain browser, those with an Href navigate
-	// there instead.
+	// HandlerShell commands are the desktop shell's own (About, Check for
+	// updates). In a plain browser, those with an Href navigate there
+	// instead.
 	HandlerShell Handler = "shell"
 	// HandlerNative commands are toolkit roles (Close, Quit): the menu item
 	// is the OS's own and the page never binds the combo, so a browser keeps
@@ -120,7 +120,7 @@ type Shortcut struct {
 var registry = []Shortcut{
 	// Lathe
 	{ID: "app.about", Label: "About Lathe", Menu: MenuLathe, Group: GroupWindows, Scope: ScopeGlobal, Handler: HandlerShell},
-	{ID: "app.settings", Label: "Settings…", Menu: MenuLathe, Group: GroupWindows, Scope: ScopeGlobal, Handler: HandlerShell,
+	{ID: "app.settings", Label: "Settings…", Menu: MenuLathe, Group: GroupWindows, Scope: ScopeGlobal, Handler: HandlerPage,
 		Mac: "Cmd+,", Other: "Ctrl+,", Href: "/-/settings",
 		Note: "⌘, is the macOS settings convention; Ctrl+, is free on Windows, GNOME and KDE."},
 	{ID: "app.welcome", Label: "Welcome to Lathe…", Menu: MenuLathe, Group: GroupWindows, Scope: ScopeGlobal, Handler: HandlerPage,
@@ -196,7 +196,7 @@ var registry = []Shortcut{
 	{ID: "agent.popout", Label: "Pop out", Menu: MenuAgent, Group: GroupAgent, Scope: ScopeTutorial, Handler: HandlerPage,
 		Mac: "Cmd+Option+J", Other: "Ctrl+Shift+J",
 		Note: "Not Ctrl+Alt+J on Windows/Linux: Ctrl+Alt is AltGr on many layouts. ⌥⌘J/Ctrl+Shift+J are browser devtools consoles, so in plain lathe serve the browser may keep them."},
-	{ID: "agent.settings", Label: "Agent settings…", Menu: MenuAgent, Group: GroupAgent, Scope: ScopeGlobal, Handler: HandlerShell,
+	{ID: "agent.settings", Label: "Agent settings…", Menu: MenuAgent, Group: GroupAgent, Scope: ScopeGlobal, Handler: HandlerPage,
 		Href: "/-/settings#agent"},
 }
 

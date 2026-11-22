@@ -69,8 +69,7 @@ func TestMenuPlanCheckForUpdates(t *testing.T) {
 		}
 		if found == nil {
 			t.Fatalf("%s: no Check for updates… in the %s menu", goos, AppName)
-		}
-		if found.cmd.Stub || found.cmd.Handler != shortcuts.HandlerShell || found.accel != "" || found.label != "Check for updates…" {
+		} else if found.cmd.Stub || found.cmd.Handler != shortcuts.HandlerShell || found.accel != "" || found.label != "Check for updates…" {
 			t.Errorf("%s: Check for updates… = %+v", goos, *found)
 		}
 	}

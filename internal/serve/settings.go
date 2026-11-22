@@ -21,10 +21,10 @@ import (
 	"github.com/devenjarvis/lathe/internal/update"
 )
 
-// The Settings window (issue #131): one page at /-/settings with Agent,
+// The Settings page (issue #131): one page at /-/settings with Agent,
 // Voices, Library, Reading and Shortcuts tabs. The desktop app opens it in
-// its own window (Lathe › Settings…, ⌘,); plain `lathe serve` serves the same
-// page to a browser. Other screens deep-link to a tab with /-/settings#agent
+// place of the current page (Lathe › Settings…, ⌘,); plain `lathe serve`
+// serves the same page to a browser. Other screens deep-link to a tab with /-/settings#agent
 // and so on.
 //
 //	GET  /-/settings                 the page (tabs render as sections; JS shows one at a time)
@@ -47,7 +47,7 @@ var settingsTabs = []struct{ ID, Label string }{
 	{"shortcuts", "Shortcuts"},
 }
 
-// Shortcut is one row of the Settings window's read-only Shortcuts tab.
+// Shortcut is one row of the Settings page's read-only Shortcuts tab.
 // Label and Combo are for the server's platform (the desktop app's, and the
 // scripts-off fallback); the Mac*/Other* pairs let the page relabel itself
 // for the browser's platform, as the agent panel's key hints do, since a

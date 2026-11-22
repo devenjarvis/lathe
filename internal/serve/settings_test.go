@@ -53,7 +53,7 @@ func TestSettingsPageRendersEveryTab(t *testing.T) {
 			t.Errorf("settings page lacks the %s tab", id)
 		}
 	}
-	for _, want := range []string{"Claude Code", "plainspoken", "Keep verified code", "Remember my place", "Match system", "/lathe-work"} {
+	for _, want := range []string{"Claude Code", "plainspoken", "Keep verified code", "Remember my place", "Match system", "/lathe-work", `id="settingsBack"`} {
 		if !strings.Contains(page, want) {
 			t.Errorf("settings page lacks %q", want)
 		}
@@ -317,8 +317,12 @@ func TestSettingsNativeAffordances(t *testing.T) {
 	n := &revealNative{fakeNative: newFakeNative()}
 	srv.SetNative(n)
 	page := get(t, ts, "/-/settings")
-	if !strings.Contains(page, `id="revealTutorials"`) || !strings.Contains(page, `id="agentPathPick"`) || !strings.Contains(page, "/-/native/window") {
-		t.Error("desktop settings page lacks Show in Finder, Choose folder… or the window opener")
+	if !strings.Contains(page, `id="revealTutorials"`) || !strings.Contains(page, `id="agentPathPick"`) {
+		t.Error("desktop settings page lacks Show in Finder or Choose folder…")
+	}
+	// Settings opens in place in the app, so its Back link must show there.
+	if !strings.Contains(page, `id="settingsBack"`) || strings.Contains(page, "html[data-native] .settings-back") {
+		t.Error("desktop settings page hides its Back link")
 	}
 	if code, body := postSettings(t, ts, "/-/native/reveal", `{"what":"tutorials"}`); code != http.StatusNoContent {
 		t.Fatalf("reveal = %d %s", code, body)
@@ -330,19 +334,15 @@ func TestSettingsNativeAffordances(t *testing.T) {
 		t.Errorf("reveal of another folder = %d, want 400", code)
 	}
 
-	// The Settings window, at a tab, opens in an app window.
+	// Settings is a page of the window that asks for it: the shell opens
+	// no window for it.
 	for _, p := range []string{"/-/settings", "/-/settings#reading"} {
-		if code, body := postSettings(t, ts, "/-/native/window", `{"path":"`+p+`"}`); code != http.StatusNoContent {
-			t.Errorf("window %s = %d %s", p, code, body)
-		}
-	}
-	for _, p := range []string{"/-/settings#nope", "/-/settingsx", "/-/settings/../x"} {
 		if code, _ := postSettings(t, ts, "/-/native/window", `{"path":"`+p+`"}`); code != http.StatusBadRequest {
 			t.Errorf("window %s = %d, want 400", p, code)
 		}
 	}
 	n.mu.Lock()
-	if len(n.windows) != 2 || n.windows[1] != [2]string{"/-/settings#reading", "Settings"} {
+	if len(n.windows) != 0 {
 		t.Errorf("windows = %v", n.windows)
 	}
 	n.mu.Unlock()

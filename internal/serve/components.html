@@ -20,7 +20,7 @@
   <noscript><style>.mermaid{display:none}</style></noscript>
   {{- $p := prefs}}
   <script>
-    // The theme comes from the Settings window's appearance (config.json, so
+    // The theme comes from the Settings page's appearance (config.json, so
     // every window agrees). Before the reader ever picks one it falls back to
     // the old per-browser toggle in localStorage, then the system setting.
     (function(){
@@ -77,15 +77,15 @@
         var next = dir === 0 ? 'default' : P.sizes[Math.max(0, Math.min(P.sizes.length - 1, i + dir))];
         if (next !== P.text_size) save({text_size: next}).catch(function(){});
       }
+      // Settings is a page of this window, in the app as in a browser.
       function openSettings(tab){
         var path = '/-/settings' + (tab ? '#' + tab : '');
-        {{- if .Native}}
-        fetch('/-/native/window', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({path: path})})
-          .catch(function(){ location.href = path; });
-        return;
-        {{- end}}
         if (location.pathname === '/-/settings') {
-          if (tab) location.hash = tab;
+          // Swap tabs without a history entry, so Back still leaves Settings.
+          if (tab && location.hash !== '#' + tab) {
+            history.replaceState(null, '', '#' + tab);
+            window.dispatchEvent(new HashChangeEvent('hashchange'));
+          }
         } else {
           location.href = path;
         }
@@ -98,15 +98,6 @@
       };
       // ⌘, and ⌘+ / ⌘− / ⌘0 are in the shortcut registry (internal/shortcuts,
       // shortcuts.js), which calls openSettings and step.
-      // Settings links ([data-settings-link]) open the Settings window in the
-      // desktop app instead of navigating this one.
-      document.addEventListener('click', function(ev){
-        if (ev.defaultPrevented || ev.button !== 0 || !root.hasAttribute('data-native')) return;
-        var a = ev.target.closest && ev.target.closest('a[data-settings-link]');
-        if (!a) return;
-        ev.preventDefault();
-        openSettings((a.getAttribute('href') || '').split('#')[1] || '');
-      });
     })();
   </script>
   <style>{{.CSS}}{{.HighlightCSS}}</style>
@@ -114,10 +105,9 @@
   <style id="lathePrefs">html{font-size:{{$p.FontSize}}}:root{--measure:{{$p.Measure}}}</style>
 {{end}}
 
-{{/* settingsLink — a link to the Settings window (or one of its tabs, with
-     "#agent" etc. as the argument). The desktop app opens it in its own
-     window (see the head script). */}}
-{{define "settingsLink"}}<a class="settings-link" href="/-/settings{{if .}}#{{.}}{{end}}" data-settings-link>{{if eq . "agent"}}Agent settings…{{else}}Settings{{end}}</a>{{end}}
+{{/* settingsLink — a link to the Settings page (or one of its tabs, with
+     "#agent" etc. as the argument). */}}
+{{define "settingsLink"}}<a class="settings-link" href="/-/settings{{if .}}#{{.}}{{end}}">{{if eq . "agent"}}Agent settings…{{else}}Settings{{end}}</a>{{end}}
 
 {{/* badge — renders a quiet status marker: a colored dot + a muted serif label
      (no emoji). Dot (.) is a store.Status. Unverified (and any unknown value)
@@ -134,12 +124,13 @@
 {{- end}}
 {{end}}
 
-{{/* themeToggle — the dark-mode button. JS attaches to every [data-theme-toggle]
-     element, so the sidebar, bottom dock, and list-page copies all stay in
-     sync. The empty .label is filled in by JS ("Dark mode" / "Light mode"). */}}
+{{/* themeToggle — the dark-mode button, a ☀/☾ icon. JS attaches to every
+     [data-theme-toggle] element, so the sidebar, bottom dock, and list-page
+     copies all stay in sync. The visually hidden .label is filled in by JS
+     ("Dark mode" / "Light mode"). */}}
 {{define "themeToggle"}}
-  <button type="button" class="theme-toggle" data-theme-toggle aria-label="Toggle dark mode">
-    <span class="icon icon-light">☀</span><span class="icon icon-dark">☾</span>
+  <button type="button" class="theme-toggle" data-theme-toggle aria-label="Toggle dark mode" title="Switch between light and dark">
+    <svg class="icon icon-light" viewBox="0 0 20 20" width="16" height="16" aria-hidden="true" focusable="false"><circle cx="10" cy="10" r="3.6" fill="currentColor"/><path d="M10 1.8v2.4M10 15.8v2.4M1.8 10h2.4M15.8 10h2.4M4.2 4.2l1.7 1.7M14.1 14.1l1.7 1.7M4.2 15.8l1.7-1.7M14.1 5.9l1.7-1.7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><svg class="icon icon-dark" viewBox="0 0 20 20" width="16" height="16" aria-hidden="true" focusable="false"><path d="M15.6 12.6A6.6 6.6 0 0 1 7.4 4.4a6.6 6.6 0 1 0 8.2 8.2Z" transform="translate(.86 -.86)" fill="currentColor"/></svg>
     <span class="label"></span>
   </button>
 {{end}}

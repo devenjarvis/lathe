@@ -279,7 +279,7 @@ func TestMenuCommandsReachTheFocusedPage(t *testing.T) {
 	n.waitState(t, func(st MenuState) bool { return st.Path == "/series/part-01.md" && len(st.Enabled) == 0 })
 
 	// Unknown, shell and native ids are dropped (the registry has no stubs left).
-	if code := postContext(t, ts, part.client, "reading.next", "agent.check", "nope", "app.settings", "window.close"); code != http.StatusNoContent {
+	if code := postContext(t, ts, part.client, "reading.next", "agent.check", "nope", "app.updates", "window.close"); code != http.StatusNoContent {
 		t.Fatalf("context = %d", code)
 	}
 	st := n.waitState(t, func(st MenuState) bool { return len(st.Enabled) > 0 })
@@ -293,7 +293,7 @@ func TestMenuCommandsReachTheFocusedPage(t *testing.T) {
 	if ev := part.next(t); ev[0] != "command" || ev[1] != `{"id":"reading.next"}` {
 		t.Errorf("event = %v", ev)
 	}
-	for _, id := range []string{"reading.prev", "app.settings", "nope"} {
+	for _, id := range []string{"reading.prev", "app.updates", "nope"} {
 		if srv.RunCommand(id) {
 			t.Errorf("RunCommand(%s) delivered", id)
 		}
@@ -302,9 +302,9 @@ func TestMenuCommandsReachTheFocusedPage(t *testing.T) {
 
 	// Home can't switch on tutorial commands. A newer page takes the focus.
 	home := openCommands(t, ts, "/")
-	postContext(t, ts, home.client, "reading.next", "library.home")
+	postContext(t, ts, home.client, "reading.next", "library.home", "app.settings")
 	st = n.waitState(t, func(st MenuState) bool { return st.Path == "/" && len(st.Enabled) > 0 })
-	if st.Scope != shortcuts.ScopeHome || len(st.Enabled) != 1 || !st.Enabled["library.home"] {
+	if st.Scope != shortcuts.ScopeHome || len(st.Enabled) != 2 || !st.Enabled["library.home"] || !st.Enabled["app.settings"] {
 		t.Errorf("home state = %+v", st)
 	}
 	if !srv.RunCommand("library.home") {
@@ -312,6 +312,13 @@ func TestMenuCommandsReachTheFocusedPage(t *testing.T) {
 	}
 	if ev := home.next(t); ev[1] != `{"id":"library.home"}` {
 		t.Errorf("home event = %v", ev)
+	}
+	// Settings opens in the page that asked, not a window of its own.
+	if !srv.RunCommand("app.settings") {
+		t.Fatal("settings not delivered")
+	}
+	if ev := home.next(t); ev[1] != `{"id":"app.settings"}` {
+		t.Errorf("settings event = %v", ev)
 	}
 	part.none(t)
 

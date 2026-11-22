@@ -21,7 +21,7 @@ import (
 // server.
 //
 //	POST /-/native/pick-folder  {"slug"}  → {"path", "display"} ("" when cancelled)
-//	POST /-/native/window       {"path"}  → 204 (a tutorial, a pop-out or Settings; native_window.go)
+//	POST /-/native/window       {"path"}  → 204 (a tutorial or a pop-out; native_window.go)
 //	POST /-/native/view         {"client", "scroll"} → 204 (scroll position for restore on launch)
 //	POST /-/native/drop/…       folder drops (native_drop.go)
 //	POST /-/native/open-url     {"url"}   → 204 (links to other sites; nativeLinks in components.html)
@@ -53,7 +53,7 @@ func (s *Server) handleNativePickFolder(w http.ResponseWriter, r *http.Request) 
 	}
 	var payload struct {
 		Slug string `json:"slug"`
-		// For is "agent-path" when the Settings window's Agent tab picks a
+		// For is "agent-path" when Settings › Agent picks a
 		// folder to search for agents, and "new-workspace" when the New
 		// tutorial sheet picks the workspace (starting at Path, or the
 		// nearest folder of it that exists), and "code-root" when the
@@ -151,8 +151,8 @@ func nearestDir(p string) string {
 // open. Only these are accepted, so a page can't make the shell open
 // anything else: a tutorial's reading page ("/{slug}/" or "/{slug}/{part}",
 // optionally with a heading #id; see tutorialPage), the agent panel's
-// pop-out of a real part ("/{slug}/{part}?agent=popout"), and the Settings
-// window ("/-/settings", optionally with a #tab).
+// pop-out of a real part ("/{slug}/{part}?agent=popout"). Settings is a
+// page of the window that asks for it, never a window of its own.
 func (s *Server) handleNativeWindow(w http.ResponseWriter, r *http.Request) {
 	n := s.nativeShell()
 	if n == nil {
@@ -167,14 +167,6 @@ func (s *Server) handleNativeWindow(w http.ResponseWriter, r *http.Request) {
 		Path string `json:"path"`
 	}
 	if !readJSONBody(w, r, maxNativeBody, &payload) {
-		return
-	}
-	if settingsWindowPath(payload.Path) {
-		if err := n.OpenWindow(payload.Path, "Settings"); err != nil {
-			http.Error(w, "could not open a window: "+err.Error(), http.StatusInternalServerError)
-			return
-		}
-		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 	if tut, ok := s.tutorialPage(payload.Path); ok {
@@ -504,28 +496,6 @@ func (s *Server) workJobFinished(job queue.Job) {
 		return
 	}
 	s.notifyJob(jobOutcome{job: kind, tutDir: tutDir, part: job.Part, since: job.CreatedAt})
-}
-
-// settingsWindowPath reports whether path is the Settings window, optionally
-// opened at one of its tabs ("/-/settings#agent").
-func settingsWindowPath(path string) bool {
-	rest, ok := strings.CutPrefix(path, "/-/settings")
-	if !ok {
-		return false
-	}
-	if rest == "" {
-		return true
-	}
-	tab, ok := strings.CutPrefix(rest, "#")
-	if !ok {
-		return false
-	}
-	for _, t := range settingsTabs {
-		if t.ID == tab {
-			return true
-		}
-	}
-	return false
 }
 
 // FolderRevealer is an optional part of a Native shell: it shows a folder in

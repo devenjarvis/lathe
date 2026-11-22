@@ -158,7 +158,7 @@ func TestNewSheetPage(t *testing.T) {
 		// Voices: the default first, checked and marked, with a sample.
 		`<input type="radio" name="voice" value="plainspoken" checked>`,
 		`<span class="new-voice-default">Default</span>`,
-		`<a class="new-manage" href="/-/settings#voices" data-settings-link>Manage voices…</a>`,
+		`<a class="new-manage" href="/-/settings#voices">Manage voices…</a>`,
 		// <code root>/<slug>, followed by the server while unedited.
 		`value="~/code/granular-synth-zig"`,
 		`<input type="hidden" name="workspaceAuto" value="~/code/granular-synth-zig">`,
@@ -218,8 +218,8 @@ func TestEveryPageOpensTheSheet(t *testing.T) {
 	if !strings.Contains(home, `<a class="new-open" href="/-/new" data-new-open`) {
 		t.Error("Home's title bar lacks the New tutorial button")
 	}
-	if !strings.Contains(get(t, ts, "/digital-synth-zig/part-01.md"), `<a class="new-open" href="/-/new" data-new-open`) {
-		t.Error("the reading page's title bar lacks the New tutorial button")
+	if strings.Contains(get(t, ts, "/digital-synth-zig/part-01.md"), `<a class="new-open" href="/-/new" data-new-open`) {
+		t.Error("the reading page's title bar still shows New tutorial; ⌘N and the File menu open it there")
 	}
 	// Settings › Shortcuts lists it now that it is built.
 	if !strings.Contains(get(t, ts, "/-/settings"), "<dt>New tutorial…</dt>") {

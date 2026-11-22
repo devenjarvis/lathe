@@ -79,7 +79,7 @@ type Server struct {
 	// notifications, windows); nil in a plain browser. See native.go.
 	native   Native
 	nativeMu sync.RWMutex
-	// settingsTmpl renders the Settings window (/-/settings, settings.go).
+	// settingsTmpl renders the Settings page (/-/settings, settings.go).
 	settingsTmpl *template.Template
 	// newTmpl renders the New tutorial sheet: the /-/new page and the
 	// fragment the sheet loads (new_sheet.go).
@@ -262,7 +262,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /-/agent", s.handleAgentPick)
 	mux.HandleFunc("POST /-/agent/restart", s.handleAgentRestart)
 	mux.HandleFunc("POST /-/workspace/{slug}", s.handleWorkspace)
-	// The Settings window (settings.go).
+	// The Settings page (settings.go).
 	mux.HandleFunc("GET /-/welcome", s.handleWelcome)
 	mux.HandleFunc("POST /-/welcome", s.handleWelcomePost)
 	mux.HandleFunc("GET /-/settings", s.handleSettings)
@@ -748,7 +748,7 @@ func (s *Server) renderPart(w http.ResponseWriter, tut *store.Tutorial, tutDir, 
 		"AgentName":      agentName,
 		"WorkspacePath":  workspacePath,
 		"WorkspaceShort": workspaceShort,
-		// WorkspaceSuggest is <code_root>/<slug>, the Settings window's code
+		// WorkspaceSuggest is <code_root>/<slug>, the Settings page's code
 		// folder root applied to this tutorial (the field's placeholder).
 		"WorkspaceSuggest":  config.CodeRootFor(config.LoadSettings().CodeRoot, tut.Slug),
 		"LastPart":          lastPart(tut),

@@ -129,7 +129,7 @@ func (s *Server) handleAgentRestart(w http.ResponseWriter, r *http.Request) {
 
 // panelSuggestions reports whether the agent panel offers its one context
 // suggestion ("Want feedback on your code? Check my work"). It is the page's
-// .PanelSuggestions: on by default; the Settings window's "suggestions in
+// .PanelSuggestions: on by default; the Settings page's "suggestions in
 // the panel" key (config panel_suggestions) turns it off.
 func (s *Server) panelSuggestions() bool {
 	return !s.noPanelSuggestions && config.LoadSettings().PanelSuggestions

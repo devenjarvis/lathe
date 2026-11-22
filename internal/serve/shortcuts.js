@@ -29,6 +29,10 @@
 
   function $(sel) { return document.querySelector(sel); }
   function go(href) { return function () { location.href = href; }; }
+  function openSettings(tab) {
+    if (window.lathePrefs && window.lathePrefs.openSettings) window.lathePrefs.openSettings(tab);
+    else location.href = '/-/settings' + (tab ? '#' + tab : '');
+  }
   function clickable(sel) { var n = $(sel); return n && !n.disabled ? n : null; }
 
   function setTheme(want) {
@@ -71,6 +75,9 @@
     'library.home': {run: go('/')},
     // The first-launch setup, again (welcome.go).
     'app.welcome': {when: function () { return !popout; }, run: go('/-/welcome')},
+    // Settings opens in this window, at the asked-for tab (components.html).
+    'app.settings': {when: function () { return !popout; }, run: function () { openSettings(''); }},
+    'agent.settings': {when: function () { return !popout; }, run: function () { openSettings('agent'); }},
     // Go to anything: the palette (palette.js, included with this script).
     'library.goto': {
       when: function () { return !popout && !!window.lathePalette; },
@@ -171,8 +178,8 @@
       var a = actions[id];
       return !!a && (!a.when || !!a.when());
     }
-    // A shell command with a page to go to (Settings) works in a browser
-    // as a navigation; in the app the shell handles it.
+    // A shell command with a page to go to works in a browser as a
+    // navigation; in the app the shell handles it.
     return s.handler === 'shell' && !!s.href && !native;
   }
 
