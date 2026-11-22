@@ -102,6 +102,28 @@ func Desktop() error {
 	return cmd.Run()
 }
 
+// App builds Lathe.app for this Mac's architecture with build/darwin/package.sh
+// and installs it into /Applications (or $APP_DIR), so it opens from the Dock,
+// Launchpad and Spotlight. The bundle is ad-hoc signed, like a release build
+// without signing secrets. macOS only.
+func App() error {
+	if runtime.GOOS != "darwin" {
+		return fmt.Errorf("mage app builds a macOS .app; on %s use `mage desktop`", runtime.GOOS)
+	}
+	dir := os.Getenv("APP_DIR")
+	if dir == "" {
+		dir = "/Applications"
+	}
+	cmd := exec.Command("build/darwin/package.sh")
+	cmd.Env = append(os.Environ(),
+		"VERSION="+gitDescribe(),
+		"ARCHES="+runtime.GOARCH,
+		"INSTALL_DIR="+dir,
+	)
+	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
+	return cmd.Run()
+}
+
 // darwinMinOS must match MIN_MACOS in build/darwin/package.sh and
 // LSMinimumSystemVersion in build/darwin/Info.plist.
 const darwinMinOS = "12.0"

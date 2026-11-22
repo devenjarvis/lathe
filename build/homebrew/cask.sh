@@ -10,8 +10,10 @@
 #
 # The cask installs Lathe.app into /Applications and links the CLI from inside
 # the bundle, so `lathe` on the terminal is the same signed binary as the app.
-# No quarantine-stripping postflight: the app is Developer ID signed, notarized
-# and stapled, so Gatekeeper accepts it as downloaded.
+# The postflight strips the quarantine flag because release builds are only
+# ad-hoc signed until Developer ID signing is enabled (MACOS_REQUIRE_SIGNING in
+# release.yml); without it Gatekeeper refuses to open the app. Remove the
+# postflight once releases are signed, notarized and stapled.
 set -eu
 
 version=${1:?usage: cask.sh <version> <sha256>}
@@ -39,6 +41,10 @@ cask "lathe" do
 
   app "Lathe.app"
   binary "#{appdir}/Lathe.app/Contents/MacOS/lathe"
+
+  postflight_steps do
+    run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{appdir}}/Lathe.app"]
+  end
 
   # Tutorials in ~/.lathe are the user's data and are deliberately not zapped.
   zap trash: [
