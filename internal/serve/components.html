@@ -81,7 +81,11 @@
       function openSettings(tab){
         var path = '/-/settings' + (tab ? '#' + tab : '');
         if (location.pathname === '/-/settings') {
-          if (tab) location.hash = tab;
+          // Swap tabs without a history entry, so Back still leaves Settings.
+          if (tab && location.hash !== '#' + tab) {
+            history.replaceState(null, '', '#' + tab);
+            window.dispatchEvent(new HashChangeEvent('hashchange'));
+          }
         } else {
           location.href = path;
         }
@@ -103,7 +107,7 @@
 
 {{/* settingsLink — a link to the Settings page (or one of its tabs, with
      "#agent" etc. as the argument). */}}
-{{define "settingsLink"}}<a class="settings-link" href="/-/settings{{if .}}#{{.}}{{end}}" data-settings-link>{{if eq . "agent"}}Agent settings…{{else}}Settings{{end}}</a>{{end}}
+{{define "settingsLink"}}<a class="settings-link" href="/-/settings{{if .}}#{{.}}{{end}}">{{if eq . "agent"}}Agent settings…{{else}}Settings{{end}}</a>{{end}}
 
 {{/* badge — renders a quiet status marker: a colored dot + a muted serif label
      (no emoji). Dot (.) is a store.Status. Unverified (and any unknown value)

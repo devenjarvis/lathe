@@ -8,8 +8,8 @@
    The idea: the 80s computer books and magazines you learned from by typing a
    program in yourself. Warm paper, navy ink, chunky rounded outlines, a yellow
    masthead, red for "do this" (commands, step numbers, the main button), teal
-   for "check this" (expected output, labels). Code you write sits on green-bar
-   printout paper. Dark mode is the same book read off the screen at night:
+   for "check this" (expected output, labels). Code you write sits in a plain
+   listing. Dark mode is the same book read off the screen at night:
    deep navy, cream text, and the yellow kept as the bright accent.
 
    One typeface, Recursive, does every job through its axes: Linear for prose,
@@ -41,8 +41,8 @@
   --accent:var(--red); --accent-hover:var(--red-hover); --accent-soft:#FFE7A3;
   --btn-on-accent:var(--on-red);
   --focus:#1C6FE0;
-  /* Code: commands are a navy panel in both themes; written code sits on
-     green-bar paper; inline code on a pale yellow chip. */
+  /* Code: commands are a navy panel in both themes; written code is a plain
+     listing; inline code on a pale yellow chip. */
   --cmd-bg:#1C2140; --cmd-text:#FFF4D6;
   --code-bg:#FFFFFF; --code-band:#E2F0DF; --code-text:#1C2140;
   --inline-code-bg:#FFE7A3;

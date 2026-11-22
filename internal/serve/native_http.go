@@ -21,7 +21,7 @@ import (
 // server.
 //
 //	POST /-/native/pick-folder  {"slug"}  → {"path", "display"} ("" when cancelled)
-//	POST /-/native/window       {"path"}  → 204 (a tutorial, a pop-out or Settings; native_window.go)
+//	POST /-/native/window       {"path"}  → 204 (a tutorial or a pop-out; native_window.go)
 //	POST /-/native/view         {"client", "scroll"} → 204 (scroll position for restore on launch)
 //	POST /-/native/drop/…       folder drops (native_drop.go)
 //	POST /-/native/open-url     {"url"}   → 204 (links to other sites; nativeLinks in components.html)
@@ -53,7 +53,7 @@ func (s *Server) handleNativePickFolder(w http.ResponseWriter, r *http.Request) 
 	}
 	var payload struct {
 		Slug string `json:"slug"`
-		// For is "agent-path" when the Settings window's Agent tab picks a
+		// For is "agent-path" when Settings › Agent picks a
 		// folder to search for agents, and "new-workspace" when the New
 		// tutorial sheet picks the workspace (starting at Path, or the
 		// nearest folder of it that exists), and "code-root" when the

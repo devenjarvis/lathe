@@ -53,7 +53,7 @@ func TestSettingsPageRendersEveryTab(t *testing.T) {
 			t.Errorf("settings page lacks the %s tab", id)
 		}
 	}
-	for _, want := range []string{"Claude Code", "plainspoken", "Keep verified code", "Remember my place", "Match system", "/lathe-work"} {
+	for _, want := range []string{"Claude Code", "plainspoken", "Keep verified code", "Remember my place", "Match system", "/lathe-work", `id="settingsBack"`} {
 		if !strings.Contains(page, want) {
 			t.Errorf("settings page lacks %q", want)
 		}
@@ -319,6 +319,10 @@ func TestSettingsNativeAffordances(t *testing.T) {
 	page := get(t, ts, "/-/settings")
 	if !strings.Contains(page, `id="revealTutorials"`) || !strings.Contains(page, `id="agentPathPick"`) {
 		t.Error("desktop settings page lacks Show in Finder or Choose folder…")
+	}
+	// Settings opens in place in the app, so its Back link must show there.
+	if !strings.Contains(page, `id="settingsBack"`) || strings.Contains(page, "html[data-native] .settings-back") {
+		t.Error("desktop settings page hides its Back link")
 	}
 	if code, body := postSettings(t, ts, "/-/native/reveal", `{"what":"tutorials"}`); code != http.StatusNoContent {
 		t.Fatalf("reveal = %d %s", code, body)

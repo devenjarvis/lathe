@@ -158,7 +158,7 @@ func TestNewSheetPage(t *testing.T) {
 		// Voices: the default first, checked and marked, with a sample.
 		`<input type="radio" name="voice" value="plainspoken" checked>`,
 		`<span class="new-voice-default">Default</span>`,
-		`<a class="new-manage" href="/-/settings#voices" data-settings-link>Manage voices…</a>`,
+		`<a class="new-manage" href="/-/settings#voices">Manage voices…</a>`,
 		// <code root>/<slug>, followed by the server while unedited.
 		`value="~/code/granular-synth-zig"`,
 		`<input type="hidden" name="workspaceAuto" value="~/code/granular-synth-zig">`,
