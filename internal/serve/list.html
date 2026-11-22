@@ -1058,11 +1058,8 @@
      Show Trash and the sidebar. */}}
 {{define "trashView"}}
   <div class="trash-view">
-    <div class="view-head">
-      <div class="view-title">
-        <h2>Trash <span class="shelf-count">{{.Count}}</span></h2>
-        <p class="shelf-desc">{{if .TrashDays}}Tutorials here are deleted for good {{.TrashDays}} days after you move them to the Trash.{{else}}Tutorials stay here until you delete them.{{end}} <a href="/-/settings#library">Change this in Settings</a></p>
-      </div>
+    <div class="view-head trash-head">
+      <h2>Trash <span class="shelf-count">{{.Count}}</span></h2>
       {{- if .Trash}}
       <details class="shelf-menu trash-empty">
         <summary class="btn btn-ghost btn-sm">Empty Trash…</summary>
@@ -1073,6 +1070,7 @@
       </details>
       {{- end}}
     </div>
+    <p class="shelf-desc trash-desc">{{if .TrashDays}}Tutorials here are deleted for good {{.TrashDays}} days after they arrive.{{else}}Tutorials stay here until you delete them.{{end}} <a href="/-/settings#library">Change this in Settings</a></p>
     {{if .Trash}}
     <ul class="trash-list">
       {{- range .Trash}}

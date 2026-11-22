@@ -248,7 +248,9 @@ pre[data-overflow="true"]{box-shadow:inset -18px 0 14px -12px rgba(28,33,64,.25)
    Each kind reads as what the reader does with it:
    - command: "type this" — red label pill, navy panel, Copy on the label row;
    - output:  "you should see" — teal label pill, dashed teal outline, no fill;
-   - code:    "write this" — a plain listing under a quiet label. */
+   - code:    "write this" — a plain listing with a line-number gutter, so
+              "line 12" means something. The numbers are generated content,
+              so copying the code leaves them behind. */
 .tutorial-block{margin:1.6rem 0;position:relative}
 .tutorial-block pre{margin:.45rem 0 0}
 .tutorial-block .tutorial-block-label{display:inline-block;font-size:.8125rem;font-weight:800;line-height:1.5;margin:0;padding:.15rem .8rem;border-radius:var(--radius-pill);background:var(--surface-sunken);color:var(--text);vertical-align:middle}
@@ -261,6 +263,9 @@ pre[data-overflow="true"]{box-shadow:inset -18px 0 14px -12px rgba(28,33,64,.25)
 .tutorial-block-command .copy-command{position:absolute;top:-.3rem;right:0;margin:0}
 .tutorial-block-output .tutorial-block-label{background:var(--teal-fill);color:var(--on-teal)}
 .tutorial-block-output pre,.tutorial-block-output pre.chroma,[data-theme="dark"] .tutorial-block-output pre.chroma{background:transparent;border:2px dashed var(--teal)}
+.tutorial-block-code pre code{counter-reset:ln}
+.tutorial-block-code pre .line{counter-increment:ln}
+.tutorial-block-code pre .line::before{content:counter(ln);display:inline-block;min-width:2.5ch;padding-right:.8rem;margin-right:.9rem;border-right:1px solid var(--border);color:var(--text-faint);text-align:right;user-select:none;-webkit-user-select:none}
 pre samp{background:none;padding:0;color:inherit;font-family:var(--font-mono);font-size:1em;white-space:pre;overflow-wrap:normal;word-wrap:normal}
 
 /* Callouts (emitted by renderer.go as <aside class="callout callout-TYPE">).
@@ -983,7 +988,7 @@ body.list h1{font-size:clamp(3rem,2rem + 4.5vw,5.25rem);font-weight:1000;margin:
    less air above it put the library first. */
 html[data-native] body.list{padding-top:1.25rem}
 html[data-native] body.list .header{align-items:center;margin-bottom:1.25rem}
-html[data-native] body.list .header > div{align-items:baseline}
+html[data-native] body.list .header > div:not(.header-tools){align-items:baseline}
 html[data-native] body.list h1{font-size:2.5rem;line-height:1}
 .subtitle{color:var(--text-muted);margin:0 0 .35rem;font-size:1.05rem;font-weight:600;max-width:24rem}
 .tutorial-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(15.5rem,1fr));gap:1.25rem}
@@ -1098,7 +1103,8 @@ html[data-native] body.list h1{font-size:2.5rem;line-height:1}
 .view-head{margin-bottom:1.25rem}
 .shelf-head h2,.view-head h2{margin:0;font-size:1.6rem;line-height:1.1;letter-spacing:-.02em}
 .view-head h2{font-size:clamp(1.8rem,1.4rem + 1.4vw,2.4rem)}
-.view-head h2 .shelf-count{vertical-align:middle}
+.view-head h2{display:flex;align-items:center;gap:.5rem}
+.view-head h2 .shelf-count{margin-left:0}
 .shelf-count{display:inline-block;vertical-align:.2em;margin-left:.3rem;padding:.05rem .55rem;border-radius:var(--radius-pill);background:var(--surface-sunken);color:var(--text-subtle);font-family:var(--font-sans);font-variation-settings:normal;font-size:.8125rem;font-weight:800;letter-spacing:0;font-variant-numeric:tabular-nums}
 .see-all{font-weight:850;color:var(--link);text-decoration:none;white-space:nowrap}
 .see-all:hover{text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:3px}
@@ -1274,7 +1280,9 @@ html[data-native] body.list h1{font-size:2.5rem;line-height:1}
 /* The heading row, its note and the list share one width, so Empty Trash…
    sits over the list's right edge. */
 .trash-view{max-width:52rem}
-.trash-view .shelf-desc{max-width:none}
+.trash-head{align-items:center;flex-wrap:wrap;margin-bottom:.4rem}
+.trash-desc{max-width:none;margin:0 0 1.25rem}
+.trash-desc a{white-space:nowrap}
 .trash-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.75rem}
 .trash-item{display:flex;align-items:center;justify-content:space-between;gap:.75rem 1.25rem;flex-wrap:wrap;padding:.9rem 1.1rem;background:var(--surface);border:var(--line) solid var(--rule);border-radius:var(--radius-lg)}
 .trash-info{display:flex;flex-direction:column;gap:.2rem;min-width:0;flex:1 1 18rem}
