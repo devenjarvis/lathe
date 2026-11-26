@@ -19,7 +19,10 @@ import (
 // as the app runs it.
 func dropServer(t *testing.T) (*Server, *httptest.Server, string) {
 	t.Helper()
-	home := t.TempDir()
+	home, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
 	t.Setenv("HOME", home)
 	dir, err := config.TutorialsDir()
 	if err != nil {

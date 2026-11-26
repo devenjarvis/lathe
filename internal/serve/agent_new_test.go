@@ -26,7 +26,10 @@ import (
 // a fake agent when mk is set.
 func newTutServer(t *testing.T, f *fakeHost, mk func() *acptest.Agent) (*Server, *httptest.Server, string) {
 	t.Helper()
-	home := t.TempDir()
+	home, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
 	t.Setenv("HOME", home)
 	tutorials := filepath.Join(home, ".lathe", "tutorials")
 	if err := os.MkdirAll(tutorials, 0o755); err != nil {
@@ -114,7 +117,10 @@ func TestAgentNewStoresIntoTheReservation(t *testing.T) {
 		scratch              string
 		baseURL              string // set before the first POST
 	)
-	ws := t.TempDir()
+	ws, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
 	srv, ts, tutorials := newTutServer(t, f, func() *acptest.Agent {
 		return &acptest.Agent{
 			Plan: []string{"Pin versions", "Write Part 1", "Store"},
