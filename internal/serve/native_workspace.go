@@ -235,7 +235,7 @@ func (s *Server) handleNativeOpenEditor(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	editor := config.LoadSettings().Editor
-	if editor == "" && target == root {
+	if editor == "" && path.Clean("/"+payload.Path) == "/" {
 		http.Error(w, "Choose an editor in Settings › Reading to open the folder in it.", http.StatusConflict)
 		return
 	}

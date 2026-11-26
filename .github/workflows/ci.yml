@@ -84,6 +84,12 @@ jobs:
             go test -tags desktop ./internal/desktop/ ./cmd/
           fi
 
+      # `check` runs the full suite on Linux only; macOS temp dirs sit behind
+      # a symlink (/var -> /private/var), which catches unresolved-path bugs.
+      - name: Test all packages (macOS)
+        if: runner.os == 'macOS'
+        run: go test ./...
+
       # Exercise the release packaging (universal build, bundle, icon, ad-hoc
       # codesign, smoke test) on every PR so it isn't first run on a tag.
       - name: Package Lathe.app (unsigned)
